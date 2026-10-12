@@ -188,7 +188,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         store.save(settings)
     }
 
-    fun setMode(m: CaptureMode) {
+    fun selectMode(m: CaptureMode) {
         if (m == mode || busy) return
         stopPlayback()
         timerJob?.cancel()

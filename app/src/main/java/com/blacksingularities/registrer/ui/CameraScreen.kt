@@ -396,7 +396,7 @@ fun CameraScreen(vm: CameraViewModel) {
                 selected = vm.mode,
                 enabled = !vm.busy,
                 haptics = haptics,
-                onSelect = vm::setMode,
+                onSelect = vm::selectMode,
             )
             Row(
                 Modifier
