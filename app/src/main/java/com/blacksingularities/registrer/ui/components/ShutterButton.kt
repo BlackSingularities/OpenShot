@@ -10,13 +10,20 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -45,13 +52,19 @@ fun ShutterButton(
     enabled: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    counter: Int? = null,
+    onLongPress: () -> Unit = {},
+    onRelease: () -> Unit = {},
 ) {
-    val interaction = remember { MutableInteractionSource() }
-    val pressed by interaction.collectIsPressedAsState()
+    var pressed by remember { mutableStateOf(false) }
+    val click by rememberUpdatedState(onClick)
+    val longPress by rememberUpdatedState(onLongPress)
+    val release by rememberUpdatedState(onRelease)
+    val measurer = rememberTextMeasurer()
     val scale by animateFloatAsState(if (pressed) 0.88f else 1f, spring(dampingRatio = 0.5f, stiffness = 600f), label = "scale")
     val inner by animateColorAsState(
         when (mode) {
-            CaptureMode.VIDEO -> Palette.Record
+            CaptureMode.VIDEO, CaptureMode.SLOWMO -> Palette.Record
             CaptureMode.AUDIO -> Palette.Amber
             CaptureMode.NIGHT -> Palette.Moon
             CaptureMode.PORTRAIT -> Color(0xFFFFE2C4)
@@ -71,7 +84,19 @@ fun ShutterButton(
             .size(86.dp)
             .graphicsLayer { scaleX = scale; scaleY = scale; alpha = if (enabled) 1f else 0.45f }
             .semantics { contentDescription = if (active) "Zatrzymaj" else "Wyzwól migawkę" }
-            .clickable(interactionSource = interaction, indication = null, enabled = enabled, onClick = onClick),
+            .pointerInput(enabled) {
+                if (!enabled) return@pointerInput
+                detectTapGestures(
+                    onPress = {
+                        pressed = true
+                        tryAwaitRelease()
+                        pressed = false
+                        release()
+                    },
+                    onLongPress = { longPress() },
+                    onTap = { click() },
+                )
+            },
     ) {
         val ringWidth = 4.dp.toPx()
         val radius = size.minDimension / 2f - ringWidth
@@ -91,6 +116,13 @@ fun ShutterButton(
 
         val arcInset = ringWidth / 2f
         val arcSize = Size(size.width - 2 * arcInset, size.height - 2 * arcInset)
+        if (counter != null) {
+            val layout = measurer.measure(
+                counter.toString(),
+                TextStyle(color = Palette.Ink, fontSize = 22.sp, fontWeight = FontWeight.Bold),
+            )
+            drawText(layout, topLeft = Offset(center.x - layout.size.width / 2f, center.y - layout.size.height / 2f))
+        }
         if (progress != null) {
             drawArc(
                 Palette.Amber, -90f, 360f * progress.coerceIn(0f, 1f), false,

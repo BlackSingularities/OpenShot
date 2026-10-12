@@ -1,6 +1,7 @@
 package com.blacksingularities.registrer
 
 import android.Manifest
+import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.view.KeyEvent
@@ -20,6 +21,8 @@ import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import com.blacksingularities.registrer.data.ScreenRotation
+import com.blacksingularities.registrer.fold.RearDisplay
 import com.blacksingularities.registrer.ui.CameraScreen
 import com.blacksingularities.registrer.ui.CameraViewModel
 import com.blacksingularities.registrer.ui.components.PermissionScreen
@@ -27,6 +30,7 @@ import com.blacksingularities.registrer.ui.theme.RegistrerTheme
 
 class MainActivity : ComponentActivity() {
     private val vm: CameraViewModel by viewModels()
+    private lateinit var rearDisplay: RearDisplay
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -37,6 +41,13 @@ class MainActivity : ComponentActivity() {
             systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
             isAppearanceLightStatusBars = false
         }
+
+        rearDisplay = RearDisplay(
+            activity = this,
+            onAvailable = { vm.rearDisplayAvailable = it },
+            onActive = { vm.onRearDisplayChanged(it) },
+        )
+        rearDisplay.observe(this)
 
         setContent {
             RegistrerTheme {
@@ -50,7 +61,14 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(Unit) {
                     if (!cameraGranted || !isGranted(Manifest.permission.RECORD_AUDIO)) request()
                 }
-                if (cameraGranted) CameraScreen(vm) else PermissionScreen(onRequest = request)
+                // Stały ekran (obracają się tylko elementy) albo pełny obrót zgodny z blokadą systemu.
+                LaunchedEffect(vm.global.screenRotation) {
+                    requestedOrientation = when (vm.global.screenRotation) {
+                        ScreenRotation.FIXED -> ActivityInfo.SCREEN_ORIENTATION_NOSENSOR
+                        ScreenRotation.AUTO -> ActivityInfo.SCREEN_ORIENTATION_FULL_USER
+                    }
+                }
+                if (cameraGranted) CameraScreen(vm, onToggleRearDisplay = rearDisplay::toggle) else PermissionScreen(onRequest = request)
             }
         }
     }

@@ -47,8 +47,11 @@ import kotlin.math.atan2
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
-/** Prostokąt obrazu przy skalowaniu FIT_START (wyrównanie do góry, wyśrodkowanie w poziomie). */
-fun imageRect(container: Size, ratio: Float): Rect {
+/**
+ * Prostokąt obrazu przy skalowaniu FIT_START (wyrównanie do góry, wyśrodkowanie w poziomie)
+ * albo FIT_CENTER, gdy [centered].
+ */
+fun imageRect(container: Size, ratio: Float, centered: Boolean = false): Rect {
     if (container.width <= 0f || container.height <= 0f) return Rect.Zero
     var w = container.width
     var h = w / ratio
@@ -57,14 +60,15 @@ fun imageRect(container: Size, ratio: Float): Rect {
         w = h * ratio
     }
     val left = (container.width - w) / 2f
-    return Rect(left, 0f, left + w, h)
+    val top = if (centered) (container.height - h) / 2f else 0f
+    return Rect(left, top, left + w, top + h)
 }
 
 @Composable
-fun GridOverlay(type: GridType, ratio: Float, modifier: Modifier = Modifier) {
+fun GridOverlay(type: GridType, ratio: Float, modifier: Modifier = Modifier, centered: Boolean = false) {
     if (type == GridType.NONE) return
     Canvas(modifier) {
-        val r = imageRect(size, ratio)
+        val r = imageRect(size, ratio, centered)
         val c = Color.White.copy(alpha = 0.32f)
         val sw = 1.dp.toPx()
         fun v(fx: Float) = drawLine(c, Offset(r.left + r.width * fx, r.top), Offset(r.left + r.width * fx, r.bottom), sw)
@@ -100,13 +104,20 @@ fun GridOverlay(type: GridType, ratio: Float, modifier: Modifier = Modifier) {
  * znacznik ekranu. Gdy się pokryją (±1°), linia zmienia kolor i telefon delikatnie „klika”.
  */
 @Composable
-fun LevelOverlay(ratio: Float, haptics: Boolean, modifier: Modifier = Modifier) {
+fun LevelOverlay(
+    ratio: Float,
+    haptics: Boolean,
+    modifier: Modifier = Modifier,
+    centered: Boolean = false,
+    displayDegrees: Int = 0,
+) {
     val context = LocalContext.current
     val haptic = LocalHapticFeedback.current
     var angle by remember { mutableFloatStateOf(0f) }
     var flat by remember { mutableStateOf(true) }
     var wasLevel by remember { mutableStateOf(false) }
 
+    val displayOffset by rememberUpdatedState(displayDegrees.toFloat())
     DisposableEffect(Unit) {
         val sm = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
         val sensor = sm.getDefaultSensor(Sensor.TYPE_GRAVITY) ?: sm.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
@@ -121,7 +132,7 @@ fun LevelOverlay(ratio: Float, haptics: Boolean, modifier: Modifier = Modifier) 
                 while (diff > 180f) diff -= 360f
                 while (diff < -180f) diff += 360f
                 smooth += diff * 0.2f
-                angle = smooth
+                angle = smooth - displayOffset
             }
 
             override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
@@ -141,7 +152,7 @@ fun LevelOverlay(ratio: Float, haptics: Boolean, modifier: Modifier = Modifier) 
     if (abs(deviation) > 25f) return
 
     Canvas(modifier) {
-        val r = imageRect(size, ratio)
+        val r = imageRect(size, ratio, centered)
         val c = r.center
         val len = minOf(r.width, r.height) * 0.22f
         val color = if (level) Palette.Amber else Color.White.copy(alpha = 0.85f)

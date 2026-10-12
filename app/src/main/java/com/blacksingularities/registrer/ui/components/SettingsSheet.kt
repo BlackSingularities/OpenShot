@@ -1,20 +1,71 @@
 package com.blacksingularities.registrer.ui.components
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Alarm
+import androidx.compose.material.icons.rounded.AspectRatio
+import androidx.compose.material.icons.rounded.Autorenew
+import androidx.compose.material.icons.rounded.BarChart
+import androidx.compose.material.icons.rounded.Bolt
+import androidx.compose.material.icons.rounded.Brightness4
+import androidx.compose.material.icons.rounded.BurstMode
+import androidx.compose.material.icons.rounded.CameraAlt
+import androidx.compose.material.icons.rounded.CenterFocusStrong
+import androidx.compose.material.icons.rounded.DataUsage
+import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.Face
+import androidx.compose.material.icons.rounded.Flip
+import androidx.compose.material.icons.rounded.GraphicEq
+import androidx.compose.material.icons.rounded.GridOn
+import androidx.compose.material.icons.rounded.HdrOn
+import androidx.compose.material.icons.rounded.HighQuality
+import androidx.compose.material.icons.rounded.Image
+import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Layers
+import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.material.icons.rounded.Movie
+import androidx.compose.material.icons.rounded.NightsStay
+import androidx.compose.material.icons.rounded.PhotoCamera
+import androidx.compose.material.icons.rounded.Portrait
+import androidx.compose.material.icons.rounded.RestartAlt
+import androidx.compose.material.icons.rounded.ScreenRotation
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.SlowMotionVideo
+import androidx.compose.material.icons.rounded.Speed
+import androidx.compose.material.icons.rounded.Straighten
+import androidx.compose.material.icons.rounded.SystemUpdate
+import androidx.compose.material.icons.rounded.Timer
+import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.Vibration
+import androidx.compose.material.icons.rounded.Videocam
+import androidx.compose.material.icons.rounded.VolumeUp
+import androidx.compose.material.icons.rounded.ZoomIn
+import androidx.compose.material.icons.rounded.AvTimer
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -25,178 +76,538 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.blacksingularities.registrer.BuildConfig
-import com.blacksingularities.registrer.data.AppSettings
+import com.blacksingularities.registrer.camera.CameraCaps
+import com.blacksingularities.registrer.camera.CaptureMode
 import com.blacksingularities.registrer.data.AspectRatioMode
 import com.blacksingularities.registrer.data.AudioPreset
 import com.blacksingularities.registrer.data.AudioSourceType
+import com.blacksingularities.registrer.data.CapturePriority
+import com.blacksingularities.registrer.data.GlobalSettings
 import com.blacksingularities.registrer.data.GridType
-import com.blacksingularities.registrer.data.VideoResolution
+import com.blacksingularities.registrer.data.ModeSettings
+import com.blacksingularities.registrer.data.PhotoFormat
+import com.blacksingularities.registrer.data.PortraitEffect
+import com.blacksingularities.registrer.data.VideoBitrate
+import com.blacksingularities.registrer.data.VideoFps
 import com.blacksingularities.registrer.data.VolumeAction
+import com.blacksingularities.registrer.data.ScreenRotation
 import com.blacksingularities.registrer.ui.theme.Palette
+import com.blacksingularities.registrer.update.UpdateManager
+import com.blacksingularities.registrer.update.UpdateState
+import java.util.Locale
 import kotlin.math.roundToInt
 
+fun modeIcon(mode: CaptureMode): ImageVector = when (mode) {
+    CaptureMode.NIGHT -> Icons.Rounded.NightsStay
+    CaptureMode.PORTRAIT -> Icons.Rounded.Portrait
+    CaptureMode.PHOTO -> Icons.Rounded.PhotoCamera
+    CaptureMode.HDR -> Icons.Rounded.HdrOn
+    CaptureMode.PRO -> Icons.Rounded.Tune
+    CaptureMode.VIDEO -> Icons.Rounded.Videocam
+    CaptureMode.SLOWMO -> Icons.Rounded.SlowMotionVideo
+    CaptureMode.AUDIO -> Icons.Rounded.Mic
+}
+
+/** Zakładka ustawień: profil trybu albo ustawienia ogólne (null). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsSheet(
-    settings: AppSettings,
+    initialMode: CaptureMode,
+    modes: List<CaptureMode>,
+    profiles: Map<CaptureMode, ModeSettings>,
+    global: GlobalSettings,
+    caps: CameraCaps,
     locked: Boolean,
-    onChange: ((AppSettings) -> AppSettings) -> Unit,
+    update: UpdateState,
+    onProfile: (CaptureMode, (ModeSettings) -> ModeSettings) -> Unit,
+    onGlobal: ((GlobalSettings) -> GlobalSettings) -> Unit,
+    onReset: (CaptureMode) -> Unit,
+    onCheckUpdate: () -> Unit,
+    onDownloadUpdate: () -> Unit,
+    onInstallUpdate: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var tab by remember { mutableStateOf<CaptureMode?>(initialMode) }
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = state,
         containerColor = Palette.Panel,
         contentColor = Color.White,
     ) {
-        Column(
-            Modifier
-                .fillMaxWidth()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp)
-                .navigationBarsPadding(),
-        ) {
-            Text("Ustawienia", fontSize = 22.sp, fontWeight = FontWeight.Bold)
-            if (locked) {
-                Text("Część opcji jest zablokowana podczas nagrywania.", color = Palette.TextDim, fontSize = 13.sp)
+        Column(Modifier.fillMaxWidth().navigationBarsPadding()) {
+            Row(Modifier.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text("Ustawienia", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        tab?.let { "Profil trybu ${it.label} – zapisywany osobno" } ?: "Wspólne dla całej aplikacji",
+                        color = Palette.TextDim,
+                        fontSize = 12.sp,
+                    )
+                }
             }
-
-            Section("Zdjęcia")
-            Choice("Proporcje", AspectRatioMode.entries, settings.aspect, { it.label }, !locked) { v -> onChange { it.copy(aspect = v) } }
-            Choice("Siatka", GridType.entries, settings.grid, { it.label }) { v -> onChange { it.copy(grid = v) } }
-            Choice("Samowyzwalacz", listOf(0, 3, 10), settings.timerSeconds, { if (it == 0) "Wył." else "$it s" }) { v -> onChange { it.copy(timerSeconds = v) } }
-            Choice("Klatki trybu Noc", listOf(4, 6, 8, 12), settings.nightFrames, { "×$it" }) { v -> onChange { it.copy(nightFrames = v) } }
-            Toggle("Priorytet jakości", "Wolniejsza migawka, lepsza redukcja szumów", settings.maxQuality, !locked) { v -> onChange { it.copy(maxQuality = v) } }
-            JpegSlider(settings.jpegQuality, !locked) { v -> onChange { it.copy(jpegQuality = v) } }
-            Toggle("Poziomica", "Linia horyzontu z czujnika grawitacji", settings.level) { v -> onChange { it.copy(level = v) } }
-            Toggle("Histogram na żywo", "Kontrola prześwietleń i niedoświetleń", settings.histogram, !locked) { v -> onChange { it.copy(histogram = v) } }
-
-            Section("Wideo")
-            Choice("Rozdzielczość", VideoResolution.entries, settings.videoResolution, { it.label }, !locked) { v -> onChange { it.copy(videoResolution = v) } }
-            Toggle("HDR 10-bit (HLG)", "Jeśli obsługuje urządzenie", settings.videoHdr, !locked) { v -> onChange { it.copy(videoHdr = v) } }
-            Toggle("Stabilizacja obrazu", "Cyfrowa / optyczna stabilizacja wideo", settings.stabilization, !locked) { v -> onChange { it.copy(stabilization = v) } }
-            Toggle("Dźwięk w wideo", null, settings.videoAudio, !locked) { v -> onChange { it.copy(videoAudio = v) } }
-            Toggle("Kinowy zoom", "Wolny, płynny najazd podczas nagrywania", settings.cinematicZoom) { v -> onChange { it.copy(cinematicZoom = v) } }
-
-            Section("Dyktafon")
-            Choice("Jakość", AudioPreset.entries, settings.audioPreset, { it.label }, !locked) { v -> onChange { it.copy(audioPreset = v) } }
-            Text(settings.audioPreset.description, color = Palette.TextDim, fontSize = 12.sp, modifier = Modifier.padding(bottom = 6.dp))
-            Choice("Źródło", AudioSourceType.entries, settings.audioSource, { it.label }, !locked) { v -> onChange { it.copy(audioSource = v) } }
-            Text(settings.audioSource.description, color = Palette.TextDim, fontSize = 12.sp, modifier = Modifier.padding(bottom = 6.dp))
-
-            Section("Ogólne")
-            Choice("Klawisze głośności", VolumeAction.entries, settings.volumeAction, { it.label }) { v -> onChange { it.copy(volumeAction = v) } }
-            Toggle("Dźwięk migawki", null, settings.shutterSound) { v -> onChange { it.copy(shutterSound = v) } }
-            Toggle("Wibracje", "Haptyka pokręteł i poziomicy", settings.haptics) { v -> onChange { it.copy(haptics = v) } }
-
-            Spacer(Modifier.height(18.dp))
-            Text(
-                "Registrer ${BuildConfig.VERSION_NAME} · zdjęcia i wideo w DCIM/Registrer, nagrania w Recordings/Registrer",
-                color = Palette.TextFaint,
-                fontSize = 11.sp,
-            )
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(12.dp))
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                modes.forEach { m -> TabChip(modeIcon(m), m.label, tab == m) { tab = m } }
+                TabChip(Icons.Rounded.Settings, "Ogólne", tab == null) { tab = null }
+            }
+            Spacer(Modifier.height(10.dp))
+            AnimatedContent(
+                targetState = tab,
+                transitionSpec = { fadeIn() togetherWith fadeOut() },
+                label = "settingsTab",
+            ) { current ->
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 14.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    if (locked) {
+                        Text("Część opcji jest zablokowana podczas nagrywania lub przetwarzania.", color = Palette.Amber, fontSize = 12.sp)
+                    }
+                    if (current == null) {
+                        GeneralTab(global, caps, update, onGlobal, onCheckUpdate, onDownloadUpdate, onInstallUpdate)
+                    } else {
+                        ModeTab(current, profiles.getValue(current), caps, !locked) { t -> onProfile(current, t) }
+                        Row(
+                            Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .clickable { onReset(current) }
+                                .padding(12.dp),
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Icon(Icons.Rounded.RestartAlt, null, tint = Palette.TextDim, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Przywróć domyślne dla trybu ${current.label}", color = Palette.TextDim, fontSize = 13.sp)
+                        }
+                    }
+                    Spacer(Modifier.height(20.dp))
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun Section(title: String) {
-    Text(
-        title.uppercase(),
-        color = Palette.Amber,
-        fontSize = 12.sp,
-        fontWeight = FontWeight.Bold,
-        letterSpacing = 1.6.sp,
-        modifier = Modifier.padding(top = 22.dp, bottom = 6.dp),
-    )
+private fun ModeTab(mode: CaptureMode, s: ModeSettings, caps: CameraCaps, enabled: Boolean, change: ((ModeSettings) -> ModeSettings) -> Unit) {
+    val isPhoto = mode.isPhoto
+    when (mode) {
+        CaptureMode.VIDEO -> {
+            Group("Obraz") {
+                Chips(Icons.Rounded.HighQuality, "Rozdzielczość", caps.videoResolutions, s.videoResolution, { it.label }, enabled) { v -> change { it.copy(videoResolution = v) } }
+                val fpsOptions = VideoFps.entries.filter {
+                    when (it) {
+                        VideoFps.F60 -> caps.fps60
+                        VideoFps.F24 -> caps.fps24
+                        else -> true
+                    }
+                }
+                Chips(Icons.Rounded.Speed, "Klatki na sekundę", fpsOptions, s.videoFps, { it.label }, enabled) { v -> change { it.copy(videoFps = v) } }
+                Chips(Icons.Rounded.DataUsage, "Przepływność", VideoBitrate.entries, s.bitrate, { it.label }, enabled) { v -> change { it.copy(bitrate = v) } }
+                if (caps.videoHlg) {
+                    SwitchRow(Icons.Rounded.HdrOn, "HDR 10-bit (HLG)", "Szerszy zakres tonalny, większe pliki", s.videoHdr, enabled) { v -> change { it.copy(videoHdr = v) } }
+                }
+                if (caps.videoStabilization) {
+                    SwitchRow(Icons.Rounded.CenterFocusStrong, "Stabilizacja", "Mniej drgań, lekko węższy kadr", s.stabilization, enabled) { v -> change { it.copy(stabilization = v) } }
+                }
+                if (caps.lowLightBoost) {
+                    SwitchRow(Icons.Rounded.Brightness4, "Wzmocnienie w ciemności", "Jaśniejszy obraz przy słabym świetle", s.lowLightBoost, enabled) { v -> change { it.copy(lowLightBoost = v) } }
+                }
+            }
+            Group("Dźwięk i zoom") {
+                SwitchRow(Icons.Rounded.Mic, "Nagrywaj dźwięk", null, s.videoAudio, enabled) { v -> change { it.copy(videoAudio = v) } }
+                SwitchRow(Icons.Rounded.ZoomIn, "Kinowy zoom", "Wolny, płynny najazd podczas nagrywania", s.cinematicZoom) { v -> change { it.copy(cinematicZoom = v) } }
+            }
+            FramingGroup(s, change, showAspect = false, showHistogram = false, showTimer = false)
+        }
+
+        CaptureMode.SLOWMO -> {
+            Group("Zwolnione tempo") {
+                if (caps.slowMoRanges.isEmpty()) {
+                    InfoRow(Icons.Rounded.Info, "Ten obiektyw nie obsługuje nagrywania szybkoklatkowego")
+                } else {
+                    val options = caps.slowMoRanges.map { it.upper }
+                    val selected = options.firstOrNull { it == s.slowMoFps } ?: options.last()
+                    Chips(Icons.Rounded.SlowMotionVideo, "Prędkość nagrywania", options, selected, { "$it kl/s · 1/${it / 30}×" }, enabled) { v ->
+                        change { it.copy(slowMoFps = v) }
+                    }
+                }
+                SwitchRow(Icons.Rounded.ZoomIn, "Kinowy zoom", null, s.cinematicZoom) { v -> change { it.copy(cinematicZoom = v) } }
+            }
+            FramingGroup(s, change, showAspect = false, showHistogram = false, showTimer = false)
+        }
+
+        CaptureMode.AUDIO -> {
+            Group("Nagrywanie") {
+                Chips(Icons.Rounded.GraphicEq, "Jakość", AudioPreset.entries, s.audioPreset, { it.label }, enabled, hint = s.audioPreset.description) { v ->
+                    change { it.copy(audioPreset = v) }
+                }
+                Chips(Icons.Rounded.Mic, "Źródło", AudioSourceType.entries, s.audioSource, { it.label }, enabled, hint = s.audioSource.description) { v ->
+                    change { it.copy(audioSource = v) }
+                }
+            }
+        }
+
+        else -> {
+            FramingGroup(s, change, showAspect = true, showHistogram = true, showTimer = true, enabled = enabled)
+            when (mode) {
+                CaptureMode.NIGHT -> Group("Tryb nocny") {
+                    if (caps.nightExtension) {
+                        InfoRow(Icons.Rounded.NightsStay, "Aktywny sprzętowy tryb nocny producenta – liczbę klatek dobiera telefon")
+                    } else {
+                        Chips(Icons.Rounded.Layers, "Liczba klatek", listOf(0, 4, 6, 8, 12), s.nightFrames, { if (it == 0) "Auto" else "×$it" }, enabled, hint = "Auto dobiera 4–12 klatek do jasności sceny") { v ->
+                            change { it.copy(nightFrames = v) }
+                        }
+                    }
+                    if (caps.lowLightBoost && !caps.nightExtension) {
+                        SwitchRow(Icons.Rounded.Brightness4, "Jaśniejszy podgląd", "Wzmocnienie przy słabym świetle", s.lowLightBoost, enabled) { v -> change { it.copy(lowLightBoost = v) } }
+                    }
+                }
+                CaptureMode.PORTRAIT -> Group("Portret") {
+                    val effects = PortraitEffect.entries.filter {
+                        (it == PortraitEffect.BOKEH && caps.bokehExtension) || (it == PortraitEffect.RETOUCH && caps.retouchExtension)
+                    }
+                    if (effects.size > 1) {
+                        Chips(Icons.Rounded.Face, "Efekt", effects, s.portraitEffect, { it.label }, enabled) { v -> change { it.copy(portraitEffect = v) } }
+                    } else if (effects.isNotEmpty()) {
+                        InfoRow(Icons.Rounded.Face, "Sprzętowy efekt producenta: ${effects.first().label}")
+                    } else {
+                        InfoRow(Icons.Rounded.Face, "Programowy bokeh – wykrywanie osoby i rozmycie tła (tylny i przedni aparat)")
+                    }
+                    if (!caps.bokehExtension) {
+                        Slider(Icons.Rounded.Face, "Siła rozmycia tła", s.portraitBlur, 0..100, true) { v -> change { it.copy(portraitBlur = v) } }
+                    }
+                }
+                CaptureMode.HDR -> Group("HDR") {
+                    if (caps.hdrExtension) {
+                        InfoRow(Icons.Rounded.HdrOn, "Aktywny sprzętowy HDR producenta")
+                    } else {
+                        Chips(Icons.Rounded.Tune, "Rozpiętość ekspozycji", listOf(1f, 1.7f, 2.3f), s.hdrStops, { "±" + String.format(Locale.US, "%.1f", it).replace('.', ',') + " EV" }, enabled) { v ->
+                            change { it.copy(hdrStops = v) }
+                        }
+                    }
+                }
+                else -> Unit
+            }
+            Group("Zdjęcie") {
+                if (mode == CaptureMode.PHOTO || mode == CaptureMode.PRO) {
+                    val formats = PhotoFormat.entries.filter { it in caps.photoFormats }
+                    if (formats.size > 1) {
+                        Chips(Icons.Rounded.Image, "Format", formats, s.photoFormat, { it.label }, enabled, hint = "RAW zapisuje plik DNG prosto z sensora") { v ->
+                            change { it.copy(photoFormat = v) }
+                        }
+                    } else {
+                        InfoRow(Icons.Rounded.Image, "RAW i Ultra HDR nie są dostępne dla tego obiektywu")
+                    }
+                }
+                Slider(Icons.Rounded.HighQuality, "Jakość JPEG", s.jpegQuality, 70..100, enabled) { v -> change { it.copy(jpegQuality = v) } }
+                if (mode != CaptureMode.NIGHT && mode != CaptureMode.HDR) {
+                    val priorities = CapturePriority.entries
+                    Chips(Icons.Rounded.Bolt, "Priorytet migawki", priorities, s.priority, { if (it == CapturePriority.SPEED && caps.zsl) "Szybkość (ZSL)" else it.label }, enabled) { v ->
+                        change { it.copy(priority = v) }
+                    }
+                }
+                if (caps.hasFront) {
+                    SwitchRow(Icons.Rounded.Flip, "Lustrzane selfie", "Zapis jak w podglądzie przedniego aparatu", s.mirrorFront) { v -> change { it.copy(mirrorFront = v) } }
+                }
+            }
+            if (mode == CaptureMode.PHOTO || mode == CaptureMode.PRO) {
+                Group("Seria i interwał") {
+                    if (mode == CaptureMode.PHOTO) {
+                        SwitchRow(Icons.Rounded.BurstMode, "Seria po przytrzymaniu", "Zdjęcia seryjne, dopóki trzymasz migawkę", s.burst) { v -> change { it.copy(burst = v) } }
+                    }
+                    Chips(Icons.Rounded.AvTimer, "Interwałometr", listOf(0, 2, 5, 10, 30, 60), s.intervalSeconds, { if (it == 0) "Wył." else "${it}s" }) { v ->
+                        change { it.copy(intervalSeconds = v) }
+                    }
+                    if (s.intervalSeconds > 0) {
+                        Chips(Icons.Rounded.Layers, "Liczba zdjęć", listOf(0, 10, 30, 100, 300), s.intervalCount, { if (it == 0) "∞" else "$it" }) { v ->
+                            change { it.copy(intervalCount = v) }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    if (!isPhoto && mode != CaptureMode.AUDIO && mode != CaptureMode.VIDEO && mode != CaptureMode.SLOWMO) Unit
 }
 
 @Composable
-private fun <T> Choice(
-    title: String,
-    options: List<T>,
-    selected: T,
-    label: (T) -> String,
+private fun FramingGroup(
+    s: ModeSettings,
+    change: ((ModeSettings) -> ModeSettings) -> Unit,
+    showAspect: Boolean,
+    showHistogram: Boolean,
+    showTimer: Boolean,
     enabled: Boolean = true,
-    onSelect: (T) -> Unit,
 ) {
-    Column(Modifier.padding(vertical = 6.dp)) {
-        Text(title, fontSize = 15.sp, color = if (enabled) Color.White else Palette.TextFaint)
-        Row(
-            Modifier
-                .padding(top = 8.dp)
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            options.forEach { o ->
-                val sel = o == selected
+    Group("Kadr") {
+        if (showAspect) Chips(Icons.Rounded.AspectRatio, "Proporcje", AspectRatioMode.entries, s.aspect, { it.label }, enabled) { v -> change { it.copy(aspect = v) } }
+        Chips(Icons.Rounded.GridOn, "Siatka", GridType.entries, s.grid, { it.label }) { v -> change { it.copy(grid = v) } }
+        if (showTimer) Chips(Icons.Rounded.Timer, "Samowyzwalacz", listOf(0, 3, 5, 10), s.timerSeconds, { if (it == 0) "Wył." else "$it s" }) { v -> change { it.copy(timerSeconds = v) } }
+        SwitchRow(Icons.Rounded.Straighten, "Poziomica", null, s.level) { v -> change { it.copy(level = v) } }
+        if (showHistogram) SwitchRow(Icons.Rounded.BarChart, "Histogram na żywo", null, s.histogram, enabled) { v -> change { it.copy(histogram = v) } }
+    }
+}
+
+@Composable
+private fun GeneralTab(
+    g: GlobalSettings,
+    caps: CameraCaps,
+    update: UpdateState,
+    onGlobal: ((GlobalSettings) -> GlobalSettings) -> Unit,
+    onCheck: () -> Unit,
+    onDownload: () -> Unit,
+    onInstall: () -> Unit,
+) {
+    Group("Aktualizacje") {
+        UpdateRow(update, onCheck, onDownload, onInstall)
+        SwitchRow(Icons.Rounded.Autorenew, "Sprawdzaj automatycznie", "Przy uruchomieniu, co najwyżej co 3 godziny", g.autoCheckUpdates) { v ->
+            onGlobal { it.copy(autoCheckUpdates = v) }
+        }
+        SwitchRow(Icons.Rounded.Download, "Pobieraj i instaluj automatycznie", "Instalacja po wyjściu z aplikacji", g.autoDownloadUpdates) { v ->
+            onGlobal { it.copy(autoDownloadUpdates = v) }
+        }
+    }
+    Group("Obsługa") {
+        SwitchRow(Icons.Rounded.Vibration, "Wibracje", "Haptyka pokręteł, zoomu i poziomicy", g.haptics) { v -> onGlobal { it.copy(haptics = v) } }
+        SwitchRow(Icons.Rounded.CameraAlt, "Dźwięk migawki", null, g.shutterSound) { v -> onGlobal { it.copy(shutterSound = v) } }
+        SwitchRow(Icons.Rounded.Alarm, "Sygnał samowyzwalacza", null, g.timerBeep) { v -> onGlobal { it.copy(timerBeep = v) } }
+        Chips(
+            Icons.Rounded.ScreenRotation,
+            "Obrót ekranu",
+            ScreenRotation.entries,
+            g.screenRotation,
+            { it.label },
+            hint = g.screenRotation.description,
+        ) { v -> onGlobal { it.copy(screenRotation = v) } }
+        Chips(Icons.Rounded.VolumeUp, "Klawisze głośności", VolumeAction.entries, g.volumeAction, { it.label }) { v -> onGlobal { it.copy(volumeAction = v) } }
+    }
+    Group("Ten aparat") {
+        val lenses = caps.lensZooms.joinToString(" · ") { formatZoom(it) + "×" }.ifEmpty { "1×" }
+        InfoRow(Icons.Rounded.ZoomIn, "Obiektywy: $lenses")
+        InfoRow(Icons.Rounded.Image, "Formaty: " + caps.photoFormats.sortedBy { it.ordinal }.joinToString { it.label })
+        InfoRow(Icons.Rounded.Movie, "Wideo: " + caps.videoResolutions.joinToString { it.label } + (if (caps.fps60) " · 60 kl/s" else "") + (if (caps.videoHlg) " · HLG" else ""))
+        if (caps.slowMo) InfoRow(Icons.Rounded.SlowMotionVideo, "Slow-mo: " + caps.slowMoRanges.joinToString { "${it.upper} kl/s" })
+        InfoRow(Icons.Rounded.Tune, if (caps.manualSensor) "Pełne sterowanie ręczne sensora" else "Ograniczone sterowanie ręczne")
+        InfoRow(Icons.Rounded.Info, "Pliki: DCIM/Registrer · Recordings/Registrer")
+    }
+}
+
+@Composable
+private fun UpdateRow(update: UpdateState, onCheck: () -> Unit, onDownload: () -> Unit, onInstall: () -> Unit) {
+    val (status, action, handler) = when (update) {
+        UpdateState.Idle -> Triple("Wersja ${UpdateManager.currentVersion}", "Sprawdź", onCheck)
+        UpdateState.Checking -> Triple("Sprawdzanie…", null, onCheck)
+        UpdateState.UpToDate -> Triple("Wersja ${UpdateManager.currentVersion} jest najnowsza", "Sprawdź", onCheck)
+        is UpdateState.Available -> Triple("Dostępna wersja ${update.info.version}", "Pobierz", onDownload)
+        is UpdateState.Downloading -> Triple("Pobieranie ${update.info.version} · ${(update.progress * 100).roundToInt()}%", null, onCheck)
+        is UpdateState.Ready -> Triple("Wersja ${update.info.version} gotowa", "Zainstaluj", onInstall)
+        is UpdateState.Installing -> Triple("Instalowanie ${update.info.version}…", null, onCheck)
+        is UpdateState.Failed -> Triple(update.message, "Ponów", onCheck)
+    }
+    Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            RowIcon(Icons.Rounded.SystemUpdate)
+            Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                Text("Registrer ${UpdateManager.currentVersion}", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                Text(status, fontSize = 12.sp, color = if (update is UpdateState.Available || update is UpdateState.Ready) Palette.Amber else Palette.TextDim, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+            if (action != null) {
                 Text(
-                    label(o),
-                    color = if (sel) Palette.Ink else if (enabled) Color.White else Palette.TextFaint,
+                    action,
+                    color = Palette.Ink,
+                    fontWeight = FontWeight.Bold,
                     fontSize = 13.sp,
-                    fontWeight = if (sel) FontWeight.Bold else FontWeight.Medium,
                     modifier = Modifier
                         .clip(RoundedCornerShape(50))
-                        .background(if (sel) Palette.Amber else Palette.PanelHigh)
-                        .clickable(enabled = enabled) { onSelect(o) }
-                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                        .background(Palette.Amber)
+                        .clickable(onClick = handler)
+                        .padding(horizontal = 14.dp, vertical = 7.dp),
                 )
             }
         }
+        if (update is UpdateState.Downloading) {
+            LinearProgressIndicator(
+                progress = { update.progress },
+                color = Palette.Amber,
+                trackColor = Color.White.copy(alpha = 0.1f),
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            )
+        }
+        val notes = (update as? UpdateState.Available)?.info?.notes ?: (update as? UpdateState.Ready)?.info?.notes
+        if (!notes.isNullOrBlank()) {
+            Text(notes, fontSize = 12.sp, color = Palette.TextDim, maxLines = 4, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
+        }
+    }
+}
+
+// ------------------------------------------------------------------ cegiełki
+
+@Composable
+private fun TabChip(icon: ImageVector, label: String, selected: Boolean, onClick: () -> Unit) {
+    Row(
+        Modifier
+            .clip(RoundedCornerShape(50))
+            .background(if (selected) Palette.Amber else Palette.PanelHigh)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, null, tint = if (selected) Palette.Ink else Color.White, modifier = Modifier.size(16.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(label, color = if (selected) Palette.Ink else Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 
 @Composable
-private fun Toggle(title: String, subtitle: String?, value: Boolean, enabled: Boolean = true, onChange: (Boolean) -> Unit) {
+private fun Group(title: String, content: @Composable ColumnScope.() -> Unit) {
+    Column {
+        Text(
+            title.uppercase(),
+            color = Palette.Amber,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 1.4.sp,
+            modifier = Modifier.padding(start = 6.dp, bottom = 6.dp),
+        )
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(20.dp))
+                .background(Palette.PanelHigh)
+                .padding(vertical = 4.dp),
+            content = content,
+        )
+    }
+}
+
+@Composable
+private fun RowIcon(icon: ImageVector) {
+    Box(
+        Modifier
+            .size(32.dp)
+            .clip(CircleShape)
+            .background(Palette.Amber.copy(alpha = 0.14f)),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(icon, null, tint = Palette.Amber, modifier = Modifier.size(18.dp))
+    }
+}
+
+@Composable
+private fun SwitchRow(icon: ImageVector, title: String, subtitle: String?, value: Boolean, enabled: Boolean = true, onChange: (Boolean) -> Unit) {
     Row(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
             .clickable(enabled = enabled) { onChange(!value) }
-            .padding(vertical = 10.dp),
+            .padding(horizontal = 12.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(Modifier.weight(1f)) {
-            Text(title, fontSize = 15.sp, color = if (enabled) Color.White else Palette.TextFaint)
-            if (subtitle != null) Text(subtitle, fontSize = 12.sp, color = Palette.TextDim)
+        RowIcon(icon)
+        Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+            Text(title, fontSize = 14.sp, color = if (enabled) Color.White else Palette.TextFaint)
+            if (subtitle != null) Text(subtitle, fontSize = 11.sp, color = Palette.TextDim, lineHeight = 13.sp)
         }
         Switch(
             checked = value,
             onCheckedChange = onChange,
             enabled = enabled,
+            modifier = Modifier.scale(0.82f),
             colors = SwitchDefaults.colors(checkedTrackColor = Palette.Amber, checkedThumbColor = Palette.Ink),
         )
     }
 }
 
 @Composable
-private fun JpegSlider(value: Int, enabled: Boolean, onCommit: (Int) -> Unit) {
-    var local by remember(value) { mutableFloatStateOf(value.toFloat()) }
-    Column(Modifier.padding(vertical = 6.dp)) {
+private fun <T> Chips(
+    icon: ImageVector,
+    title: String,
+    options: List<T>,
+    selected: T,
+    label: (T) -> String,
+    enabled: Boolean = true,
+    hint: String? = null,
+    onSelect: (T) -> Unit,
+) {
+    Column(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Text("Jakość JPEG", fontSize = 15.sp, modifier = Modifier.weight(1f), color = if (enabled) Color.White else Palette.TextFaint)
-            Text("${local.roundToInt()}%", color = Palette.Amber, fontWeight = FontWeight.Bold)
+            RowIcon(icon)
+            Text(title, fontSize = 14.sp, color = if (enabled) Color.White else Palette.TextFaint, modifier = Modifier.padding(horizontal = 12.dp))
+        }
+        Row(
+            Modifier
+                .padding(start = 44.dp, top = 6.dp)
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
+        ) {
+            options.forEach { o ->
+                val sel = o == selected
+                Text(
+                    label(o),
+                    color = if (sel) Palette.Ink else if (enabled) Color.White else Palette.TextFaint,
+                    fontSize = 12.sp,
+                    fontWeight = if (sel) FontWeight.Bold else FontWeight.Medium,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(if (sel) Palette.Amber else Color.White.copy(alpha = 0.07f))
+                        .clickable(enabled = enabled) { onSelect(o) }
+                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                )
+            }
+        }
+        if (hint != null) Text(hint, fontSize = 11.sp, color = Palette.TextDim, modifier = Modifier.padding(start = 44.dp, top = 4.dp))
+    }
+}
+
+@Composable
+private fun Slider(icon: ImageVector, title: String, value: Int, range: IntRange, enabled: Boolean, onCommit: (Int) -> Unit) {
+    var local by remember(value) { mutableFloatStateOf(value.toFloat()) }
+    Column(Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            RowIcon(icon)
+            Text(title, fontSize = 14.sp, modifier = Modifier.weight(1f).padding(horizontal = 12.dp), color = if (enabled) Color.White else Palette.TextFaint)
+            Text("${local.roundToInt()}%", color = Palette.Amber, fontWeight = FontWeight.Bold, fontSize = 13.sp)
         }
         Slider(
             value = local,
             onValueChange = { local = it },
             onValueChangeFinished = { onCommit(local.roundToInt()) },
-            valueRange = 70f..100f,
-            steps = 29,
+            valueRange = range.first.toFloat()..range.last.toFloat(),
             enabled = enabled,
+            modifier = Modifier.padding(start = 44.dp).height(30.dp),
             colors = SliderDefaults.colors(thumbColor = Palette.Amber, activeTrackColor = Palette.Amber),
         )
+    }
+}
+
+@Composable
+private fun InfoRow(icon: ImageVector, text: String) {
+    Row(Modifier.padding(horizontal = 12.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+        RowIcon(icon)
+        Text(text, fontSize = 13.sp, color = Palette.TextDim, modifier = Modifier.padding(horizontal = 12.dp))
     }
 }

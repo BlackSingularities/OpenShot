@@ -20,18 +20,26 @@ object MediaSaver {
 
     private fun stamp(): String = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date())
 
-    private fun photoValues(tag: String) = ContentValues().apply {
+    private fun photoValues(tag: String, mime: String = "image/jpeg") = ContentValues().apply {
         put(MediaStore.MediaColumns.DISPLAY_NAME, "REG_${tag}_${stamp()}")
-        put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+        put(MediaStore.MediaColumns.MIME_TYPE, mime)
         put(MediaStore.MediaColumns.RELATIVE_PATH, MEDIA_DIR)
     }
 
-    fun photoOutputOptions(context: Context, mirror: Boolean, tag: String): ImageCapture.OutputFileOptions =
+    fun photoOutputOptions(context: Context, mirror: Boolean, tag: String, mime: String): ImageCapture.OutputFileOptions =
         ImageCapture.OutputFileOptions.Builder(
             context.contentResolver,
             MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-            photoValues(tag),
+            photoValues(tag, mime),
         ).setMetadata(ImageCapture.Metadata().apply { isReversedHorizontal = mirror }).build()
+
+    /** Surowy obraz z sensora zapisywany jako DNG. */
+    fun rawOutputOptions(context: Context, tag: String): ImageCapture.OutputFileOptions =
+        ImageCapture.OutputFileOptions.Builder(
+            context.contentResolver,
+            MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+            photoValues(tag, "image/x-adobe-dng"),
+        ).build()
 
     fun videoOutputOptions(context: Context): MediaStoreOutputOptions {
         val values = ContentValues().apply {

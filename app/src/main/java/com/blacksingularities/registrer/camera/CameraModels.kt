@@ -1,16 +1,20 @@
 package com.blacksingularities.registrer.camera
 
 import android.hardware.camera2.CameraMetadata
-import com.blacksingularities.registrer.data.AppSettings
+import android.util.Range
+import com.blacksingularities.registrer.data.ModeSettings
+import com.blacksingularities.registrer.data.PhotoFormat
+import com.blacksingularities.registrer.data.VideoResolution
 
-enum class CaptureMode(val label: String, val isPhoto: Boolean) {
-    NIGHT("Noc", true),
-    PORTRAIT("Portret", true),
-    PHOTO("Foto", true),
-    HDR("HDR", true),
-    PRO("Pro", true),
-    VIDEO("Wideo", false),
-    AUDIO("Audio", false),
+enum class CaptureMode(val label: String, val isPhoto: Boolean, val isVideo: Boolean) {
+    NIGHT("Noc", true, false),
+    PORTRAIT("Portret", true, false),
+    PHOTO("Foto", true, false),
+    HDR("HDR", true, false),
+    PRO("Pro", true, false),
+    VIDEO("Wideo", false, true),
+    SLOWMO("Slow-mo", false, true),
+    AUDIO("Audio", false, false),
 }
 
 enum class FlashSetting { OFF, AUTO, ON, TORCH }
@@ -35,19 +39,47 @@ data class ProSettings(
     val manualExposure get() = iso != null || exposureNs != null
 }
 
+/**
+ * Możliwości bieżącego obiektywu odczytane przed związaniem kamery – na ich podstawie
+ * interfejs pokazuje wyłącznie opcje, które urządzenie naprawdę obsługuje.
+ */
 data class CameraCaps(
     val hasFront: Boolean = false,
     val hasBack: Boolean = true,
     val nightExtension: Boolean = false,
     val bokehExtension: Boolean = false,
     val hdrExtension: Boolean = false,
+    val retouchExtension: Boolean = false,
+    val photoFormats: Set<PhotoFormat> = setOf(PhotoFormat.JPEG),
+    val zsl: Boolean = false,
     val manualSensor: Boolean = false,
     val isoRange: IntRange? = null,
     val exposureRange: LongRange? = null,
     val minFocusDistance: Float = 0f,
     val hasFlash: Boolean = false,
-    val videoHdrActive: Boolean = false,
-    val stabilizationActive: Boolean = false,
+    val videoResolutions: List<VideoResolution> = listOf(VideoResolution.FHD, VideoResolution.HD),
+    val videoHlg: Boolean = false,
+    val videoStabilization: Boolean = false,
+    val fps60: Boolean = false,
+    val fps24: Boolean = false,
+    val slowMoRanges: List<Range<Int>> = emptyList(),
+    val lowLightBoost: Boolean = false,
+    /** Krotności odpowiadające fizycznym obiektywom (np. 0.6 szeroki kąt, 1, 3 tele). */
+    val lensZooms: List<Float> = emptyList(),
+) {
+    val slowMo get() = slowMoRanges.isNotEmpty()
+    val portrait get() = bokehExtension || retouchExtension
+}
+
+/** Stan rzeczywiście aktywny po związaniu (może być skromniejszy niż żądany). */
+data class ActiveSession(
+    val extension: Int? = null,
+    val videoHdr: Boolean = false,
+    val stabilization: Boolean = false,
+    val fps: Int = 0,
+    val photoFormat: PhotoFormat = PhotoFormat.JPEG,
+    val snapshotInVideo: Boolean = false,
+    val postview: Boolean = false,
 )
 
 /** Bieżące parametry ekspozycji odczytane z sensora (HUD). */
@@ -56,9 +88,8 @@ data class Hud(val iso: Int, val exposureNs: Long, val focusDiopters: Float?)
 data class BindRequest(
     val lensFacing: Int,
     val mode: CaptureMode,
-    val settings: AppSettings,
+    val settings: ModeSettings,
     val pro: ProSettings,
-    val flash: FlashSetting,
 )
 
 class CapturedFrame(val bytes: ByteArray, val rotation: Int)

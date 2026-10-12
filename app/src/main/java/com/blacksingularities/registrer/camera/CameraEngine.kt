@@ -4,6 +4,7 @@ import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
 import android.graphics.ImageFormat
 import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraCharacteristics
@@ -11,6 +12,7 @@ import android.hardware.camera2.CaptureRequest
 import android.hardware.camera2.CaptureResult
 import android.hardware.camera2.TotalCaptureResult
 import android.net.Uri
+import android.os.Build
 import android.util.Range
 import android.util.Size
 import androidx.camera.camera2.interop.Camera2CameraControl
@@ -19,6 +21,7 @@ import androidx.camera.camera2.interop.Camera2Interop
 import androidx.camera.camera2.interop.CaptureRequestOptions
 import androidx.camera.camera2.interop.ExperimentalCamera2Interop
 import androidx.camera.core.Camera
+import androidx.camera.core.CameraInfo
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.DynamicRange
 import androidx.camera.core.FocusMeteringAction
@@ -37,6 +40,7 @@ import androidx.camera.extensions.ExtensionMode
 import androidx.camera.extensions.ExtensionsManager
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.video.FallbackStrategy
+import androidx.camera.video.HighSpeedVideoSessionConfig
 import androidx.camera.video.Quality
 import androidx.camera.video.QualitySelector
 import androidx.camera.video.Recorder
@@ -47,6 +51,11 @@ import androidx.concurrent.futures.await
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import com.blacksingularities.registrer.data.AspectRatioMode
+import com.blacksingularities.registrer.data.CapturePriority
+import com.blacksingularities.registrer.data.PhotoFormat
+import com.blacksingularities.registrer.data.PortraitEffect
+import com.blacksingularities.registrer.data.VideoBitrate
+import com.blacksingularities.registrer.data.VideoFps
 import com.blacksingularities.registrer.data.VideoResolution
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -56,13 +65,18 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
+import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.roundToInt
+import kotlin.math.sqrt
+
+/** Wynik zapisu zdjęcia: Uri pliku głównego (JPEG lub DNG) i opcjonalnie drugiego (RAW+JPEG). */
+data class PhotoResult(val uri: Uri?, val secondary: Uri? = null, val error: String? = null)
 
 /**
- * Warstwa sprzętowa: wiąże przypadki użycia CameraX, zarządza rozszerzeniami producenta
- * (Noc / Bokeh / HDR), ręcznym sterowaniem sensorem (Camera2 Interop), zdjęciami, burstem
- * do pamięci i nagrywaniem wideo.
+ * Warstwa sprzętowa: sonduje możliwości obiektywu, wiąże przypadki użycia CameraX
+ * (zdjęcia JPEG / Ultra HDR / RAW, wideo, slow-motion), obsługuje rozszerzenia producenta
+ * i ręczne sterowanie sensorem przez Camera2 Interop.
  */
 @OptIn(ExperimentalCamera2Interop::class)
 class CameraEngine(private val context: Context) {
@@ -73,15 +87,17 @@ class CameraEngine(private val context: Context) {
     private var extensions: ExtensionsManager? = null
 
     var camera: Camera? = null
+    private var preview: Preview? = null
+    private var displayRotation: Int = android.view.Surface.ROTATION_0
         private set
-    var activeExtension: Int? = null
+    var session = ActiveSession()
         private set
     private var imageCapture: ImageCapture? = null
     private var videoCapture: VideoCapture<Recorder>? = null
     private var recording: Recording? = null
     private var lastHud: Hud? = null
     private var hudFrame = 0
-    private var nightPreviewOptions: CaptureRequestOptions? = null
+    private var baseOptions: CaptureRequestOptions? = null
 
     var onHud: ((Hud) -> Unit)? = null
     var onHistogram: ((IntArray) -> Unit)? = null
@@ -89,16 +105,11 @@ class CameraEngine(private val context: Context) {
     val isRecording get() = recording != null
 
     private val hudCallback = object : CameraCaptureSession.CaptureCallback() {
-        override fun onCaptureCompleted(
-            session: CameraCaptureSession,
-            request: CaptureRequest,
-            result: TotalCaptureResult,
-        ) {
+        override fun onCaptureCompleted(session: CameraCaptureSession, request: CaptureRequest, result: TotalCaptureResult) {
             if (hudFrame++ % 6 != 0) return
             val iso = result.get(CaptureResult.SENSOR_SENSITIVITY) ?: return
             val exposure = result.get(CaptureResult.SENSOR_EXPOSURE_TIME) ?: return
-            val focus = result.get(CaptureResult.LENS_FOCUS_DISTANCE)
-            val hud = Hud(iso, exposure, focus)
+            val hud = Hud(iso, exposure, result.get(CaptureResult.LENS_FOCUS_DISTANCE))
             lastHud = hud
             main.execute { onHud?.invoke(hud) }
         }
@@ -116,212 +127,394 @@ class CameraEngine(private val context: Context) {
         p.hasCamera(CameraSelector.Builder().requireLensFacing(facing).build())
     }.getOrDefault(false)
 
-    fun unbind() {
-        provider?.unbindAll()
-        camera = null
-        imageCapture = null
-        videoCapture = null
-        activeExtension = null
-    }
+    private fun selectorFor(facing: Int) = CameraSelector.Builder().requireLensFacing(facing).build()
 
-    suspend fun bind(owner: LifecycleOwner, surfaceProvider: Preview.SurfaceProvider, req: BindRequest): CameraCaps {
+    // ------------------------------------------------------------------ sondowanie
+
+    /** Rozstrzyga, który obiektyw jest faktycznie dostępny. */
+    suspend fun resolveFacing(requested: Int): Int {
         val p = ensureProvider()
-        p.unbindAll()
-        camera = null
-        imageCapture = null
-        videoCapture = null
-        activeExtension = null
-        nightPreviewOptions = null
-        lastHud = null
-
-        val hasBack = hasLens(p, CameraSelector.LENS_FACING_BACK)
-        val hasFront = hasLens(p, CameraSelector.LENS_FACING_FRONT)
-        val facing = when {
-            req.lensFacing == CameraSelector.LENS_FACING_FRONT && hasFront -> CameraSelector.LENS_FACING_FRONT
-            hasBack -> CameraSelector.LENS_FACING_BACK
+        return when {
+            requested == CameraSelector.LENS_FACING_FRONT && hasLens(p, CameraSelector.LENS_FACING_FRONT) -> requested
+            hasLens(p, CameraSelector.LENS_FACING_BACK) -> CameraSelector.LENS_FACING_BACK
             else -> CameraSelector.LENS_FACING_FRONT
         }
-        val base = CameraSelector.Builder().requireLensFacing(facing).build()
+    }
+
+    suspend fun probe(facing: Int): CameraCaps {
+        val p = ensureProvider()
+        val base = selectorFor(facing)
+        val info = runCatching { p.getCameraInfo(base) }.getOrNull()
+            ?: return CameraCaps(hasFront = hasLens(p, CameraSelector.LENS_FACING_FRONT), hasBack = hasLens(p, CameraSelector.LENS_FACING_BACK))
         val ext = extensions
         fun extAvailable(mode: Int) = ext != null && runCatching { ext.isExtensionAvailable(base, mode) }.getOrDefault(false)
 
-        var caps = CameraCaps(
-            hasFront = hasFront,
-            hasBack = hasBack,
+        val c2 = Camera2CameraInfo.from(info)
+        fun <T> ch(key: CameraCharacteristics.Key<T>): T? = runCatching { c2.getCameraCharacteristic(key) }.getOrNull()
+
+        val formats = runCatching { ImageCapture.getImageCaptureCapabilities(info).supportedOutputFormats }.getOrDefault(emptySet())
+        val photoFormats = buildSet {
+            add(PhotoFormat.JPEG)
+            if (ImageCapture.OUTPUT_FORMAT_JPEG_ULTRA_HDR in formats) add(PhotoFormat.ULTRA_HDR)
+            if (ImageCapture.OUTPUT_FORMAT_RAW in formats) add(PhotoFormat.RAW)
+            if (ImageCapture.OUTPUT_FORMAT_RAW_JPEG in formats) add(PhotoFormat.RAW_JPEG)
+        }
+
+        val videoCaps = runCatching { Recorder.getVideoCapabilities(info) }.getOrNull()
+        val sdrQualities = runCatching { videoCaps?.getSupportedQualities(DynamicRange.SDR) }.getOrNull().orEmpty()
+        val resolutions = buildList {
+            if (Quality.UHD in sdrQualities) add(VideoResolution.UHD)
+            if (Quality.FHD in sdrQualities) add(VideoResolution.FHD)
+            if (Quality.HD in sdrQualities) add(VideoResolution.HD)
+        }.ifEmpty { listOf(VideoResolution.FHD, VideoResolution.HD) }
+        val hlg = runCatching { videoCaps?.supportedDynamicRanges?.contains(DynamicRange.HLG_10_BIT) == true }.getOrDefault(false)
+        val stab = runCatching { videoCaps?.isStabilizationSupported == true }.getOrDefault(false)
+        val fpsRanges = runCatching { info.supportedFrameRateRanges }.getOrDefault(emptySet())
+
+        val slowRanges = runCatching {
+            if (Recorder.getHighSpeedVideoCapabilities(info) == null) {
+                emptyList()
+            } else {
+                val probeVc = VideoCapture.withOutput(Recorder.Builder().build())
+                val cfg = HighSpeedVideoSessionConfig(probeVc, Preview.Builder().build())
+                info.getSupportedFrameRateRanges(cfg)
+                    .filter { it.lower == it.upper && it.upper >= 120 }
+                    .distinctBy { it.upper }
+                    .sortedBy { it.upper }
+            }
+        }.getOrDefault(emptyList())
+
+        val capabilities = ch(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES)
+        val manual = capabilities?.contains(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_MANUAL_SENSOR) == true
+        val isoRange = ch(CameraCharacteristics.SENSOR_INFO_SENSITIVITY_RANGE)
+        val expRange = ch(CameraCharacteristics.SENSOR_INFO_EXPOSURE_TIME_RANGE)
+
+        return CameraCaps(
+            hasFront = hasLens(p, CameraSelector.LENS_FACING_FRONT),
+            hasBack = hasLens(p, CameraSelector.LENS_FACING_BACK),
             nightExtension = extAvailable(ExtensionMode.NIGHT),
             bokehExtension = extAvailable(ExtensionMode.BOKEH),
             hdrExtension = extAvailable(ExtensionMode.HDR),
+            retouchExtension = extAvailable(ExtensionMode.FACE_RETOUCH),
+            photoFormats = photoFormats,
+            zsl = runCatching { info.isZslSupported }.getOrDefault(false),
+            manualSensor = manual,
+            isoRange = isoRange?.let { it.lower..it.upper },
+            exposureRange = expRange?.let { it.lower..it.upper },
+            minFocusDistance = ch(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE) ?: 0f,
+            hasFlash = info.hasFlashUnit(),
+            videoResolutions = resolutions,
+            videoHlg = hlg,
+            videoStabilization = stab,
+            fps60 = fpsRanges.any { it.upper >= 60 },
+            fps24 = fpsRanges.any { it.lower <= 24 && it.upper >= 24 },
+            slowMoRanges = slowRanges,
+            lowLightBoost = runCatching { info.isLowLightBoostSupported }.getOrDefault(false),
+            lensZooms = lensZooms(info),
         )
-        if (req.mode == CaptureMode.AUDIO) return caps
+    }
 
+    /** Ekwiwalent ogniskowej 35 mm dla danego obiektywu. */
+    private fun equivalentFocal(info: CameraInfo): Float? {
+        val c2 = Camera2CameraInfo.from(info)
+        val focal = runCatching { c2.getCameraCharacteristic(CameraCharacteristics.LENS_INFO_AVAILABLE_FOCAL_LENGTHS) }
+            .getOrNull()?.minOrNull() ?: return null
+        val sensor = runCatching { c2.getCameraCharacteristic(CameraCharacteristics.SENSOR_INFO_PHYSICAL_SIZE) }.getOrNull()
+            ?: return null
+        val diagonal = sqrt(sensor.width * sensor.width + sensor.height * sensor.height)
+        if (diagonal <= 0f) return null
+        return focal * 43.27f / diagonal
+    }
+
+    /**
+     * Krotności odpowiadające fizycznym obiektywom (szeroki kąt < 1×, główny 1×, tele > 1×).
+     * Szeroki kąt nie jest „1”, tylko np. 0,6× – zgodnie z minimalnym zoomem urządzenia.
+     */
+    private fun lensZooms(info: CameraInfo): List<Float> {
+        val zoom = info.zoomState.value
+        val c2 = Camera2CameraInfo.from(info)
+        val range = if (Build.VERSION.SDK_INT >= 30) {
+            runCatching { c2.getCameraCharacteristic(CameraCharacteristics.CONTROL_ZOOM_RATIO_RANGE) }.getOrNull()
+        } else {
+            null
+        }
+        val minZoom = zoom?.minZoomRatio ?: range?.lower ?: 1f
+        val maxZoom = zoom?.maxZoomRatio ?: range?.upper ?: 1f
+        val result = mutableListOf(1f)
+        if (minZoom < 0.95f) result += minZoom
+        val base = equivalentFocal(info)
+        if (base != null) {
+            runCatching { info.physicalCameraInfos }.getOrDefault(emptySet()).forEach { phys ->
+                val f = equivalentFocal(phys) ?: return@forEach
+                var ratio = f / base
+                if (ratio < 1f) ratio = max(ratio, minZoom)
+                if (ratio > maxZoom + 0.01f) return@forEach
+                ratio = if (ratio >= 1.5f && abs(ratio - ratio.roundToInt()) < 0.2f) {
+                    ratio.roundToInt().toFloat()
+                } else {
+                    (ratio * 10f).roundToInt() / 10f
+                }
+                result += ratio
+            }
+        }
+        val sorted = result.filter { it in (minZoom - 0.01f)..(maxZoom + 0.01f) }.sorted()
+        val deduped = mutableListOf<Float>()
+        for (z in sorted) if (deduped.none { abs(it - z) / z < 0.08f }) deduped += z
+        return deduped
+    }
+
+    // ------------------------------------------------------------------ wiązanie
+
+    fun unbind() {
+        provider?.unbindAll()
+        camera = null
+        preview = null
+        imageCapture = null
+        videoCapture = null
+        session = ActiveSession()
+    }
+
+    suspend fun bind(
+        owner: LifecycleOwner,
+        surfaceProvider: Preview.SurfaceProvider,
+        req: BindRequest,
+        caps: CameraCaps,
+    ): ActiveSession {
+        val p = ensureProvider()
+        unbind()
+        baseOptions = null
+        lastHud = null
+        if (req.mode == CaptureMode.AUDIO) return session
+
+        val s = req.settings
+        val base = selectorFor(req.lensFacing)
+        val ext = extensions
         val wantedExtension = when (req.mode) {
             CaptureMode.NIGHT -> ExtensionMode.NIGHT.takeIf { caps.nightExtension }
-            CaptureMode.PORTRAIT -> ExtensionMode.BOKEH.takeIf { caps.bokehExtension }
+            CaptureMode.PORTRAIT -> when {
+                s.portraitEffect == PortraitEffect.RETOUCH && caps.retouchExtension -> ExtensionMode.FACE_RETOUCH
+                caps.bokehExtension -> ExtensionMode.BOKEH
+                caps.retouchExtension -> ExtensionMode.FACE_RETOUCH
+                else -> null
+            }
             CaptureMode.HDR -> ExtensionMode.HDR.takeIf { caps.hdrExtension }
             else -> null
         }
-        val selector = if (wantedExtension != null && ext != null) {
-            ext.getExtensionEnabledCameraSelector(base, wantedExtension)
-        } else {
-            base
-        }
+        val selector = if (wantedExtension != null && ext != null) ext.getExtensionEnabledCameraSelector(base, wantedExtension) else base
 
-        val isVideo = req.mode == CaptureMode.VIDEO
-        val aspect = if (isVideo) AspectRatioMode.R16_9 else req.settings.aspect
+        val aspect = if (req.mode.isVideo) AspectRatioMode.R16_9 else s.aspect
         val aspectStrategy = if (aspect == AspectRatioMode.R16_9) {
             AspectRatioStrategy.RATIO_16_9_FALLBACK_AUTO_STRATEGY
         } else {
             AspectRatioStrategy.RATIO_4_3_FALLBACK_AUTO_STRATEGY
         }
 
-        fun buildPreview(): Preview {
+        fun buildPreview(withSelector: Boolean = true): Preview {
             val builder = Preview.Builder()
-                .setResolutionSelector(ResolutionSelector.Builder().setAspectRatioStrategy(aspectStrategy).build())
-            if (wantedExtension == null) {
-                Camera2Interop.Extender(builder).setSessionCaptureCallback(hudCallback)
+            if (withSelector) builder.setResolutionSelector(ResolutionSelector.Builder().setAspectRatioStrategy(aspectStrategy).build())
+            if (wantedExtension == null) Camera2Interop.Extender(builder).setSessionCaptureCallback(hudCallback)
+            return builder.build().also {
+                it.targetRotation = displayRotation
+                it.setSurfaceProvider(surfaceProvider)
+                this@CameraEngine.preview = it
             }
-            return builder.build().also { it.setSurfaceProvider(surfaceProvider) }
         }
 
-        var bound: Camera? = null
-        var videoHdr = false
-        var stabilization = false
+        var active: ActiveSession
+        val bound: Camera
 
-        if (isVideo) {
-            val quality = when (req.settings.videoResolution) {
-                VideoResolution.UHD -> Quality.UHD
-                VideoResolution.FHD -> Quality.FHD
-                VideoResolution.HD -> Quality.HD
-            }
-            // Próbujemy od najbogatszej konfiguracji, schodząc w dół, gdy urządzenie jej nie obsługuje.
-            val attempts = listOf(
-                req.settings.videoHdr to req.settings.stabilization,
-                false to req.settings.stabilization,
-                false to false,
-            ).distinct()
-            var lastError: Exception? = null
-            for ((hdr, stab) in attempts) {
-                try {
-                    p.unbindAll()
-                    val recorder = Recorder.Builder()
-                        .setQualitySelector(
-                            QualitySelector.from(quality, FallbackStrategy.lowerQualityOrHigherThan(Quality.SD)),
-                        )
-                        .build()
-                    val builder = VideoCapture.Builder(recorder)
-                        .setMirrorMode(MirrorMode.MIRROR_MODE_ON_FRONT_ONLY)
-                    if (stab) builder.setVideoStabilizationEnabled(true)
-                    if (hdr) builder.setDynamicRange(DynamicRange.HLG_10_BIT)
-                    val vc = builder.build()
-                    bound = p.bindToLifecycle(owner, selector, buildPreview(), vc)
-                    videoCapture = vc
-                    videoHdr = hdr
-                    stabilization = stab
-                    break
-                } catch (e: Exception) {
-                    lastError = e
+        when (req.mode) {
+            CaptureMode.SLOWMO -> {
+                val range = caps.slowMoRanges.firstOrNull { it.upper == s.slowMoFps } ?: caps.slowMoRanges.lastOrNull()
+                    ?: error("Urządzenie nie obsługuje zwolnionego tempa")
+                val info = p.getCameraInfo(base)
+                val hsQuality = Recorder.getHighSpeedVideoCapabilities(info)?.getSupportedQualities(DynamicRange.SDR)?.firstOrNull()
+                val recorder = Recorder.Builder().apply {
+                    if (hsQuality != null) setQualitySelector(QualitySelector.from(hsQuality))
+                }.build()
+                val vc = VideoCapture.withOutput(recorder)
+                val preview = Preview.Builder().setTargetRotation(displayRotation).build().also {
+                    it.setSurfaceProvider(surfaceProvider)
+                    this@CameraEngine.preview = it
                 }
+                val cfg = HighSpeedVideoSessionConfig(vc, preview, range, isSlowMotionEnabled = true)
+                bound = p.bindToLifecycle(owner, base, cfg)
+                videoCapture = vc
+                active = ActiveSession(fps = range.upper)
             }
-            if (bound == null) throw lastError ?: IllegalStateException("Nie udało się uruchomić wideo")
-        } else {
-            val quality = req.settings.maxQuality ||
-                req.mode == CaptureMode.NIGHT || req.mode == CaptureMode.HDR || req.mode == CaptureMode.PRO
-            val icBuilder = ImageCapture.Builder()
-                .setResolutionSelector(
-                    ResolutionSelector.Builder()
-                        .setAspectRatioStrategy(aspectStrategy)
-                        .setResolutionStrategy(ResolutionStrategy.HIGHEST_AVAILABLE_STRATEGY)
-                        .build(),
-                )
-                .setCaptureMode(
-                    if (quality) ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY else ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY,
-                )
-                .setJpegQuality(req.settings.jpegQuality.coerceIn(1, 100))
-                .setFlashMode(flashModeOf(req.flash))
-            if (wantedExtension == null && (req.mode == CaptureMode.NIGHT || req.mode == CaptureMode.HDR)) {
-                Camera2Interop.Extender(icBuilder)
-                    .setCaptureRequestOption(CaptureRequest.NOISE_REDUCTION_MODE, CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY)
-                    .setCaptureRequestOption(CaptureRequest.EDGE_MODE, CaptureRequest.EDGE_MODE_HIGH_QUALITY)
-            }
-            val ic = icBuilder.build()
 
-            val analysis = if (wantedExtension == null && req.settings.histogram) {
-                ImageAnalysis.Builder()
+            CaptureMode.VIDEO -> {
+                val quality = when (s.videoResolution.takeIf { it in caps.videoResolutions } ?: caps.videoResolutions.first()) {
+                    VideoResolution.UHD -> Quality.UHD
+                    VideoResolution.FHD -> Quality.FHD
+                    VideoResolution.HD -> Quality.HD
+                }
+                val fps = when (s.videoFps) {
+                    VideoFps.F60 -> if (caps.fps60) 60 else 0
+                    VideoFps.F24 -> if (caps.fps24) 24 else 0
+                    VideoFps.F30 -> 30
+                    VideoFps.AUTO -> 0
+                }
+                val bitrate = bitrateFor(quality, s.bitrate, fps)
+                data class Attempt(val hdr: Boolean, val stab: Boolean, val fps: Int, val snapshot: Boolean)
+                val attempts = listOf(
+                    Attempt(s.videoHdr && caps.videoHlg, s.stabilization && caps.videoStabilization, fps, true),
+                    Attempt(s.videoHdr && caps.videoHlg, s.stabilization && caps.videoStabilization, fps, false),
+                    Attempt(false, s.stabilization && caps.videoStabilization, fps, false),
+                    Attempt(false, false, fps, false),
+                    Attempt(false, false, 0, false),
+                ).distinct()
+                var result: Camera? = null
+                var lastError: Exception? = null
+                active = ActiveSession()
+                for (a in attempts) {
+                    try {
+                        p.unbindAll()
+                        val recorder = Recorder.Builder()
+                            .setQualitySelector(QualitySelector.from(quality, FallbackStrategy.lowerQualityOrHigherThan(Quality.SD)))
+                            .apply { if (bitrate > 0) setTargetVideoEncodingBitRate(bitrate) }
+                            .build()
+                        val builder = VideoCapture.Builder(recorder).setMirrorMode(MirrorMode.MIRROR_MODE_ON_FRONT_ONLY)
+                        if (a.stab) builder.setVideoStabilizationEnabled(true)
+                        if (a.hdr) builder.setDynamicRange(DynamicRange.HLG_10_BIT)
+                        if (a.fps > 0) builder.setTargetFrameRate(Range(a.fps, a.fps))
+                        val vc = builder.build()
+                        val useCases = mutableListOf<UseCase>(buildPreview(), vc)
+                        var ic: ImageCapture? = null
+                        if (a.snapshot) {
+                            ic = ImageCapture.Builder()
+                                .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+                                .setResolutionSelector(ResolutionSelector.Builder().setAspectRatioStrategy(aspectStrategy).build())
+                                .build()
+                            useCases += ic
+                        }
+                        result = p.bindToLifecycle(owner, base, *useCases.toTypedArray())
+                        videoCapture = vc
+                        imageCapture = ic
+                        active = ActiveSession(videoHdr = a.hdr, stabilization = a.stab, fps = a.fps, snapshotInVideo = ic != null)
+                        break
+                    } catch (e: Exception) {
+                        lastError = e
+                    }
+                }
+                bound = result ?: throw (lastError ?: IllegalStateException("Nie udało się uruchomić wideo"))
+            }
+
+            else -> {
+                val format = when {
+                    wantedExtension != null -> PhotoFormat.JPEG
+                    req.mode != CaptureMode.PHOTO && req.mode != CaptureMode.PRO -> PhotoFormat.JPEG
+                    s.photoFormat in caps.photoFormats -> s.photoFormat
+                    else -> PhotoFormat.JPEG
+                }
+                val captureMode = when {
+                    req.mode == CaptureMode.NIGHT || req.mode == CaptureMode.HDR -> ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY
+                    s.priority == CapturePriority.QUALITY -> ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY
+                    s.priority == CapturePriority.SPEED && caps.zsl && wantedExtension == null && format == PhotoFormat.JPEG ->
+                        ImageCapture.CAPTURE_MODE_ZERO_SHUTTER_LAG
+                    else -> ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY
+                }
+                val postview = wantedExtension != null && runCatching {
+                    ext?.let { ImageCapture.getImageCaptureCapabilities(p.getCameraInfo(selector)).isPostviewSupported }
+                }.getOrNull() == true
+                val icBuilder = ImageCapture.Builder()
                     .setResolutionSelector(
                         ResolutionSelector.Builder()
-                            .setResolutionStrategy(
-                                ResolutionStrategy(Size(320, 240), ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER),
-                            )
+                            .setAspectRatioStrategy(aspectStrategy)
+                            .setResolutionStrategy(ResolutionStrategy.HIGHEST_AVAILABLE_STRATEGY)
                             .build(),
                     )
-                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                    .build()
-                    .also { a ->
-                        a.setAnalyzer(analysisExecutor, HistogramAnalyzer { h -> main.execute { onHistogram?.invoke(h) } })
-                    }
-            } else {
-                null
-            }
+                    .setCaptureMode(captureMode)
+                    .setJpegQuality(s.jpegQuality.coerceIn(1, 100))
+                    .setFlashMode(flashModeOf(s.flash))
+                    .setOutputFormat(
+                        when (format) {
+                            PhotoFormat.JPEG -> ImageCapture.OUTPUT_FORMAT_JPEG
+                            PhotoFormat.ULTRA_HDR -> ImageCapture.OUTPUT_FORMAT_JPEG_ULTRA_HDR
+                            PhotoFormat.RAW -> ImageCapture.OUTPUT_FORMAT_RAW
+                            PhotoFormat.RAW_JPEG -> ImageCapture.OUTPUT_FORMAT_RAW_JPEG
+                        },
+                    )
+                if (postview) icBuilder.setPostviewEnabled(true)
+                if (wantedExtension == null && (req.mode == CaptureMode.NIGHT || req.mode == CaptureMode.HDR)) {
+                    Camera2Interop.Extender(icBuilder)
+                        .setCaptureRequestOption(CaptureRequest.NOISE_REDUCTION_MODE, CaptureRequest.NOISE_REDUCTION_MODE_HIGH_QUALITY)
+                        .setCaptureRequestOption(CaptureRequest.EDGE_MODE, CaptureRequest.EDGE_MODE_HIGH_QUALITY)
+                }
+                val ic = icBuilder.build()
 
-            val preview = buildPreview()
-            val useCases = listOfNotNull<UseCase>(preview, ic, analysis)
-            bound = try {
-                p.bindToLifecycle(owner, selector, *useCases.toTypedArray())
-            } catch (e: Exception) {
-                if (analysis == null) throw e
-                p.unbindAll()
-                p.bindToLifecycle(owner, selector, preview, ic)
+                // Analiza potrzebna do histogramu oraz do automatycznego doboru liczby klatek nocnych.
+                val wantAnalysis = wantedExtension == null && (s.histogram || req.mode == CaptureMode.NIGHT)
+                val analysis = if (wantAnalysis) {
+                    ImageAnalysis.Builder()
+                        .setResolutionSelector(
+                            ResolutionSelector.Builder()
+                                .setResolutionStrategy(ResolutionStrategy(Size(320, 240), ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER))
+                                .build(),
+                        )
+                        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                        .build()
+                        .also { a -> a.setAnalyzer(analysisExecutor, HistogramAnalyzer { h -> main.execute { onHistogram?.invoke(h) } }) }
+                } else {
+                    null
+                }
+                val preview = buildPreview()
+                bound = try {
+                    p.bindToLifecycle(owner, selector, *listOfNotNull<UseCase>(preview, ic, analysis).toTypedArray())
+                } catch (e: Exception) {
+                    if (analysis == null) throw e
+                    p.unbindAll()
+                    p.bindToLifecycle(owner, selector, preview, ic)
+                }
+                imageCapture = ic
+                active = ActiveSession(extension = wantedExtension, photoFormat = format, postview = postview)
             }
-            imageCapture = ic
         }
 
-        val cam = bound!!
-        camera = cam
-        activeExtension = wantedExtension
-
-        val info = Camera2CameraInfo.from(cam.cameraInfo)
-        val capabilities = runCatching { info.getCameraCharacteristic(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES) }.getOrNull()
-        val manual = capabilities?.contains(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_MANUAL_SENSOR) == true
-        val isoRange = runCatching { info.getCameraCharacteristic(CameraCharacteristics.SENSOR_INFO_SENSITIVITY_RANGE) }.getOrNull()
-        val expRange = runCatching { info.getCameraCharacteristic(CameraCharacteristics.SENSOR_INFO_EXPOSURE_TIME_RANGE) }.getOrNull()
-        val minFocus = runCatching { info.getCameraCharacteristic(CameraCharacteristics.LENS_INFO_MINIMUM_FOCUS_DISTANCE) }.getOrNull()
-
-        caps = caps.copy(
-            manualSensor = manual && wantedExtension == null,
-            isoRange = isoRange?.let { it.lower..it.upper },
-            exposureRange = expRange?.let { it.lower..it.upper },
-            minFocusDistance = minFocus ?: 0f,
-            hasFlash = cam.cameraInfo.hasFlashUnit(),
-            videoHdrActive = videoHdr,
-            stabilizationActive = stabilization,
-        )
+        camera = bound
+        session = active
 
         if (wantedExtension == null && req.mode == CaptureMode.NIGHT) {
-            // Brak sprzętowego trybu nocnego: pozwalamy AE wydłużyć czas naświetlania w podglądzie.
-            val ranges = runCatching { info.getCameraCharacteristic(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES) }.getOrNull()
+            val ranges = runCatching {
+                Camera2CameraInfo.from(bound.cameraInfo).getCameraCharacteristic(CameraCharacteristics.CONTROL_AE_AVAILABLE_TARGET_FPS_RANGES)
+            }.getOrNull()
             val slowest = ranges?.minWithOrNull(compareBy<Range<Int>>({ it.lower }, { it.upper }))
             if (slowest != null) {
-                nightPreviewOptions = CaptureRequestOptions.Builder()
+                baseOptions = CaptureRequestOptions.Builder()
                     .setCaptureRequestOption(CaptureRequest.CONTROL_AE_TARGET_FPS_RANGE, slowest)
                     .build()
             }
         }
+        if (caps.lowLightBoost && s.lowLightBoost && (req.mode == CaptureMode.NIGHT || req.mode == CaptureMode.VIDEO) && wantedExtension == null) {
+            runCatching { bound.cameraControl.enableLowLightBoostAsync(true) }
+        }
 
         if (req.mode == CaptureMode.PRO) applyPro(req.pro) else applyBaseOptions()
-        applyFlash(req.flash, req.mode)
-        return caps
+        applyFlash(s.flash, req.mode)
+        return active
+    }
+
+    private fun bitrateFor(quality: Quality, mode: VideoBitrate, fps: Int): Int {
+        if (mode == VideoBitrate.AUTO) return 0
+        val baseMbps = when (quality) {
+            Quality.UHD -> 48
+            Quality.FHD -> 20
+            else -> 10
+        }
+        val fpsFactor = if (fps >= 60) 1.6f else 1f
+        val factor = if (mode == VideoBitrate.HIGH) 1.5f else 2.6f
+        return (baseMbps * fpsFactor * factor * 1_000_000).toInt()
     }
 
     private fun applyBaseOptions() {
         val cam = camera ?: return
-        if (activeExtension != null) return
-        val options = nightPreviewOptions ?: CaptureRequestOptions.Builder().build()
-        runCatching { Camera2CameraControl.from(cam.cameraControl).setCaptureRequestOptions(options) }
+        if (session.extension != null) return
+        runCatching { Camera2CameraControl.from(cam.cameraControl).setCaptureRequestOptions(baseOptions ?: CaptureRequestOptions.Builder().build()) }
     }
 
     fun applyPro(pro: ProSettings) {
         val cam = camera ?: return
-        if (activeExtension != null) return
+        if (session.extension != null) return
         val b = CaptureRequestOptions.Builder()
         if (pro.manualExposure) {
             val iso = pro.iso ?: lastHud?.iso ?: 400
@@ -331,9 +524,10 @@ class CameraEngine(private val context: Context) {
             b.setCaptureRequestOption(CaptureRequest.SENSOR_EXPOSURE_TIME, exposure)
             b.setCaptureRequestOption(CaptureRequest.SENSOR_FRAME_DURATION, max(exposure, 33_333_333L))
         }
-        if (pro.focusDiopters != null) {
+        val focus = pro.focusDiopters
+        if (focus != null) {
             b.setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_OFF)
-            b.setCaptureRequestOption(CaptureRequest.LENS_FOCUS_DISTANCE, pro.focusDiopters)
+            b.setCaptureRequestOption(CaptureRequest.LENS_FOCUS_DISTANCE, focus)
         }
         if (pro.whiteBalance != WhiteBalance.AUTO) {
             b.setCaptureRequestOption(CaptureRequest.CONTROL_AWB_MODE, pro.whiteBalance.awbMode)
@@ -348,10 +542,10 @@ class CameraEngine(private val context: Context) {
     }
 
     fun applyFlash(f: FlashSetting, mode: CaptureMode) {
-        imageCapture?.flashMode = flashModeOf(f)
+        imageCapture?.flashMode = if (mode.isVideo) ImageCapture.FLASH_MODE_OFF else flashModeOf(f)
         val cam = camera ?: return
         if (cam.cameraInfo.hasFlashUnit()) {
-            val torch = f == FlashSetting.TORCH || (mode == CaptureMode.VIDEO && f == FlashSetting.ON)
+            val torch = f == FlashSetting.TORCH || (mode.isVideo && f == FlashSetting.ON)
             cam.cameraControl.enableTorch(torch)
         }
     }
@@ -360,21 +554,31 @@ class CameraEngine(private val context: Context) {
         camera?.cameraControl?.setZoomRatio(ratio)
     }
 
-    fun focus(point: MeteringPoint, autoFocus: Boolean) {
+    fun focus(point: MeteringPoint, autoFocus: Boolean, lock: Boolean) {
         val cam = camera ?: return
         val flags = if (autoFocus) {
             FocusMeteringAction.FLAG_AF or FocusMeteringAction.FLAG_AE or FocusMeteringAction.FLAG_AWB
         } else {
             FocusMeteringAction.FLAG_AE
         }
-        val action = FocusMeteringAction.Builder(point, flags)
-            .setAutoCancelDuration(5, TimeUnit.SECONDS)
-            .build()
+        val builder = FocusMeteringAction.Builder(point, flags)
+        if (lock) builder.disableAutoCancel() else builder.setAutoCancelDuration(5, TimeUnit.SECONDS)
+        val action = builder.build()
         if (cam.cameraInfo.isFocusMeteringSupported(action)) cam.cameraControl.startFocusAndMetering(action)
+    }
+
+    fun cancelFocusLock() {
+        camera?.cameraControl?.cancelFocusAndMetering()
     }
 
     fun setExposureIndex(index: Int) {
         camera?.cameraControl?.setExposureCompensationIndex(index)
+    }
+
+    /** Obrót wyświetlacza (Surface.ROTATION_*) – zmienia się tylko w trybie „Obracaj ekran”. */
+    fun setDisplayRotation(rotation: Int) {
+        displayRotation = rotation
+        preview?.targetRotation = rotation
     }
 
     fun setTargetRotation(rotation: Int) {
@@ -382,17 +586,56 @@ class CameraEngine(private val context: Context) {
         if (recording == null) videoCapture?.targetRotation = rotation
     }
 
-    fun takePhoto(rotation: Int, mirror: Boolean, tag: String, onResult: (Uri?, String?) -> Unit) {
-        val ic = imageCapture ?: return onResult(null, "Kamera nie jest gotowa")
+    // ------------------------------------------------------------------ zdjęcia
+
+    /**
+     * Zdjęcie zapisane bezpośrednio do galerii. Obsługuje RAW (DNG), RAW+JPEG, Ultra HDR,
+     * podgląd „postview” i postęp przetwarzania rozszerzeń producenta.
+     */
+    suspend fun takePhoto(
+        rotation: Int,
+        mirror: Boolean,
+        tag: String,
+        onProgress: (Int) -> Unit = {},
+        onPostview: (Bitmap) -> Unit = {},
+    ): PhotoResult {
+        val ic = imageCapture ?: return PhotoResult(null, error = "Kamera nie jest gotowa")
         ic.targetRotation = rotation
-        ic.takePicture(
-            MediaSaver.photoOutputOptions(context, mirror, tag),
-            main,
-            object : ImageCapture.OnImageSavedCallback {
-                override fun onImageSaved(output: ImageCapture.OutputFileResults) = onResult(output.savedUri, null)
-                override fun onError(exception: ImageCaptureException) = onResult(null, exception.message)
-            },
-        )
+        val format = session.photoFormat
+        return suspendCancellableCoroutine { cont ->
+            val expected = if (format == PhotoFormat.RAW_JPEG) 2 else 1
+            val uris = mutableListOf<Uri>()
+            var finished = false
+            val callback = object : ImageCapture.OnImageSavedCallback {
+                override fun onImageSaved(output: ImageCapture.OutputFileResults) {
+                    output.savedUri?.let { uris += it }
+                    if (uris.size >= expected && !finished) {
+                        finished = true
+                        if (cont.isActive) cont.resume(PhotoResult(uris.last(), uris.firstOrNull().takeIf { expected == 2 }))
+                    }
+                }
+
+                override fun onError(exception: ImageCaptureException) {
+                    if (!finished) {
+                        finished = true
+                        if (cont.isActive) cont.resume(PhotoResult(uris.lastOrNull(), error = exception.message))
+                    }
+                }
+
+                override fun onCaptureProcessProgressed(progress: Int) = onProgress(progress)
+                override fun onPostviewBitmapAvailable(bitmap: Bitmap) = onPostview(bitmap)
+            }
+            when (format) {
+                PhotoFormat.RAW_JPEG -> ic.takePicture(
+                    MediaSaver.rawOutputOptions(context, tag),
+                    MediaSaver.photoOutputOptions(context, mirror, tag, "image/jpeg"),
+                    main,
+                    callback,
+                )
+                PhotoFormat.RAW -> ic.takePicture(MediaSaver.rawOutputOptions(context, tag), main, callback)
+                else -> ic.takePicture(MediaSaver.photoOutputOptions(context, mirror, tag, "image/jpeg"), main, callback)
+            }
+        }
     }
 
     /** Pojedyncza klatka JPEG do pamięci (dla potoku nocnego i HDR). */
@@ -413,7 +656,7 @@ class CameraEngine(private val context: Context) {
                         } else {
                             val bmp = image.toBitmap()
                             ByteArrayOutputStream().use { os ->
-                                bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 98, os)
+                                bmp.compress(Bitmap.CompressFormat.JPEG, 98, os)
                                 bmp.recycle()
                                 os.toByteArray()
                             }
@@ -456,6 +699,8 @@ class CameraEngine(private val context: Context) {
         return frames
     }
 
+    // ------------------------------------------------------------------ wideo
+
     @SuppressLint("MissingPermission")
     fun startRecording(rotation: Int, withAudio: Boolean, listener: (VideoRecordEvent) -> Unit): Boolean {
         val vc = videoCapture ?: return false
@@ -475,6 +720,7 @@ class CameraEngine(private val context: Context) {
     fun pauseRecording() = recording?.pause()
     fun resumeRecording() = recording?.resume()
     fun stopRecording() = recording?.stop()
+    fun muteRecording(muted: Boolean) = recording?.mute(muted)
 
     fun release() {
         recording?.stop()

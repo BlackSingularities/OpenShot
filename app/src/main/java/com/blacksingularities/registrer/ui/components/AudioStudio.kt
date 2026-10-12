@@ -59,7 +59,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.blacksingularities.registrer.audio.AudioItem
-import com.blacksingularities.registrer.data.AppSettings
+import com.blacksingularities.registrer.data.ModeSettings
 import com.blacksingularities.registrer.ui.RecState
 import com.blacksingularities.registrer.ui.theme.MonoDigits
 import com.blacksingularities.registrer.ui.theme.Palette
@@ -86,7 +86,7 @@ fun AudioStudio(
     state: RecState,
     millis: Long,
     amplitudes: List<Float>,
-    settings: AppSettings,
+    settings: ModeSettings,
     recordings: List<AudioItem>,
     playingId: Long?,
     playbackPosition: () -> Float,
