@@ -1,0 +1,108 @@
+package com.blacksingularities.registrer.ui.components
+
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.foundation.layout.size
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
+import com.blacksingularities.registrer.camera.CaptureMode
+import com.blacksingularities.registrer.ui.theme.Palette
+
+/**
+ * Migawka morfująca kształt i kolor zależnie od trybu: krąg (foto), księżyc (noc),
+ * czerwony punkt → zaokrąglony kwadrat (nagrywanie), bursztyn (audio). Pierścień postępu
+ * pokazuje przetwarzanie wieloklatkowe.
+ */
+@Composable
+fun ShutterButton(
+    mode: CaptureMode,
+    active: Boolean,
+    progress: Float?,
+    processing: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val interaction = remember { MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (pressed) 0.88f else 1f, spring(dampingRatio = 0.5f, stiffness = 600f), label = "scale")
+    val inner by animateColorAsState(
+        when (mode) {
+            CaptureMode.VIDEO -> Palette.Record
+            CaptureMode.AUDIO -> Palette.Amber
+            CaptureMode.NIGHT -> Palette.Moon
+            CaptureMode.PORTRAIT -> Color(0xFFFFE2C4)
+            else -> Color.White
+        },
+        tween(350),
+        label = "inner",
+    )
+    val corner by animateFloatAsState(if (active) 0.32f else 1f, spring(dampingRatio = 0.7f, stiffness = 300f), label = "corner")
+    val innerSize by animateFloatAsState(if (active) 0.42f else 0.78f, spring(dampingRatio = 0.6f, stiffness = 300f), label = "size")
+    val crescent by animateFloatAsState(if (mode == CaptureMode.NIGHT && !active) 1f else 0f, tween(400), label = "moon")
+    val spin = rememberInfiniteTransition(label = "spin")
+    val sweepStart by spin.animateFloat(0f, 360f, infiniteRepeatable(tween(1100, easing = LinearEasing), RepeatMode.Restart), label = "start")
+
+    Canvas(
+        modifier
+            .size(86.dp)
+            .graphicsLayer { scaleX = scale; scaleY = scale; alpha = if (enabled) 1f else 0.45f }
+            .semantics { contentDescription = if (active) "Zatrzymaj" else "Wyzwól migawkę" }
+            .clickable(interactionSource = interaction, indication = null, enabled = enabled, onClick = onClick),
+    ) {
+        val ringWidth = 4.dp.toPx()
+        val radius = size.minDimension / 2f - ringWidth
+        drawCircle(Color.White.copy(alpha = 0.92f), radius = radius, style = Stroke(ringWidth))
+
+        val s = size.minDimension * innerSize
+        val tl = Offset((size.width - s) / 2f, (size.height - s) / 2f)
+        drawRoundRect(inner, tl, Size(s, s), CornerRadius(s / 2f * corner))
+        if (crescent > 0.01f) {
+            val r = s / 2f
+            drawCircle(
+                Palette.Ink.copy(alpha = 0.92f * crescent),
+                radius = r * 0.78f,
+                center = Offset(center.x + r * 0.42f, center.y - r * 0.3f),
+            )
+        }
+
+        val arcInset = ringWidth / 2f
+        val arcSize = Size(size.width - 2 * arcInset, size.height - 2 * arcInset)
+        if (progress != null) {
+            drawArc(
+                Palette.Amber, -90f, 360f * progress.coerceIn(0f, 1f), false,
+                topLeft = Offset(arcInset, arcInset), size = arcSize,
+                style = Stroke(ringWidth, cap = StrokeCap.Round),
+            )
+        } else if (processing) {
+            drawArc(
+                Palette.Amber, sweepStart, 90f, false,
+                topLeft = Offset(arcInset, arcInset), size = arcSize,
+                style = Stroke(ringWidth, cap = StrokeCap.Round),
+            )
+        }
+    }
+}
