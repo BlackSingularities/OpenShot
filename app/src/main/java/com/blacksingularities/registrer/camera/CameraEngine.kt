@@ -516,7 +516,7 @@ class CameraEngine(private val context: Context) {
         // Tryb ręczny może nagrywać wideo – wtedy wiązany jest jak Wideo, z ręczną ekspozycją.
         val proVideo = req.mode == CaptureMode.PRO && s.proVideo
         val video = req.mode.isVideo || proVideo
-        val aspect = if (video) AspectRatioMode.R16_9 else s.aspect
+        val aspect = if (video || req.mode == CaptureMode.TIMELAPSE) AspectRatioMode.R16_9 else s.aspect
         val aspectStrategy = if (aspect == AspectRatioMode.R16_9) {
             AspectRatioStrategy.RATIO_16_9_FALLBACK_AUTO_STRATEGY
         } else {
@@ -671,7 +671,7 @@ class CameraEngine(private val context: Context) {
                 }
                 val captureMode = when {
                     // Długi czas: jak najszybsza seria – liczy się liczba klatek, nie pojedyncza jakość.
-                    req.mode == CaptureMode.LONG -> ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY
+                    req.mode == CaptureMode.LONG || req.mode == CaptureMode.TIMELAPSE -> ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY
                     req.mode == CaptureMode.NIGHT || req.mode == CaptureMode.HDR -> ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY
                     s.priority == CapturePriority.QUALITY -> ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY
                     s.priority == CapturePriority.SPEED && caps.zsl && wantedExtension == null && format == PhotoFormat.JPEG ->
@@ -689,6 +689,12 @@ class CameraEngine(private val context: Context) {
                                 // Seria długiego czasu w ok. 12 MP: szybsze klatki i mniej pamięci.
                                 if (req.mode == CaptureMode.LONG) {
                                     ResolutionStrategy(Size(4032, 3024), ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER)
+                                } else if (req.mode == CaptureMode.TIMELAPSE && s.tlResolution != com.blacksingularities.registrer.data.TimelapseResolution.UHD8K) {
+                                    // Klatki filmu poklatkowego tylko trochę większe niż film – szybciej i mniej pamięci.
+                                    ResolutionStrategy(
+                                        Size(s.tlResolution.width, s.tlResolution.height),
+                                        ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER,
+                                    )
                                 } else {
                                     ResolutionStrategy.HIGHEST_AVAILABLE_STRATEGY
                                 },
@@ -811,6 +817,16 @@ class CameraEngine(private val context: Context) {
             val torch = f == FlashSetting.TORCH || (video && f == FlashSetting.ON)
             cam.cameraControl.enableTorch(torch)
         }
+    }
+
+    /** Blokada automatycznej ekspozycji i balansu bieli (film poklatkowy bez skoków jasności). */
+    fun setExposureLock(lock: Boolean) {
+        val cam = camera ?: return
+        val options = CaptureRequestOptions.Builder()
+            .setCaptureRequestOption(CaptureRequest.CONTROL_AE_LOCK, lock)
+            .setCaptureRequestOption(CaptureRequest.CONTROL_AWB_LOCK, lock)
+            .build()
+        runCatching { Camera2CameraControl.from(cam.cameraControl).addCaptureRequestOptions(options) }
     }
 
     fun setZoom(ratio: Float) {

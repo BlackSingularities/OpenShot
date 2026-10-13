@@ -66,6 +66,26 @@ object MediaSaver {
         return builder.build()
     }
 
+    /** Kopiuje gotowy plik MP4 do galerii (DCIM/OpenShot). */
+    fun saveVideoFile(context: Context, file: File, tag: String): Uri? {
+        val resolver = context.contentResolver
+        val values = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, "OPENSHOT_${tag}_${stamp()}.mp4")
+            put(MediaStore.MediaColumns.MIME_TYPE, "video/mp4")
+            put(MediaStore.MediaColumns.RELATIVE_PATH, MEDIA_DIR)
+            put(MediaStore.MediaColumns.IS_PENDING, 1)
+        }
+        val uri = resolver.insert(MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY), values) ?: return null
+        return try {
+            resolver.openOutputStream(uri)!!.use { os -> file.inputStream().use { it.copyTo(os) } }
+            resolver.update(uri, ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }, null, null)
+            uri
+        } catch (e: Exception) {
+            resolver.delete(uri, null, null)
+            null
+        }
+    }
+
     /** Zapisuje przetworzoną bitmapę (w orientacji sensora) z poprawnym tagiem EXIF orientacji. */
     fun saveBitmap(context: Context, bitmap: Bitmap, rotation: Int, quality: Int, software: String, tag: String): Uri? {
         val tmp = File(context.cacheDir, "proc_${System.nanoTime()}.jpg")

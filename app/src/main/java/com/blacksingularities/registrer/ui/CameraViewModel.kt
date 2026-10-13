@@ -230,7 +230,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Nagrywanie lub przetwarzanie – ekran nie powinien się wtedy obracać. */
     val holdOrientation: Boolean
-        get() = recState != RecState.IDLE || processing != null || bursting || intervalRunning || countdown != null
+        get() = recState != RecState.IDLE || processing != null || bursting || intervalRunning || countdown != null || tlRunning
 
     /** Osobny aparat (szeroki kąt / tele) albo null, gdy aktywny jest aparat główny. */
     var activeCameraId by mutableStateOf<String?>(null); private set
@@ -272,7 +272,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     val displayZoomMax: Float get() = if (cropAllowed) MAX_DIGITAL_ZOOM else maxOf(zoomMax * zoomScale, caps.maxZoom)
 
     val effectiveAspect: AspectRatioMode
-        get() = if (videoMode) AspectRatioMode.R16_9 else cfg.aspect
+        get() = if (videoMode || mode == CaptureMode.TIMELAPSE) AspectRatioMode.R16_9 else cfg.aspect
 
     val availableModes: List<CaptureMode>
         get() = CaptureMode.entries.filter {
@@ -306,7 +306,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
 
     val busy
         get() = processing != null || recState != RecState.IDLE || audioState != RecState.IDLE ||
-            bursting || intervalRunning
+            bursting || intervalRunning || tlRunning
 
     init {
         engine.onHud = { hud = it }
@@ -486,7 +486,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
 
     fun flashOptions(): List<FlashSetting> = when {
         !caps.hasFlash -> listOf(FlashSetting.OFF)
-        videoMode || mode == CaptureMode.NIGHT || mode == CaptureMode.LONG -> listOf(FlashSetting.OFF, FlashSetting.TORCH)
+        videoMode || mode == CaptureMode.NIGHT || mode == CaptureMode.LONG || mode == CaptureMode.TIMELAPSE -> listOf(FlashSetting.OFF, FlashSetting.TORCH)
         else -> FlashSetting.entries
     }
 
@@ -809,6 +809,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         when {
             videoMode -> toggleVideo()
             mode == CaptureMode.AUDIO -> toggleAudio()
+            mode == CaptureMode.TIMELAPSE -> toggleTimelapse()
             else -> {
                 if (countdown != null) {
                     timerJob?.cancel()
@@ -1173,6 +1174,120 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
             src.recycle()
             if (cut !== src) cut.recycle()
             if (out !== cut) out.recycle()
+        }
+    }
+
+    // ================================================================ film poklatkowy
+
+    var tlRunning by mutableStateOf(false); private set
+    var tlFrames by mutableIntStateOf(0); private set
+    var tlStartedAt by mutableLongStateOf(0L); private set
+    /** Rzeczywisty rozmiar kodowanego filmu (może być mniejszy niż wybrany). */
+    var tlSize by mutableStateOf<String?>(null); private set
+    private var tlJob: Job? = null
+
+    /** Odstęp między zdjęciami w ms: przyspieszenie / klatkaż filmu. */
+    val tlIntervalMs: Long get() = (cfg.tlSpeed * 1000L / cfg.tlFps.coerceAtLeast(1)).coerceAtLeast(200L)
+
+    /** Rozdzielczości filmu, które obsługuje koder telefonu. */
+    fun timelapseResolutions(): List<com.blacksingularities.registrer.data.TimelapseResolution> = tlResolutionsCache
+
+    private val tlResolutionsCache by lazy {
+        com.blacksingularities.registrer.data.TimelapseResolution.entries.filter {
+            com.blacksingularities.registrer.camera.TimelapseWriter.pickMime(it.width, it.height) != null
+        }.ifEmpty { listOf(com.blacksingularities.registrer.data.TimelapseResolution.FHD) }
+    }
+
+    private fun toggleTimelapse() {
+        if (tlRunning) {
+            tlJob?.cancel()
+            return
+        }
+        if (!cameraReady || processing != null) return
+        val c = cfg
+        val res = c.tlResolution.takeIf { it in timelapseResolutions() } ?: timelapseResolutions().last()
+        val fps = c.tlFps
+        val interval = tlIntervalMs
+        val limitMs = c.tlStopMin * 60_000L
+        tlRunning = true
+        tlFrames = 0
+        tlSize = null
+        tlStartedAt = SystemClock.elapsedRealtime()
+        if (global.shutterSound) sound.play(MediaActionSound.START_VIDEO_RECORDING)
+        if (c.tlLock) engine.setExposureLock(true)
+        val out = java.io.File(ctx.cacheDir, "timelapse_${System.nanoTime()}.mp4")
+        tlJob = viewModelScope.launch {
+            var writer: com.blacksingularities.registrer.camera.TimelapseWriter? = null
+            var failure: String? = null
+            try {
+                while (isActive) {
+                    val started = SystemClock.elapsedRealtime()
+                    if (limitMs > 0 && started - tlStartedAt >= limitMs) break
+                    engine.setTargetRotation(surfaceRotation())
+                    val frame = engine.captureFrame()
+                    withContext(Dispatchers.Default) {
+                        if (writer == null) {
+                            // Rozmiar filmu: wybrany, ale nie większy niż klatki z aparatu.
+                            val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                            android.graphics.BitmapFactory.decodeByteArray(frame.bytes, 0, frame.bytes.size, bounds)
+                            val fit = com.blacksingularities.registrer.camera.TimelapseWriter.fitSize(
+                                res.width, res.height, bounds.outWidth, bounds.outHeight,
+                            ) ?: error("Koder nie obsługuje żadnej rozdzielczości")
+                            writer = com.blacksingularities.registrer.camera.TimelapseWriter.create(
+                                out, fit.first, fit.second, fps, frame.rotation, c.tlDeflicker,
+                            ) ?: error("Nie udało się uruchomić kodera wideo")
+                            withContext(Dispatchers.Main) {
+                                tlSize = when (fit.first) {
+                                    7680 -> "8K"
+                                    3840 -> "4K"
+                                    1920 -> "1080p"
+                                    else -> "${fit.second}p"
+                                }
+                                if (fit.first < res.width) message = "Film w ${tlSize} – aparat lub koder nie pozwala na ${res.label}"
+                            }
+                        }
+                        writer?.addFrame(frame.bytes)
+                    }
+                    tlFrames = writer?.frames ?: tlFrames
+                    val wait = interval - (SystemClock.elapsedRealtime() - started)
+                    if (wait > 0) delay(wait)
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                // zatrzymanie przyciskiem
+            } catch (e: Exception) {
+                failure = e.message ?: e.javaClass.simpleName
+            } finally {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) { finishTimelapse(writer, out, failure) }
+            }
+        }
+    }
+
+    private suspend fun finishTimelapse(writer: com.blacksingularities.registrer.camera.TimelapseWriter?, out: java.io.File, error: String?) {
+        if (cfg.tlLock) engine.setExposureLock(false)
+        if (global.shutterSound && inForeground) sound.play(MediaActionSound.STOP_VIDEO_RECORDING)
+        val frames = writer?.frames ?: 0
+        if (writer == null || frames < 2) {
+            writer?.let { w -> withContext(Dispatchers.Default) { w.finish() } }
+            out.delete()
+            tlRunning = false
+            message = error?.let { "Film poklatkowy przerwany: $it" } ?: "Za mało klatek na film (potrzeba co najmniej 2)"
+            return
+        }
+        processing = Processing("Zapisywanie filmu poklatkowego", null)
+        val uri = withContext(Dispatchers.IO) {
+            val ok = writer.finish()
+            if (ok) runCatching { MediaSaver.saveVideoFile(ctx, out, "TL") }.getOrNull() else null
+        }
+        out.delete()
+        processing = null
+        tlRunning = false
+        if (uri != null) {
+            onSaved(uri, true)
+            val seconds = frames.toFloat() / cfg.tlFps
+            message = String.format(java.util.Locale("pl", "PL"), "Zapisano film poklatkowy: %d klatek · %.1f s", frames, seconds) +
+                (error?.let { " (przerwano: $it)" } ?: "")
+        } else {
+            message = "Nie udało się zapisać filmu poklatkowego"
         }
     }
 
@@ -1683,6 +1798,8 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         stopMomentBuffer()
         // Nagrywanie dźwięku trwa dalej w usłudze pierwszoplanowej; mierniki usypiają.
         inForeground = false
+        // Aparat zostaje zwolniony – film poklatkowy kończy się z dotychczasowymi klatkami.
+        if (tlRunning) tlJob?.cancel()
         refreshLocation()
         audioJob?.cancel()
         audioJob = null

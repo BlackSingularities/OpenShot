@@ -24,6 +24,8 @@ enum class CaptureMode(val label: String, val isPhoto: Boolean, val isVideo: Boo
     MOTION("Ruchome", true, false, "Zdjęcie ruchome"),
     PHOTO("Zdjęcie", true, false),
     VIDEO("Wideo", false, true),
+    /** Zdjęcia co kilka sekund składane na bieżąco w film 1080p / 4K / 8K. */
+    TIMELAPSE("Poklatkowy", false, false, "Film poklatkowy"),
     SLOWMO("Zwolnione", false, true, "Zwolnione tempo"),
     AUDIO("Dyktafon", false, false),
 }

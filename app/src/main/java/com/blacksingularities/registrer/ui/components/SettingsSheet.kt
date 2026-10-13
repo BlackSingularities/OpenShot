@@ -112,6 +112,9 @@ import androidx.compose.material.icons.rounded.Link
 import com.blacksingularities.registrer.data.SharedGroup
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.Exposure
+import androidx.compose.material.icons.rounded.Timelapse
 import androidx.compose.material.icons.rounded.Gradient
 import androidx.compose.material.icons.rounded.CenterFocusWeak
 import androidx.compose.material.icons.rounded.Opacity
@@ -171,6 +174,15 @@ import kotlin.math.roundToInt
 
 val LONG_SECONDS = listOf(1, 2, 4, 8, 15)
 
+/** „Zdjęcie co X s · 1 min nagrania = Y s filmu”. */
+fun timelapseHint(speed: Int, fps: Int): String {
+    val interval = speed.toFloat() / fps
+    val perMinute = 60f / speed
+    val pl = Locale("pl", "PL")
+    return "Zdjęcie co " + String.format(pl, "%.1f", interval).removeSuffix(",0") + " s · 1 min nagrania = " +
+        String.format(pl, "%.1f", perMinute).removeSuffix(",0") + " s filmu"
+}
+
 fun modeIcon(mode: CaptureMode): ImageVector = when (mode) {
     CaptureMode.NIGHT -> Icons.Rounded.NightsStay
     CaptureMode.PORTRAIT -> Icons.Rounded.Portrait
@@ -182,6 +194,7 @@ fun modeIcon(mode: CaptureMode): ImageVector = when (mode) {
     CaptureMode.SLOWMO -> Icons.Rounded.SlowMotionVideo
     CaptureMode.AUDIO -> Icons.Rounded.Mic
     CaptureMode.LONG -> Icons.Rounded.ShutterSpeed
+    CaptureMode.TIMELAPSE -> Icons.Rounded.Timelapse
 }
 
 /** Zakładka ustawień: profil trybu albo ustawienia ogólne (null). */
@@ -363,6 +376,42 @@ private fun ModeTab(mode: CaptureMode, s: ModeSettings, caps: CameraCaps, enable
                     }
                 }
                 SwitchRow(Icons.Rounded.ZoomIn, "Płynne zbliżanie", null, s.cinematicZoom) { v -> change { it.copy(cinematicZoom = v) } }
+            }
+            FramingGroup(s, change, showAspect = false, showHistogram = false, showTimer = false)
+        }
+
+        CaptureMode.TIMELAPSE -> {
+            Group("Film poklatkowy") {
+                val intervalS = s.tlSpeed.toFloat() / s.tlFps
+                Chips(
+                    Icons.Rounded.Speed,
+                    "Przyspieszenie",
+                    com.blacksingularities.registrer.data.TIMELAPSE_SPEEDS.map { it.first },
+                    s.tlSpeed,
+                    { sp -> "×$sp " + (com.blacksingularities.registrer.data.TIMELAPSE_SPEEDS.firstOrNull { it.first == sp }?.second ?: "") },
+                    enabled,
+                    hint = timelapseHint(s.tlSpeed, s.tlFps),
+                ) { v -> change { it.copy(tlSpeed = v) } }
+                Chips(Icons.Rounded.SlowMotionVideo, "Klatkaż filmu", listOf(24, 30, 60), s.tlFps, { "$it kl/s" }, enabled,
+                    hint = "Zdjęcie co " + String.format(Locale("pl", "PL"), "%.1f", intervalS).removeSuffix(",0") + " s") { v ->
+                    change { it.copy(tlFps = v) }
+                }
+                val resolutions = com.blacksingularities.registrer.data.TimelapseResolution.entries.filter {
+                    com.blacksingularities.registrer.camera.TimelapseWriter.pickMime(it.width, it.height) != null
+                }
+                Chips(Icons.Rounded.HighQuality, "Rozdzielczość", resolutions, s.tlResolution, { it.label }, enabled,
+                    hint = "8K wymaga aparatu 33 MP+ i kodera 8K; gdy brak – film powstanie w 4K") { v ->
+                    change { it.copy(tlResolution = v) }
+                }
+                Chips(Icons.Rounded.Timer, "Zakończ po", listOf(0, 5, 15, 30, 60, 120), s.tlStopMin, { if (it == 0) "Ręcznie" else autoStopLabel(it) }, enabled) { v ->
+                    change { it.copy(tlStopMin = v) }
+                }
+                SwitchRow(Icons.Rounded.Exposure, "Wyrównywanie jasności", "Tłumi migotanie między klatkami", s.tlDeflicker, enabled) { v ->
+                    change { it.copy(tlDeflicker = v) }
+                }
+                SwitchRow(Icons.Rounded.Lock, "Blokada ekspozycji", "Stała jasność i barwa – wyłącz przy zachodzie słońca", s.tlLock, enabled) { v ->
+                    change { it.copy(tlLock = v) }
+                }
             }
             FramingGroup(s, change, showAspect = false, showHistogram = false, showTimer = false)
         }

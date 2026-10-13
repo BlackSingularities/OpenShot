@@ -67,7 +67,7 @@ fun ShutterButton(
     val inner by animateColorAsState(
         when {
             video -> Palette.Record
-            mode == CaptureMode.VIDEO || mode == CaptureMode.SLOWMO -> Palette.Record
+            mode == CaptureMode.VIDEO || mode == CaptureMode.SLOWMO || mode == CaptureMode.TIMELAPSE -> Palette.Record
             mode == CaptureMode.AUDIO -> Palette.Amber
             mode == CaptureMode.NIGHT -> Palette.Moon
             mode == CaptureMode.PORTRAIT -> Color(0xFFFFE2C4)

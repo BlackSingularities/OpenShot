@@ -112,6 +112,7 @@ import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.Timelapse
 import androidx.compose.material.icons.rounded.Waves
 import androidx.compose.material.icons.rounded.Flare
 import androidx.compose.material.icons.rounded.FastForward
@@ -137,6 +138,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
@@ -1125,6 +1127,7 @@ private fun BoxScope.FrameInfo(ui: Ui) {
                     Badge("Interwał · ${vm.intervalShot}${if (total > 0) "/$total" else ""}", color = Palette.Amber)
                 }
                 if (vm.rearDisplayActive) Badge("Autoportret głównym aparatem", color = Palette.Amber)
+                if (vm.tlRunning) TimelapseBadge(vm)
             }
         }
         AnimatedVisibility(
@@ -1311,6 +1314,19 @@ private fun ModeQuickControl(ui: Ui, modifier: Modifier = Modifier) {
                 modifier = modifier,
             ) { i -> vm.updateProfile { it.copy(nightFrames = values[i]) } }
         }
+        CaptureMode.TIMELAPSE -> {
+            val speeds = com.blacksingularities.registrer.data.TIMELAPSE_SPEEDS
+            QuickControl(
+                icon = Icons.Rounded.Timelapse,
+                label = com.blacksingularities.registrer.ui.components.timelapseHint(cfg.tlSpeed, cfg.tlFps),
+                options = speeds.map { "${it.second} ×${it.first}" },
+                selected = speeds.indexOfFirst { it.first == cfg.tlSpeed }.coerceAtLeast(0),
+                defaultIndex = speeds.indexOfFirst { it.first == 120 },
+                rotation = rot,
+                enabled = !vm.tlRunning,
+                modifier = modifier,
+            ) { i -> vm.updateProfile { it.copy(tlSpeed = speeds[i].first) } }
+        }
         CaptureMode.LONG -> {
             val values = com.blacksingularities.registrer.ui.components.LONG_SECONDS
             QuickControl(
@@ -1410,7 +1426,7 @@ private fun ShutterCluster(ui: Ui) {
     val active = when {
         vm.videoMode -> vm.recState != RecState.IDLE
         isAudio -> vm.audioState != RecState.IDLE
-        else -> vm.countdown != null || vm.intervalRunning || vm.bursting
+        else -> vm.countdown != null || vm.intervalRunning || vm.bursting || vm.tlRunning
     }
     ShutterButton(
         mode = vm.mode,
@@ -1480,6 +1496,49 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
                 onPick = { i -> vm.setFlash(vm.flashOptions()[i]) },
                 onClick = vm::cycleFlash,
             )
+            if (vm.mode == CaptureMode.TIMELAPSE) {
+                val resolutions = vm.timelapseResolutions()
+                GlassValueButton(
+                    cfg.tlResolution.label.removeSuffix("p"),
+                    if (cfg.tlResolution.label.endsWith("p")) "p" else null,
+                    "Film poklatkowy ${cfg.tlResolution.label}",
+                    rot,
+                    active = cfg.tlResolution != com.blacksingularities.registrer.data.TimelapseResolution.FHD,
+                    enabled = !vm.busy && resolutions.size > 1,
+                    options = resolutions.map { r -> PickerOption("Film ${r.label}", value = r.label.removeSuffix("p"), caption = if (r.label.endsWith("p")) "p" else null) },
+                    selected = resolutions.indexOf(cfg.tlResolution),
+                    onPick = { i -> vm.updateProfile { it.copy(tlResolution = resolutions[i]) } },
+                    onClick = { vm.updateProfile { it.copy(tlResolution = resolutions[(resolutions.indexOf(it.tlResolution) + 1).mod(resolutions.size)]) } },
+                )
+                val fpsOptions = listOf(24, 30, 60)
+                GlassValueButton(
+                    "${cfg.tlFps}",
+                    "kl/s",
+                    "Klatkaż filmu ${cfg.tlFps} kl/s",
+                    rot,
+                    enabled = !vm.busy,
+                    options = fpsOptions.map { f -> PickerOption("Klatkaż filmu $f kl/s", value = "$f", caption = "kl/s") },
+                    selected = fpsOptions.indexOf(cfg.tlFps),
+                    onPick = { i -> vm.updateProfile { it.copy(tlFps = fpsOptions[i]) } },
+                    onClick = { vm.updateProfile { it.copy(tlFps = fpsOptions[(fpsOptions.indexOf(it.tlFps) + 1).mod(fpsOptions.size)]) } },
+                )
+                val stops = listOf(0, 5, 15, 30, 60, 120)
+                RoundIcon(
+                    if (cfg.tlStopMin > 0) Icons.Rounded.Timer else Icons.Rounded.TimerOff,
+                    if (cfg.tlStopMin > 0) "Zakończ po ${com.blacksingularities.registrer.ui.components.autoStopLabel(cfg.tlStopMin)}" else "Zakończenie ręczne",
+                    rot,
+                    active = cfg.tlStopMin > 0,
+                    badge = cfg.tlStopMin.takeIf { it > 0 }?.let { if (it < 60) "$it" else "${it / 60}h" },
+                    enabled = !vm.busy,
+                    options = stops.map { m ->
+                        if (m == 0) PickerOption("Zakończenie ręczne", Icons.Rounded.TimerOff, caption = "Ręcznie")
+                        else PickerOption("Zakończ po ${com.blacksingularities.registrer.ui.components.autoStopLabel(m)}", value = if (m < 60) "$m" else "${m / 60}", caption = if (m < 60) "min" else "h")
+                    },
+                    selected = stops.indexOf(cfg.tlStopMin).coerceAtLeast(0),
+                    onPick = { i -> vm.updateProfile { it.copy(tlStopMin = stops[i]) } },
+                    onClick = { vm.updateProfile { it.copy(tlStopMin = stops[(stops.indexOf(it.tlStopMin).coerceAtLeast(0) + 1) % stops.size]) } },
+                )
+            }
             if (vm.mode == CaptureMode.PRO) {
                 RoundIcon(
                     if (cfg.proVideo) Icons.Rounded.Videocam else Icons.Rounded.PhotoCamera,
@@ -1928,6 +1987,27 @@ private fun GridButton(vm: CameraViewModel, rotation: Float) {
             }
         }
     }
+}
+
+/** Postęp filmu poklatkowego: liczba klatek, długość filmu i czas nagrywania. */
+@Composable
+private fun TimelapseBadge(vm: CameraViewModel) {
+    var now by remember { mutableLongStateOf(android.os.SystemClock.elapsedRealtime()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            now = android.os.SystemClock.elapsedRealtime()
+            delay(500)
+        }
+    }
+    val elapsed = (now - vm.tlStartedAt).coerceAtLeast(0)
+    val film = vm.tlFrames.toFloat() / vm.cfg.tlFps.coerceAtLeast(1)
+    val size = vm.tlSize?.let { "$it · " } ?: ""
+    Badge(
+        "● Poklatkowy · $size${vm.tlFrames} kl. · film " +
+            String.format(java.util.Locale("pl", "PL"), "%.1f", film) + " s · " +
+            com.blacksingularities.registrer.ui.components.formatClock(elapsed, false),
+        color = Palette.Record,
+    )
 }
 
 /** Informacja o nowej wersji – sprawdzanej automatycznie przy starcie i po powrocie do aplikacji. */

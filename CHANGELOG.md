@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.11.0
+
+- Nowy tryb **Poklatkowy** (między Wideo a Zwolnionym tempem): zdjęcia co kilka sekund składane na bieżąco w film MP4 **1080p, 4K albo 8K** (HEVC, a gdy go brak – H.264). Na dysku nie zostają setki zdjęć, a film jest gotowy zaraz po zatrzymaniu.
+- **Przyspieszenie z podpowiedzią sceny** na pokrętle nad migawką: Tłum ×15, Ulica ×30, Ruch ×60, Chmury ×120, Zachód ×300, Gwiazdy ×600, Budowa ×1800; odstęp między zdjęciami wynika z przyspieszenia i klatkażu filmu (24/30/60 kl/s), a podpowiedź pokazuje, ile sekund filmu daje minuta nagrania.
+- Rozdzielczość i klatkaż na górnym pasku, automatyczne zakończenie po 5 min – 2 h. Aplikacja sama sprawdza, czy aparat i koder pozwalają na 8K – jeśli nie, film powstaje w najwyższej możliwej rozdzielczości.
+- **Wyrównywanie jasności** tłumi migotanie między klatkami; opcjonalna **blokada ekspozycji** i balansu bieli.
+- W trakcie nagrywania plakietka pokazuje liczbę klatek, długość powstającego filmu i czas; wyjście z aplikacji kończy film z dotychczasowymi klatkami.
+
 ## 2.10.0
 
 - **Tryb ręczny dla wideo**: tryb Ręczny przełącza się między zdjęciami a wideo przyciskiem na górnym pasku (albo w ustawieniach trybu). W wideo działają ręczne ISO, czas naświetlania, ostrość i balans bieli, a do tego rozdzielczość, klatkaż, HDR, stabilizacja i dźwięk jak w trybie Wideo – z osobnymi ustawieniami.

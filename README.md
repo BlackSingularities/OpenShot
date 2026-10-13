@@ -29,6 +29,7 @@ Najnowszy plik APK jest zawsze w **[Releases → Latest](../../releases/latest)*
 
 ### Wideo
 - 4K / 1080p / 720p, **HDR 10-bit (HLG)** i **stabilizacja**, jeśli urządzenie je obsługuje (automatyczny dobór do możliwości).
+- **Film poklatkowy** 1080p/4K/8K kodowany na bieżąco, z przyspieszeniem ×15–×1800, wyrównywaniem jasności i blokadą ekspozycji.
 - **Zwolnione tempo** na głównym tylnym obiektywie 1×: wybór każdej wykrytej pary rozdzielczość + klatkaż (m.in. 120/240 kl/s, zależnie od telefonu).
 - Pauza i wznowienie, latarka, dźwięk.
 - **Płynne zbliżanie** – wolny, równy najazd podczas nagrywania.

@@ -63,6 +63,15 @@ enum class VideoBitrate(val label: String) {
     MAX("Maks."),
 }
 
+enum class TimelapseResolution(val label: String, val width: Int, val height: Int) {
+    FHD("1080p", 1920, 1080),
+    UHD("4K", 3840, 2160),
+    UHD8K("8K", 7680, 4320),
+}
+
+/** Gotowe przyspieszenia z podpowiedzią sceny. */
+val TIMELAPSE_SPEEDS = listOf(15 to "Tłum", 30 to "Ulica", 60 to "Ruch", 120 to "Chmury", 300 to "Zachód", 600 to "Gwiazdy", 1800 to "Budowa")
+
 enum class LevelStyle(val label: String) {
     HORIZON("Horyzont"),
     AVIATION("Lotniczy"),
@@ -177,6 +186,16 @@ data class ModeSettings(
     val cinematicZoom: Boolean = true,
     val slowMoResolution: VideoResolution = VideoResolution.HD,
     val slowMoFps: Int = 0, // 0 = najniższy dostępny high-speed (najstabilniejszy podgląd)
+    // film poklatkowy
+    /** Przyspieszenie: ×N względem czasu rzeczywistego (odstęp = N / klatkaż). */
+    val tlSpeed: Int = 120,
+    val tlFps: Int = 30,
+    val tlResolution: TimelapseResolution = TimelapseResolution.UHD,
+    /** Zakończ po tylu minutach; 0 = ręcznie. */
+    val tlStopMin: Int = 0,
+    val tlDeflicker: Boolean = true,
+    /** Blokada ekspozycji i balansu bieli na czas nagrania. */
+    val tlLock: Boolean = false,
     /** Tryb ręczny nagrywa wideo zamiast zdjęć. */
     val proVideo: Boolean = false,
     // audio
@@ -210,6 +229,7 @@ data class ModeSettings(
         slowMoResolution = slowMoResolution,
         slowMoFps = slowMoFps,
         proVideo = proVideo,
+        tlResolution = tlResolution,
         lowLightBoost = lowLightBoost,
     )
 
@@ -223,6 +243,7 @@ data class ModeSettings(
             CaptureMode.SLOWMO -> ModeSettings(aspect = AspectRatioMode.R16_9, histogram = false, level = false)
             CaptureMode.AUDIO -> ModeSettings(histogram = false, level = false, grids = emptySet())
             CaptureMode.LONG -> ModeSettings(histogram = false)
+            CaptureMode.TIMELAPSE -> ModeSettings(aspect = AspectRatioMode.R16_9, histogram = false)
             CaptureMode.PHOTO -> ModeSettings()
             CaptureMode.MOTION -> ModeSettings()
         }
@@ -402,6 +423,12 @@ class SettingsStore(context: Context) {
             slowMoResolution = enumOr(prefs.getString(k + "slowRes", null), d.slowMoResolution),
             slowMoFps = prefs.getInt(k + "slowFps", d.slowMoFps),
             proVideo = prefs.getBoolean(k + "proVideo", d.proVideo),
+            tlSpeed = prefs.getInt(k + "tlSpeed", d.tlSpeed),
+            tlFps = prefs.getInt(k + "tlFps", d.tlFps),
+            tlResolution = enumOr(prefs.getString(k + "tlRes", null), d.tlResolution),
+            tlStopMin = prefs.getInt(k + "tlStop", d.tlStopMin),
+            tlDeflicker = prefs.getBoolean(k + "tlDeflicker", d.tlDeflicker),
+            tlLock = prefs.getBoolean(k + "tlLock", d.tlLock),
             audioPreset = enumOr(prefs.getString(k + "audioPreset", null), d.audioPreset),
             audioSource = enumOr(prefs.getString(k + "audioSource", null), d.audioSource),
             audioInput = enumOr(prefs.getString(k + "audioInput", null), d.audioInput),
@@ -449,6 +476,12 @@ class SettingsStore(context: Context) {
             .putString(k + "slowRes", s.slowMoResolution.name)
             .putInt(k + "slowFps", s.slowMoFps)
             .putBoolean(k + "proVideo", s.proVideo)
+            .putInt(k + "tlSpeed", s.tlSpeed)
+            .putInt(k + "tlFps", s.tlFps)
+            .putString(k + "tlRes", s.tlResolution.name)
+            .putInt(k + "tlStop", s.tlStopMin)
+            .putBoolean(k + "tlDeflicker", s.tlDeflicker)
+            .putBoolean(k + "tlLock", s.tlLock)
             .putString(k + "audioPreset", s.audioPreset.name)
             .putString(k + "audioSource", s.audioSource.name)
             .putString(k + "audioInput", s.audioInput.name)
