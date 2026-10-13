@@ -510,13 +510,22 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
         }
     }
 
+    // Zmiana proporcji (i każde inne ponowne wiązanie kamery) na chwilę chowa część sterowania
+    // (EV, zoom, panel PRO). Gdy kamera nie jest gotowa, granica może się tylko podnieść –
+    // dzięki temu nakładki pływające nie skaczą w dół i z powrotem.
+    var settledControlsTop by remember { mutableFloatStateOf(ui.controlsTop) }
+    LaunchedEffect(ui.controlsTop, vm.cameraReady) {
+        settledControlsTop = if (vm.cameraReady) ui.controlsTop else minOf(settledControlsTop, ui.controlsTop)
+    }
+
     var areaTop by remember { mutableFloatStateOf(0f) }
     BoxWithConstraints(modifier.onGloballyPositioned { areaTop = it.boundsInRoot().top }) {
         val containerSize = with(density) { Size(maxWidth.toPx(), maxHeight.toPx()) }
         // Nakładki pływające (histogram, pasek parametrów, kompas) tylko nad dolnym sterowaniem.
+        // Obszar nie zależy od proporcji kadru, więc zmiana 4:3 ↔ 16:9 nie przesuwa nakładek.
         val overlayArea = Rect(
             Offset.Zero,
-            Size(containerSize.width, (ui.controlsTop - areaTop).coerceIn(containerSize.height * 0.3f, containerSize.height)),
+            Size(containerSize.width, (settledControlsTop - areaTop).coerceIn(containerSize.height * 0.3f, containerSize.height)),
         )
         val rect = imageRect(containerSize, ratio, centered)
 
