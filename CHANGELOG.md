@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.13.0
+
+- **Nowy układ ustawień ogólnych**, pogrupowany według tego, czego się szuka: szybkie przełączniki (wibracje, migawka, odliczanie, lokalizacja), „Na ekranie” – wszystkie nakładki jako kafelki (parametry, kompas, obrys ostrości, zebra, dźwięk) z histogramem, „Sterowanie” (obrót, klawisze głośności, podgląd na drugim ekranie), zwinięte „Poziomica” i „Informacje o sprzęcie”, na dole „Aplikacja” z aktualizacjami i autorem. Próg zebry pojawia się dopiero po jej włączeniu.
+- **Płynny zoom wraca na szeroki kąt**: szczypanie poniżej 1× przełącza na obiektyw szerokokątny (wcześniej małe kroki szczypania nie przekraczały progu), a szeroki kąt startuje tuż pod 1×, więc przejście jest płynne w obie strony.
+- **Tryb ręczny**: wyraźny przełącznik ZDJĘCIE | WIDEO nad panelem ręcznym, przy migawce; w wariancie wideo migawka jest czerwona i nagrywa film.
+
 ## 2.12.0
 
 - **Podgląd dla fotografowanego na drugim ekranie**: przycisk na górnym pasku (pojawia się, gdy telefon ma dostępny drugi ekran) pokazuje obraz z aparatu na tylnym ekranie składanego telefonu albo na ekranie podłączonym lub przesyłanym. Fotografowany widzi kadr, a Ty fotografujesz dalej na głównym ekranie.

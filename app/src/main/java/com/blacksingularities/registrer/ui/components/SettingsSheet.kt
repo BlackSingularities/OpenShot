@@ -112,6 +112,7 @@ import androidx.compose.material.icons.rounded.Link
 import com.blacksingularities.registrer.data.SharedGroup
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.material.icons.rounded.CropFree
 import androidx.compose.material.icons.rounded.PresentToAll
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Exposure
@@ -583,31 +584,62 @@ private fun GeneralTab(
     onInstall: () -> Unit,
     displaysInfo: String = "",
 ) {
+    // Szybkie przełączniki: dźwięki, wibracje i zapis miejsca.
     Group(null) {
-        Column(
-            Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                IconToggle(Icons.Rounded.Vibration, "Wibracje", g.haptics, Modifier.weight(1f)) { v -> onGlobal { it.copy(haptics = v) } }
-                IconToggle(Icons.Rounded.CameraAlt, "Migawka", g.shutterSound, Modifier.weight(1f)) { v -> onGlobal { it.copy(shutterSound = v) } }
-                IconToggle(Icons.Rounded.Alarm, "Odliczanie", g.timerBeep, Modifier.weight(1f)) { v -> onGlobal { it.copy(timerBeep = v) } }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                IconToggle(Icons.Rounded.LocationOn, "Lokalizacja", g.geotag, Modifier.weight(1f)) { v -> onGlobal { it.copy(geotag = v) } }
-                IconToggle(Icons.Rounded.Speed, "Parametry", g.exposureInfo, Modifier.weight(1f)) { v -> onGlobal { it.copy(exposureInfo = v) } }
-                IconToggle(Icons.Rounded.Explore, "Kompas", g.compass, Modifier.weight(1f)) { v -> onGlobal { it.copy(compass = v) } }
-            }
+        TileGrid(
+            listOf(
+                Tile(Icons.Rounded.Vibration, "Wibracje", g.haptics) { v -> onGlobal { it.copy(haptics = v) } },
+                Tile(Icons.Rounded.CameraAlt, "Migawka", g.shutterSound) { v -> onGlobal { it.copy(shutterSound = v) } },
+                Tile(Icons.Rounded.Alarm, "Odliczanie", g.timerBeep) { v -> onGlobal { it.copy(timerBeep = v) } },
+                Tile(Icons.Rounded.LocationOn, "Lokalizacja", g.geotag) { v -> onGlobal { it.copy(geotag = v) } },
+            ),
+        )
+        Hint("Dźwięk migawki, sygnał samowyzwalacza i zapis miejsca w zdjęciach oraz filmach.")
+    }
+
+    Group("Na ekranie") {
+        TileGrid(
+            listOf(
+                Tile(Icons.Rounded.Speed, "Parametry", g.exposureInfo) { v -> onGlobal { it.copy(exposureInfo = v) } },
+                Tile(Icons.Rounded.Explore, "Kompas", g.compass) { v -> onGlobal { it.copy(compass = v) } },
+                Tile(Icons.Rounded.CenterFocusWeak, "Ostrość", g.peaking) { v -> onGlobal { it.copy(peaking = v) } },
+                Tile(Icons.Rounded.Gradient, "Zebra", g.zebra) { v -> onGlobal { it.copy(zebra = v) } },
+                Tile(Icons.Rounded.GraphicEq, "Dźwięk", g.audioMeter) { v -> onGlobal { it.copy(audioMeter = v) } },
+            ),
+        )
+        if (g.zebra) {
+            CompactChoice(
+                Icons.Rounded.Gradient,
+                "Próg zebry",
+                listOf(85, 90, 95, 98),
+                g.zebraPercent,
+                label = { "$it% jasności" },
+                short = { "$it" },
+            ) { v -> onGlobal { it.copy(zebraPercent = v) } }
         }
-        Text(
-            "Lokalizacja zapisuje miejsce w zdjęciach i filmach. Nakładki (parametry, kompas, histogram) przeciągasz po kadrze, a upuszczone na koszu znikają.",
-            fontSize = 10.sp,
-            lineHeight = 13.sp,
-            color = Palette.TextDim,
-            modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 6.dp),
+        CompactChoice(
+            Icons.Rounded.BarChart,
+            "Histogram",
+            com.blacksingularities.registrer.data.HistogramMode.entries,
+            g.histogramMode,
+            label = { it.label },
+            hint = "włączasz go w ustawieniach trybu",
+        ) { v -> onGlobal { it.copy(histogramMode = v) } }
+        CompactChoice(
+            Icons.Rounded.AspectRatio,
+            "Wielkość histogramu",
+            com.blacksingularities.registrer.data.HistogramSize.entries,
+            g.histogramSize,
+            label = { it.label },
+            short = { it.label.take(1) },
+        ) { v -> onGlobal { it.copy(histogramSize = v) } }
+        Hint(
+            "Ostrość – czerwony obrys najostrzejszych krawędzi; Zebra – paski na prześwietleniach; " +
+                "Dźwięk – poziom w trybie Wideo. Nakładki przeciągasz po kadrze, upuszczone na koszu znikają.",
         )
     }
-    Group("Obsługa") {
+
+    Group("Sterowanie") {
         CompactChoice(
             Icons.Rounded.ScreenRotation,
             "Obrót ekranu",
@@ -632,55 +664,16 @@ private fun GeneralTab(
             },
         ) { v -> onGlobal { it.copy(volumeAction = v) } }
         CompactChoice(
-            Icons.Rounded.BarChart,
-            "Histogram",
-            com.blacksingularities.registrer.data.HistogramMode.entries,
-            g.histogramMode,
-            label = { it.label },
-            hint = "Dotknięcie histogramu w kadrze też przełącza",
-        ) { v -> onGlobal { it.copy(histogramMode = v) } }
-        CompactChoice(
-            Icons.Rounded.AspectRatio,
-            "Wielkość histogramu",
-            com.blacksingularities.registrer.data.HistogramSize.entries,
-            g.histogramSize,
-            label = { it.label },
-            short = { it.label.take(1) },
-        ) { v -> onGlobal { it.copy(histogramSize = v) } }
+            Icons.Rounded.PresentToAll,
+            "Podgląd na drugim ekranie",
+            listOf(true, false),
+            g.subjectMirror,
+            label = { if (it) "Jak w lustrze" else "Bez odbicia" },
+            icon = { if (it) Icons.Rounded.Flip else Icons.Rounded.CropFree },
+        ) { v -> onGlobal { it.copy(subjectMirror = v) } }
     }
-    Group("Pomoce kadru") {
-        Row(
-            Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 2.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            PillToggle(Icons.Rounded.CenterFocusWeak, "Obrys ostrości", g.peaking, Modifier.weight(1f)) { v -> onGlobal { it.copy(peaking = v) } }
-            PillToggle(Icons.Rounded.Gradient, "Zebra", g.zebra, Modifier.weight(1f)) { v -> onGlobal { it.copy(zebra = v) } }
-        }
-        Row(
-            Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 2.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            PillToggle(Icons.Rounded.GraphicEq, "Dźwięk w wideo", g.audioMeter, Modifier.weight(1f)) { v -> onGlobal { it.copy(audioMeter = v) } }
-            PillToggle(Icons.Rounded.Flip, "Lustro na 2. ekranie", g.subjectMirror, Modifier.weight(1f)) { v -> onGlobal { it.copy(subjectMirror = v) } }
-        }
-        CompactChoice(
-            Icons.Rounded.Gradient,
-            "Próg zebry",
-            listOf(85, 90, 95, 98),
-            g.zebraPercent,
-            label = { "$it% jasności" },
-            short = { "$it" },
-            hint = "Paski na prześwietleniach",
-        ) { v -> onGlobal { it.copy(zebraPercent = v) } }
-        Text(
-            "Czerwony obrys pokazuje najostrzejsze krawędzie – pomocny przy ręcznej ostrości. Działa we wszystkich trybach z podglądem (poza efektami sprzętowymi producenta). Wskaźnik dźwięku pływa po kadrze w trybie Wideo – przeciągnij go albo upuść na koszu.",
-            fontSize = 10.sp,
-            lineHeight = 13.sp,
-            color = Palette.TextDim,
-            modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 8.dp),
-        )
-    }
-    Group("Poziomica") {
+
+    Group("Poziomica", collapsible = true, initiallyExpanded = false) {
         CompactChoice(
             Icons.Rounded.Straighten,
             "Wygląd",
@@ -695,7 +688,7 @@ private fun GeneralTab(
                     LevelStyle.CROSS -> Icons.Rounded.CenterFocusStrong
                 }
             },
-            hint = "Włączasz ją w ustawieniach trybu (Kadr)",
+            hint = "włączasz ją w ustawieniach trybu",
         ) { v -> onGlobal { it.copy(levelStyle = v) } }
         CompactChoice(
             Icons.Rounded.Tune,
@@ -718,6 +711,7 @@ private fun GeneralTab(
             onReset = { onGlobal { it.copy(levelCalX = 0f, levelCalY = 0f, levelCalZ = 0f) } },
         )
     }
+
     Group("Informacje o sprzęcie", collapsible = true, initiallyExpanded = false) {
         val lenses = (caps.lensZooms + caps.auxLenses.map { it.factor }).distinct().sorted()
             .joinToString(" · ") { formatZoom(it) + "×" }.ifEmpty { "1×" }
@@ -730,7 +724,8 @@ private fun GeneralTab(
         InfoRow(Icons.Rounded.Tune, if (caps.manualSensor) "Pełne sterowanie ręczne sensora" else "Ograniczone sterowanie ręczne")
         InfoRow(Icons.Rounded.Info, "Pliki: DCIM/OpenShot · Recordings/OpenShot")
     }
-    Group("Aktualizacje") {
+
+    Group("Aplikacja") {
         UpdateRow(update, onCheck, onDownload, onInstall)
         Row(
             Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 8.dp),
@@ -746,6 +741,35 @@ private fun GeneralTab(
         Credits()
         Spacer(Modifier.height(6.dp))
     }
+}
+
+private class Tile(val icon: ImageVector, val label: String, val value: Boolean, val onChange: (Boolean) -> Unit)
+
+/** Siatka kafelków-przełączników po cztery w rzędzie (krótsze rzędy wyrównane do lewej). */
+@Composable
+private fun TileGrid(tiles: List<Tile>) {
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        tiles.chunked(4).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                row.forEach { t -> IconToggle(t.icon, t.label, t.value, Modifier.weight(1f), t.onChange) }
+                repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun Hint(text: String) {
+    Text(
+        text,
+        fontSize = 10.sp,
+        lineHeight = 13.sp,
+        color = Palette.TextDim,
+        modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 8.dp),
+    )
 }
 
 /**

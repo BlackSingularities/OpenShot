@@ -752,15 +752,26 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
      * Zoom w jednostkach użytkownika. Zejście poniżej minimum aparatu głównego włącza osobny
      * szeroki kąt, a powrót powyżej 1× (lub poniżej krotności tele) wraca do aparatu głównego.
      */
+    /** Iloczyn kroków zoomu poniżej minimum aparatu głównego (przejście na szeroki kąt). */
+    private var underZoom = 1f
+
     private fun zoomDisplayTo(display: Float, speed: Float, cinematic: Boolean) {
         val scale = zoomScale
         if (canSwitchCamera() && mode != CaptureMode.SLOWMO) {
             val wide = widerAux
+            // Szczypanie podaje małe kroki (np. ×0,98), a zoom głównego aparatu zatrzymuje się na
+            // minimum – kroki poniżej minimum sumujemy, inaczej nigdy nie przekroczyłyby progu.
+            val belowMin = activeCameraId == null && display < zoomMin * 0.999f
+            underZoom = if (belowMin) underZoom * (display / (zoomMin * scale)).coerceIn(0.5f, 1f) else 1f
             when {
                 activeCameraId != null && scale < 1f && display >= maxOf(primaryZoomMin, scale * 1.05f) -> return switchCamera(null, display)
                 activeCameraId != null && scale > 1f && display < scale * 0.98f -> return switchCamera(null, display)
-                activeCameraId == null && wide != null && display < zoomMin * 0.97f -> return switchCamera(wide.cameraId, 1f)
-                activeCameraId == null && wide == null && zoomMin > 0.95f && display < zoomMin * 0.97f -> {
+                belowMin && wide != null && underZoom < 0.97f -> {
+                    underZoom = 1f
+                    // Start szerokiego kąta tuż pod 1× głównego – dalsze szczypanie płynnie schodzi do 0,6×.
+                    return switchCamera(wide.cameraId, (zoomMin * 0.97f / wide.factor).coerceAtLeast(1f))
+                }
+                belowMin && wide == null && zoomMin > 0.95f && underZoom < 0.97f -> {
                     if (message == null) {
                         message = "Szeroki kąt niedostępny: aparat pozwala od ${formatRatio(zoomMin)}×, a osobnego sensora system nie udostępnia"
                     }

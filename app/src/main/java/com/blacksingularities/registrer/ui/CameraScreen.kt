@@ -1220,6 +1220,7 @@ private fun AudioPane(vm: CameraViewModel, padding: PaddingValues) {
 private fun CaptureTools(ui: Ui) {
     val vm = ui.vm
     if (vm.mode != CaptureMode.PRO) ModeQuickControl(ui, Modifier.padding(bottom = 4.dp))
+    if (vm.mode == CaptureMode.PRO) ProCaptureSwitch(vm, ui.iconRotation)
     if (vm.mode == CaptureMode.PRO && vm.cameraReady) {
         ProPanel(
             caps = vm.caps,
@@ -1264,6 +1265,46 @@ private fun CaptureTools(ui: Ui) {
         haptics = ui.haptics,
         onSelect = vm::selectMode,
     )
+}
+
+/** Tryb ręczny: wyraźny przełącznik ZDJĘCIE | WIDEO nad panelem (zablokowany podczas nagrywania). */
+@Composable
+private fun ProCaptureSwitch(vm: CameraViewModel, rotation: Float) {
+    val video = vm.cfg.proVideo
+    Row(
+        Modifier
+            .padding(bottom = 6.dp)
+            .clip(RoundedCornerShape(50))
+            .background(Color.Black.copy(alpha = 0.45f))
+            .padding(3.dp),
+    ) {
+        listOf(false to "ZDJĘCIE", true to "WIDEO").forEach { (isVideo, label) ->
+            val selected = video == isVideo
+            Row(
+                Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(if (selected) (if (isVideo) Palette.Record else Color.White) else Color.Transparent)
+                    .clickable(enabled = !vm.busy && !selected) { vm.setProVideo(isVideo) }
+                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    if (isVideo) Icons.Rounded.Videocam else Icons.Rounded.PhotoCamera,
+                    null,
+                    tint = if (selected) (if (isVideo) Color.White else Palette.Ink) else Palette.TextDim,
+                    modifier = Modifier.size(15.dp).graphicsLayer { rotationZ = rotation },
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    label,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp,
+                    color = if (selected) (if (isVideo) Color.White else Palette.Ink) else Palette.TextDim,
+                )
+            }
+        }
+    }
 }
 
 /**
