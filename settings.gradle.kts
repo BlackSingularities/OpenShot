@@ -12,5 +12,5 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "Registrer"
+rootProject.name = "OpenShot"
 include(":app")

@@ -153,11 +153,30 @@ class CameraEngine(private val context: Context) {
     private fun roundLens(ratio: Float): Float =
         if (ratio >= 1.5f && abs(ratio - ratio.roundToInt()) < 0.2f) ratio.roundToInt().toFloat() else (ratio * 10f).roundToInt() / 10f
 
+    private fun photoFormatsOf(info: CameraInfo): Set<PhotoFormat> {
+        val formats = runCatching {
+            ImageCapture.getImageCaptureCapabilities(info).supportedOutputFormats
+        }.getOrDefault(emptySet())
+        return buildSet {
+            add(PhotoFormat.JPEG)
+            if (ImageCapture.OUTPUT_FORMAT_JPEG_ULTRA_HDR in formats) add(PhotoFormat.ULTRA_HDR)
+            if (ImageCapture.OUTPUT_FORMAT_RAW in formats) add(PhotoFormat.RAW)
+            if (ImageCapture.OUTPUT_FORMAT_RAW_JPEG in formats) add(PhotoFormat.RAW_JPEG)
+        }
+    }
+
+    private fun outputFormatOf(format: PhotoFormat): Int = when (format) {
+        PhotoFormat.JPEG -> ImageCapture.OUTPUT_FORMAT_JPEG
+        PhotoFormat.ULTRA_HDR -> ImageCapture.OUTPUT_FORMAT_JPEG_ULTRA_HDR
+        PhotoFormat.RAW -> ImageCapture.OUTPUT_FORMAT_RAW
+        PhotoFormat.RAW_JPEG -> ImageCapture.OUTPUT_FORMAT_RAW_JPEG
+    }
+
     /**
      * Wszystkie aparaty po danej stronie. Wielu producentów udostępnia szeroki kąt (i tele) jako
      * osobny aparat zamiast zoomu < 1× aparatu głównego – takie zwracamy jako [AuxLens].
      */
-    private fun auxLenses(p: ProcessCameraProvider, primary: CameraInfo, facing: Int, presets: List<Float>): Pair<List<AuxLens>, String> {
+    private fun auxLenses(p: ProcessCameraProvider, primary: CameraInfo, facing: Int): Pair<List<AuxLens>, String> {
         val primaryId = cameraIdOf(primary)
         val primaryFocal = equivalentFocal(primary)
         val physicalIds = runCatching { primary.physicalCameraInfos.mapNotNull { cameraIdOf(it) } }.getOrDefault(emptyList()).toSet()
@@ -188,7 +207,6 @@ class CameraEngine(private val context: Context) {
             if (mp in 0.1f..4.9f) continue // makro / głębia
             val factor = roundLens(focal / primaryFocal)
             if (factor in 0.86f..1.3f) continue
-            if (presets.any { abs(it - factor) / factor < 0.1f }) continue
             if (aux.any { abs(it.factor - factor) / factor < 0.1f }) continue
             aux += AuxLens(id, factor)
         }
@@ -201,7 +219,8 @@ class CameraEngine(private val context: Context) {
                 summary.append("\n  └ fizyczny #").append(id).append(": ").append(focal.roundToInt()).append(" mm")
                 val factor = roundLens(focal / primaryFocal)
                 if (factor in 0.86f..1.3f) continue
-                if (presets.any { abs(it - factor) / factor < 0.1f }) continue
+                // Rejestrujemy zawsze – nawet gdy opis aparatu deklaruje taki zoom, po związaniu
+                // bywa niedostępny i wtedy jedyną drogą jest bezpośredni sensor.
                 if (aux.any { abs(it.factor - factor) / factor < 0.1f }) continue
                 aux += AuxLens(id, factor, physical = true)
             }
@@ -246,12 +265,32 @@ class CameraEngine(private val context: Context) {
         fun <T> ch(key: CameraCharacteristics.Key<T>): T? = runCatching { c2.getCameraCharacteristic(key) }.getOrNull()
 
         val formats = runCatching { ImageCapture.getImageCaptureCapabilities(info).supportedOutputFormats }.getOrDefault(emptySet())
-        val photoFormats = buildSet {
-            add(PhotoFormat.JPEG)
-            if (ImageCapture.OUTPUT_FORMAT_JPEG_ULTRA_HDR in formats) add(PhotoFormat.ULTRA_HDR)
-            if (ImageCapture.OUTPUT_FORMAT_RAW in formats) add(PhotoFormat.RAW)
-            if (ImageCapture.OUTPUT_FORMAT_RAW_JPEG in formats) add(PhotoFormat.RAW_JPEG)
+        val primaryFormats = photoFormatsOf(info)
+
+        // Część telefonów zgłasza RAW dopiero dla fizycznego sensora aparatu logicznego albo
+        // dla osobnego CameraId. Szukamy takiej trasy i preferujemy sensor o ogniskowej 1×.
+        data class RawRoute(val id: String, val physical: Boolean, val factor: Float, val formats: Set<PhotoFormat>)
+        val primaryId = cameraIdOf(info)
+        val primaryFocal = equivalentFocal(info)
+        val physicalIds = runCatching { info.physicalCameraInfos.mapNotNull { cameraIdOf(it) } }.getOrDefault(emptyList()).toSet()
+        val rawRoutes = mutableListOf<RawRoute>()
+        runCatching { info.physicalCameraInfos }.getOrDefault(emptySet()).forEach { candidate ->
+            val id = cameraIdOf(candidate) ?: return@forEach
+            val candidateFormats = photoFormatsOf(candidate)
+            if (PhotoFormat.RAW !in candidateFormats) return@forEach
+            val factor = if (primaryFocal != null) equivalentFocal(candidate)?.div(primaryFocal) ?: 1f else 1f
+            rawRoutes += RawRoute(id, true, roundLens(factor), candidateFormats)
         }
+        runCatching { p.availableCameraInfos }.getOrDefault(emptyList()).forEach { candidate ->
+            val id = cameraIdOf(candidate) ?: return@forEach
+            if (id == primaryId || id in physicalIds || runCatching { candidate.lensFacing }.getOrNull() != facing) return@forEach
+            val candidateFormats = photoFormatsOf(candidate)
+            if (PhotoFormat.RAW !in candidateFormats) return@forEach
+            val factor = if (primaryFocal != null) equivalentFocal(candidate)?.div(primaryFocal) ?: 1f else 1f
+            rawRoutes += RawRoute(id, false, roundLens(factor), candidateFormats)
+        }
+        val rawRoute = if (PhotoFormat.RAW in primaryFormats) null else rawRoutes.minByOrNull { abs(it.factor - 1f) }
+        val photoFormats = primaryFormats + (rawRoute?.formats ?: emptySet())
 
         val videoCaps = runCatching { Recorder.getVideoCapabilities(info) }.getOrNull()
         val sdrQualities = runCatching { videoCaps?.getSupportedQualities(DynamicRange.SDR) }.getOrNull().orEmpty()
@@ -277,9 +316,10 @@ class CameraEngine(private val context: Context) {
             }
         }.getOrDefault(emptyList())
 
-        val formatSummary = runCatching { formatDiagnostics(info, formats) }.getOrDefault("")
+        val formatSummary = runCatching { formatDiagnostics(info, formats) }.getOrDefault("") +
+            (rawRoute?.let { "\nTrasa RAW CameraX: #${it.id}${if (it.physical) " (sensor fizyczny)" else ""} · ${String.format(java.util.Locale.US, "%.1f", it.factor)}×" } ?: "")
         val presets = lensZooms(info)
-        val aux = runCatching { auxLenses(p, info, facing, presets) }.getOrDefault(emptyList<AuxLens>() to "")
+        val aux = runCatching { auxLenses(p, info, facing) }.getOrDefault(emptyList<AuxLens>() to "")
 
         val capabilities = ch(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES)
         val isoRange = ch(CameraCharacteristics.SENSOR_INFO_SENSITIVITY_RANGE)
@@ -321,6 +361,9 @@ class CameraEngine(private val context: Context) {
             auxLenses = aux.first,
             cameraSummary = aux.second,
             formatSummary = formatSummary,
+            rawCameraId = rawRoute?.id,
+            rawCameraPhysical = rawRoute?.physical == true,
+            rawCameraFactor = rawRoute?.factor ?: 1f,
         )
     }
 
@@ -426,9 +469,17 @@ class CameraEngine(private val context: Context) {
         if (req.mode == CaptureMode.AUDIO) return session
 
         val s = req.settings
-        val auxId = req.cameraId.takeIf { req.mode != CaptureMode.SLOWMO }
-        val auxPhysical = caps.auxLenses.firstOrNull { it.cameraId == auxId }?.physical == true
+        val wantsRaw = req.mode in setOf(CaptureMode.PHOTO, CaptureMode.PRO) &&
+            s.photoFormat in setOf(PhotoFormat.RAW, PhotoFormat.RAW_JPEG)
+        val rawRoute = wantsRaw && req.cameraId == null && caps.rawCameraId != null
+        val auxId = (if (rawRoute) caps.rawCameraId else req.cameraId).takeIf { req.mode != CaptureMode.SLOWMO }
+        val auxPhysical = if (rawRoute) caps.rawCameraPhysical else caps.auxLenses.firstOrNull { it.cameraId == auxId }?.physical == true
         val base = selectorFor(req.lensFacing, auxId, auxPhysical)
+        val selectedFormats = if (rawRoute) {
+            caps.photoFormats.filterTo(mutableSetOf(PhotoFormat.JPEG)) { it == PhotoFormat.RAW || it == PhotoFormat.RAW_JPEG }
+        } else {
+            runCatching { photoFormatsOf(p.getCameraInfo(base)) }.getOrDefault(setOf(PhotoFormat.JPEG))
+        }
         val ext = extensions
         val wantedExtension = if (auxId != null) null else when (req.mode) {
             CaptureMode.NIGHT -> ExtensionMode.NIGHT.takeIf { caps.nightExtension }
@@ -571,9 +622,9 @@ class CameraEngine(private val context: Context) {
 
             else -> {
                 val format = when {
-                    wantedExtension != null || auxId != null -> PhotoFormat.JPEG
+                    wantedExtension != null -> PhotoFormat.JPEG
                     req.mode != CaptureMode.PHOTO && req.mode != CaptureMode.PRO -> PhotoFormat.JPEG
-                    s.photoFormat in caps.photoFormats -> s.photoFormat
+                    s.photoFormat in selectedFormats -> s.photoFormat
                     else -> PhotoFormat.JPEG
                 }
                 val captureMode = when {
@@ -596,14 +647,7 @@ class CameraEngine(private val context: Context) {
                     .setCaptureMode(captureMode)
                     .setJpegQuality(s.jpegQuality.coerceIn(1, 100))
                     .setFlashMode(flashModeOf(s.flash))
-                    .setOutputFormat(
-                        when (format) {
-                            PhotoFormat.JPEG -> ImageCapture.OUTPUT_FORMAT_JPEG
-                            PhotoFormat.ULTRA_HDR -> ImageCapture.OUTPUT_FORMAT_JPEG_ULTRA_HDR
-                            PhotoFormat.RAW -> ImageCapture.OUTPUT_FORMAT_RAW
-                            PhotoFormat.RAW_JPEG -> ImageCapture.OUTPUT_FORMAT_RAW_JPEG
-                        },
-                    )
+                    .setOutputFormat(outputFormatOf(format))
                 if (postview) icBuilder.setPostviewEnabled(true)
                 if (wantedExtension == null && (req.mode == CaptureMode.NIGHT || req.mode == CaptureMode.HDR)) {
                     Camera2Interop.Extender(icBuilder)
@@ -777,21 +821,30 @@ class CameraEngine(private val context: Context) {
         val format = session.photoFormat
         return suspendCancellableCoroutine { cont ->
             val expected = if (format == PhotoFormat.RAW_JPEG) 2 else 1
-            val uris = mutableListOf<Uri>()
+            var rawUri: Uri? = null
+            var jpegUri: Uri? = null
             var finished = false
             val callback = object : ImageCapture.OnImageSavedCallback {
                 override fun onImageSaved(output: ImageCapture.OutputFileResults) {
-                    output.savedUri?.let { uris += it }
-                    if (uris.size >= expected && !finished) {
+                    output.savedUri?.let { uri ->
+                        if (output.imageFormat == ImageFormat.RAW_SENSOR || format == PhotoFormat.RAW) rawUri = uri else jpegUri = uri
+                    }
+                    val saved = listOfNotNull(rawUri, jpegUri).size
+                    if (saved >= expected && !finished) {
                         finished = true
-                        if (cont.isActive) cont.resume(PhotoResult(uris.last(), uris.firstOrNull().takeIf { expected == 2 }))
+                        val result = when (format) {
+                            PhotoFormat.RAW -> PhotoResult(rawUri)
+                            PhotoFormat.RAW_JPEG -> PhotoResult(jpegUri ?: rawUri, rawUri)
+                            else -> PhotoResult(jpegUri)
+                        }
+                        if (cont.isActive) cont.resume(result)
                     }
                 }
 
                 override fun onError(exception: ImageCaptureException) {
                     if (!finished) {
                         finished = true
-                        if (cont.isActive) cont.resume(PhotoResult(uris.lastOrNull(), error = exception.message))
+                        if (cont.isActive) cont.resume(PhotoResult(jpegUri ?: rawUri, rawUri, exception.message))
                     }
                 }
 

@@ -45,6 +45,6 @@ private val scheme = darkColorScheme(
 val MonoDigits = TextStyle(fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Medium, fontSize = 14.sp)
 
 @Composable
-fun RegistrerTheme(content: @Composable () -> Unit) {
+fun OpenShotTheme(content: @Composable () -> Unit) {
     MaterialTheme(colorScheme = scheme, typography = Typography(), content = content)
 }

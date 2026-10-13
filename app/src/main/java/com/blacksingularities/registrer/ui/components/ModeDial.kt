@@ -70,8 +70,8 @@ fun ModeDial(
     val selectedIndex = modes.indexOf(selected).coerceAtLeast(0)
     val position = remember { Animatable(selectedIndex.toFloat()) }
     var dragging by remember { mutableStateOf(false) }
-    val anglePerItem = 0.20f
-    val radiusPx = with(density) { 300.dp.toPx() }
+    val anglePerItem = 0.17f
+    val radiusPx = with(density) { 330.dp.toPx() }
 
     LaunchedEffect(selectedIndex) {
         if (!dragging) position.animateTo(selectedIndex.toFloat(), spring(dampingRatio = 0.78f, stiffness = 260f))
@@ -86,7 +86,7 @@ fun ModeDial(
     Box(
         modifier
             .fillMaxWidth()
-            .height(62.dp)
+            .height(68.dp)
             .pointerInput(enabled, modes) {
                 if (!enabled) return@pointerInput
                 var lastTick = selectedIndex
@@ -121,19 +121,22 @@ fun ModeDial(
         modes.forEachIndexed { i, m ->
             val d = i - position.value
             val angle = d * anglePerItem
-            val dist = min(abs(d), 3f)
+            val dist = min(abs(d), 4.5f)
             val isSel = abs(d) < 0.5f
             val focus = (1f - abs(d)).coerceIn(0f, 1f)
+            val depth = (1f - dist / 5f).coerceIn(0.18f, 1f)
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .graphicsLayer {
                         translationX = radiusPx * sin(angle)
-                        translationY = radiusPx * (1f - cos(angle)) + 8.dp.toPx()
-                        rotationZ = Math.toDegrees(angle.toDouble()).toFloat()
-                        alpha = (1f - dist * 0.3f).coerceIn(0f, 1f)
-                        val s = 1f - dist * 0.08f
+                        translationY = radiusPx * (1f - cos(angle)) + 7.dp.toPx()
+                        rotationZ = Math.toDegrees(angle.toDouble()).toFloat() * 0.42f
+                        rotationY = -Math.toDegrees(angle.toDouble()).toFloat() * 0.72f
+                        cameraDistance = 18f * density.density
+                        alpha = (0.28f + depth * 0.72f).coerceIn(0f, 1f)
+                        val s = 0.7f + depth * 0.3f
                         scaleX = s
                         scaleY = s
                     },
@@ -145,15 +148,20 @@ fun ModeDial(
                         .glass(BlockShape, active = isSel, border = isSel),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(modeIcon(m), m.label, tint = if (isSel) activeContent() else Color.White, modifier = Modifier.size(16.dp))
+                    Icon(
+                        modeIcon(m),
+                        m.label,
+                        tint = if (isSel) activeContent() else Color.White.copy(alpha = 0.58f + depth * 0.3f),
+                        modifier = Modifier.size(16.dp),
+                    )
                 }
                 Text(
                     m.label.uppercase(),
-                    color = Palette.Amber,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.4.sp,
-                    modifier = Modifier.padding(top = 2.dp).graphicsLayer { alpha = focus * focus },
+                    color = if (isSel) Palette.Amber else Color.White.copy(alpha = 0.52f + depth * 0.24f),
+                    fontSize = (8.2f + focus * 1.8f).sp,
+                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                    letterSpacing = (0.7f + focus * 0.7f).sp,
+                    modifier = Modifier.padding(top = 2.dp),
                 )
             }
         }

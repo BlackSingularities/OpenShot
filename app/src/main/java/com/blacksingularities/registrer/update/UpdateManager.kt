@@ -82,7 +82,7 @@ object UpdateManager {
         )
         val notification = android.app.Notification.Builder(context, CHANNEL)
             .setSmallIcon(android.R.drawable.stat_sys_download_done)
-            .setContentTitle("Registrer zaktualizowany do ${BuildConfig.VERSION_NAME}")
+            .setContentTitle("OpenShot zaktualizowany do ${BuildConfig.VERSION_NAME}")
             .setContentText("Dotknij, aby otworzyć aparat")
             .setContentIntent(pending)
             .setAutoCancel(true)
@@ -101,7 +101,7 @@ object UpdateManager {
             connectTimeout = 10_000
             readTimeout = 15_000
             setRequestProperty("Accept", "application/vnd.github+json")
-            setRequestProperty("User-Agent", "Registrer/" + BuildConfig.VERSION_NAME)
+            setRequestProperty("User-Agent", "OpenShot/" + BuildConfig.VERSION_NAME)
         }
         try {
             if (conn.responseCode != 200) error("Serwer odpowiedział kodem ${conn.responseCode}")
@@ -146,13 +146,13 @@ object UpdateManager {
     suspend fun download(context: Context, info: ReleaseInfo, onProgress: (Float) -> Unit): File = withContext(Dispatchers.IO) {
         val dir = File(context.cacheDir, "updates").apply { mkdirs() }
         dir.listFiles()?.forEach { it.delete() }
-        val target = File(dir, "Registrer-${info.version}.apk")
+        val target = File(dir, "OpenShot-${info.version}.apk")
         val part = File(dir, target.name + ".part")
         val conn = (URL(info.apkUrl).openConnection() as HttpURLConnection).apply {
             connectTimeout = 15_000
             readTimeout = 30_000
             instanceFollowRedirects = true
-            setRequestProperty("User-Agent", "Registrer/" + BuildConfig.VERSION_NAME)
+            setRequestProperty("User-Agent", "OpenShot/" + BuildConfig.VERSION_NAME)
         }
         try {
             if (conn.responseCode !in 200..299) error("Pobieranie nie powiodło się (${conn.responseCode})")

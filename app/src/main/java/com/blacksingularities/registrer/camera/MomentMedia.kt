@@ -241,7 +241,7 @@ object MomentMedia {
                     else -> ExifInterface.ORIENTATION_NORMAL
                 }
                 exif.setAttribute(ExifInterface.TAG_ORIENTATION, orientation.toString())
-                exif.setAttribute(ExifInterface.TAG_SOFTWARE, "Registrer Motion Photo")
+                exif.setAttribute(ExifInterface.TAG_SOFTWARE, "OpenShot Motion Photo")
                 exif.saveAttributes()
             }
             return tmp.readBytes()
@@ -273,7 +273,7 @@ object MomentMedia {
      * i plik MP4 dołączony na końcu.
      */
     fun buildMotionPhoto(jpeg: ByteArray, mp4: ByteArray, presentationUs: Long): ByteArray {
-        val xmp = """<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="Registrer">
+        val xmp = """<x:xmpmeta xmlns:x="adobe:ns:meta/" x:xmptk="OpenShot">
 <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
 <rdf:Description rdf:about=""
  xmlns:GCamera="http://ns.google.com/photos/1.0/camera/"
@@ -343,7 +343,7 @@ object MomentMedia {
     fun saveVideo(context: Context, file: File, hevc: Boolean): Uri? {
         val resolver = context.contentResolver
         val values = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, "REG_CLIP${if (hevc) "_HEVC" else ""}_${stamp()}.mp4")
+            put(MediaStore.MediaColumns.DISPLAY_NAME, "OPENSHOT_CLIP${if (hevc) "_HEVC" else ""}_${stamp()}.mp4")
             put(MediaStore.MediaColumns.MIME_TYPE, "video/mp4")
             put(MediaStore.MediaColumns.RELATIVE_PATH, MediaSaver.MEDIA_DIR)
             put(MediaStore.MediaColumns.IS_PENDING, 1)

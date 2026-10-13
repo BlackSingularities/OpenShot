@@ -9,7 +9,6 @@ import com.blacksingularities.registrer.ui.theme.LocalPickerHorizontal
 import com.blacksingularities.registrer.ui.theme.PickerOption
 import androidx.compose.material.icons.rounded.TimerOff
 import com.blacksingularities.registrer.ui.components.CompassTape
-import androidx.compose.material.icons.rounded.Insights
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.foundation.layout.wrapContentSize
@@ -176,6 +175,7 @@ import com.blacksingularities.registrer.ui.components.formatShutter
 import com.blacksingularities.registrer.ui.components.imageRect
 import com.blacksingularities.registrer.ui.theme.MonoDigits
 import com.blacksingularities.registrer.ui.theme.Palette
+import com.blacksingularities.registrer.ui.theme.rotatedLayout
 import com.blacksingularities.registrer.update.UpdateState
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -1246,13 +1246,6 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
                 }
             }
             GridButton(vm, rot)
-            RoundIcon(
-                Icons.Rounded.Insights,
-                if (vm.global.exposureInfo) "Pasek parametrów włączony" else "Pasek parametrów wyłączony",
-                rot,
-                active = vm.global.exposureInfo,
-                onClick = { vm.updateGlobal { it.copy(exposureInfo = !it.exposureInfo) } },
-            )
             if (vm.rearDisplayAvailable || vm.rearDisplayActive) {
                 RoundIcon(
                     Icons.Rounded.FlipToBack,
@@ -1482,6 +1475,7 @@ private fun GridButton(vm: CameraViewModel, rotation: Float) {
         DropdownMenu(
             expanded = open,
             onDismissRequest = { open = false },
+            modifier = Modifier.rotatedLayout(rotation),
             containerColor = Palette.PanelHigh.copy(alpha = 0.9f),
             shape = RoundedCornerShape(18.dp),
         ) {

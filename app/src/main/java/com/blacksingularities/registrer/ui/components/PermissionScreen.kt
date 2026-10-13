@@ -3,7 +3,7 @@ package com.blacksingularities.registrer.ui.components
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
-import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -19,13 +19,14 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.blacksingularities.registrer.ui.theme.Palette
+import com.blacksingularities.registrer.R
 
 @Composable
 fun PermissionScreen(onRequest: () -> Unit) {
@@ -38,12 +39,13 @@ fun PermissionScreen(onRequest: () -> Unit) {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
-        Canvas(Modifier.size(96.dp)) {
-            drawCircle(Palette.Amber, size.minDimension / 2.6f, style = Stroke(5.dp.toPx()))
-            drawCircle(Palette.Amber, size.minDimension / 7f)
-        }
+        Image(
+            painter = painterResource(R.drawable.openshot_icon_foreground),
+            contentDescription = "Ikona OpenShot",
+            modifier = Modifier.size(112.dp),
+        )
         Spacer(Modifier.height(28.dp))
-        Text("Registrer", fontSize = 30.sp, fontWeight = FontWeight.Bold)
+        Text("OpenShot", fontSize = 30.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(10.dp))
         Text(
             "Aby robić zdjęcia, filmować i nagrywać dźwięk, aplikacja potrzebuje dostępu do aparatu i mikrofonu. Nic nie opuszcza Twojego telefonu.",

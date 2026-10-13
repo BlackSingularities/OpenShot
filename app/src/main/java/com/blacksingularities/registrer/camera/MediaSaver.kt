@@ -14,14 +14,14 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/** Zapis zdjęć i filmów do galerii (DCIM/Registrer) przez MediaStore. */
+/** Zapis zdjęć i filmów do galerii (DCIM/OpenShot) przez MediaStore. */
 object MediaSaver {
-    const val MEDIA_DIR = "DCIM/Registrer"
+    const val MEDIA_DIR = "DCIM/OpenShot"
 
     private fun stamp(): String = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date())
 
     private fun photoValues(tag: String, mime: String = "image/jpeg") = ContentValues().apply {
-        put(MediaStore.MediaColumns.DISPLAY_NAME, "REG_${tag}_${stamp()}")
+        put(MediaStore.MediaColumns.DISPLAY_NAME, "OPENSHOT_${tag}_${stamp()}")
         put(MediaStore.MediaColumns.MIME_TYPE, mime)
         put(MediaStore.MediaColumns.RELATIVE_PATH, MEDIA_DIR)
     }
@@ -43,7 +43,7 @@ object MediaSaver {
 
     fun videoOutputOptions(context: Context): MediaStoreOutputOptions {
         val values = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, "REG_VID_${stamp()}")
+            put(MediaStore.MediaColumns.DISPLAY_NAME, "OPENSHOT_VID_${stamp()}")
             put(MediaStore.MediaColumns.MIME_TYPE, "video/mp4")
             put(MediaStore.MediaColumns.RELATIVE_PATH, MEDIA_DIR)
         }

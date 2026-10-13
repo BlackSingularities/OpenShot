@@ -17,6 +17,7 @@ enum class GridType(val label: String) {
     GOLDEN("Złoty podział"),
     SQUARE("Kwadrat"),
     DIAGONAL("Przekątne"),
+    CENTER("Celownik"),
 }
 
 enum class HistogramMode(val label: String) {

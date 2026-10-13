@@ -113,6 +113,18 @@ fun GridOverlay(types: Set<GridType>, ratio: Float, modifier: Modifier = Modifie
             line(Offset(cx, cy - arm), Offset(cx, cy + arm), c)
             line(Offset(cx - arm, cy), Offset(cx + arm, cy), c)
         }
+        if (GridType.CENTER in types) {
+            val c = Palette.Amber.copy(alpha = 0.88f)
+            val cx = r.center.x
+            val cy = r.center.y
+            val gap = 5.dp.toPx()
+            val arm = 18.dp.toPx()
+            line(Offset(cx - arm, cy), Offset(cx - gap, cy), c)
+            line(Offset(cx + gap, cy), Offset(cx + arm, cy), c)
+            line(Offset(cx, cy - arm), Offset(cx, cy - gap), c)
+            line(Offset(cx, cy + gap), Offset(cx, cy + arm), c)
+            drawCircle(c, 1.5.dp.toPx(), Offset(cx, cy))
+        }
     }
 }
 

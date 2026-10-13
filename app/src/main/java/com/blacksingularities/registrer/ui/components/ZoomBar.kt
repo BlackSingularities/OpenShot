@@ -106,7 +106,7 @@ fun LensSelector(
     ) {
         presets.forEach { p ->
             val isActive = p == active
-            val scale by animateFloatAsState(if (isActive) 1f else 0.84f, label = "lens")
+            val scale by animateFloatAsState(if (isActive) 1.15f else 0.9f, label = "lens")
             Box(
                 Modifier
                     .size(36.dp)
@@ -119,12 +119,23 @@ fun LensSelector(
                     },
                 contentAlignment = Alignment.Center,
             ) {
-                Text(
-                    text = if (isActive) formatZoom(current) + "×" else formatZoom(p),
-                    color = if (isActive) Palette.Amber else Color.White,
-                    fontSize = if (isActive) 12.sp else 11.sp,
-                    fontWeight = FontWeight.SemiBold,
-                )
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = if (isActive) formatZoom(current) + "×" else formatZoom(p),
+                        color = if (isActive) Color.White else Color.White.copy(alpha = 0.6f),
+                        fontSize = if (isActive) 13.sp else 11.sp,
+                        fontWeight = if (isActive) FontWeight.Black else FontWeight.Medium,
+                    )
+                    if (isActive) {
+                        Box(
+                            Modifier
+                                .padding(top = 1.dp)
+                                .size(4.dp)
+                                .clip(RoundedCornerShape(50))
+                                .background(Color.White),
+                        )
+                    }
+                }
             }
         }
     }
@@ -312,7 +323,17 @@ fun ZoomControls(
                         rightLabel = "Dalej",
                     )
                 } else {
-                    ZoomRocker(enabled = max - min > 0.05f, haptics = haptics, onRate = onRate)
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        // Stały odczyt bieżącego zoomu nad suwakiem.
+                        Text(
+                            formatZoom(current) + "×",
+                            color = Color.White,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.rotatedLayout(iconRotation),
+                        )
+                        ZoomRocker(enabled = max - min > 0.05f, haptics = haptics, onRate = onRate)
+                    }
                 }
                 if (focusAvailable) {
                     Spacer(Modifier.width(8.dp))
