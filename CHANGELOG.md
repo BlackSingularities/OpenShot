@@ -25,12 +25,15 @@
 - Powiadomienie o aktualizacji jest na środku kadru i ponad nakładkami, więc przyciski „Pobierz” i „Zainstaluj” znów reagują.
 - Histogram, kompas, pasek parametrów i nawigator zoomu przesuwa się od razu po ruchu palcem (albo po krótkim przytrzymaniu); kosz poprawnie wykrywa nakładkę także po zmianie układu ekranu.
 
-## 2.3.3
-
+### Ustawienia i wygląd
 - Changelog w ustawieniach ma wyjustowany tekst i czytelniejszą interlinię.
 - Przy numerze wersji widnieje podpis „Pomysł i wykonanie · redzikowksi.com”.
 - Pionowa nawigacja ustawień ma równe przyciski pełnej szerokości, a aktywna zakładka automatycznie pozostaje widoczna.
 - Ikona launchera jest odrobinę większa i nie ma narzuconego tła.
+
+## 2.3.3
+
+- Zmiana proporcji kadru nie przesuwa już nakładek pływających (histogram, pasek parametrów, kompas, nawigator zoomu) – chwilowe przebudowanie sterowania podczas ponownego uruchamiania aparatu nie zmienia ich obszaru.
 
 ## 2.3.2
 
