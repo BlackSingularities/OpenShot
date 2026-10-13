@@ -3,6 +3,7 @@
 ## 2.3.2
 
 - Ikona OpenShot ma teraz neutralną, czarno-białą paletę: srebrne metaliczne listki, grafitowe cienie i białe refleksy, nadal bez tła.
+- Zmiana proporcji kadru nie przesuwa już nakładek pływających (histogram, pasek parametrów, kompas, nawigator zoomu) – chwilowe przebudowanie sterowania podczas ponownego uruchamiania aparatu nie zmienia ich obszaru.
 
 ## 2.3.1
 
