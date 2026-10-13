@@ -570,7 +570,7 @@ private fun GeneralTab(
             }
         }
     }
-    Group("Ten aparat", collapsible = true, initiallyExpanded = false) {
+    Group("Informacje o sprzęcie", collapsible = true, initiallyExpanded = false) {
         val lenses = (caps.lensZooms + caps.auxLenses.map { it.factor }).distinct().sorted()
             .joinToString(" · ") { formatZoom(it) + "×" }.ifEmpty { "1×" }
         InfoRow(Icons.Rounded.ZoomIn, "Obiektywy: $lenses")

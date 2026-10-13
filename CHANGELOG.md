@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.4.5
+
+- Sekcja „Ten aparat” w ustawieniach ogólnych nazywa się teraz „Informacje o sprzęcie”.
+
 ## 2.4.4
 
 - Rząd przełączników na górze ustawień ogólnych nie ma już nagłówka.
