@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.22.0
+
+- **Górne przyciski**: dotknięcie pokazuje wszystkie dostępne opcje (lampa, samowyzwalacz, proporcje, format, rozdzielczość, klatkaż, braketowanie, ustawienia dyktafonu…) – wybierasz dotknięciem, dotknięcie obok zamyka listę. Przytrzymanie też rozwija listę: przesuń palec i puść, by wybrać jednym ruchem; puszczenie bez wyboru zostawia listę otwartą.
+- **Histogram w trybie Wideo** (i w trybie ręcznym wideo oraz przy zdjęciach ruchomych) – włączany w ustawieniach trybu → Kadr.
+
 ## 2.21.1
 
 - Naprawiono pokrętło trybów: po powrocie do trybu, w którym aplikacja startowała (np. Zdjęcie → Wideo), pokrętło pokazywało nowy tryb, ale aparat zostawał w poprzednim – w „Wideo” robił zdjęcia. Pokrętło zawsze wraca też na rzeczywiście aktywny tryb, gdy przełączenie jest niemożliwe.

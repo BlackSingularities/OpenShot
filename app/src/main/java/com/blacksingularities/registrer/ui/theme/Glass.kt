@@ -12,6 +12,7 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.geometry.Offset
@@ -245,6 +246,10 @@ class PickerState {
         private set
     var rotation by mutableStateOf(0f)
         private set
+    /** Lista otwarta dotknięciem – opcję wybiera się dotknięciem, dotknięcie obok zamyka. */
+    var sticky by mutableStateOf(false)
+        private set
+    private var stickyPick: ((Int) -> Unit)? = null
 
     fun open(options: List<PickerOption>, selected: Int, anchor: Rect, horizontal: Boolean, rotation: Float) {
         this.options = options
@@ -253,8 +258,25 @@ class PickerState {
         this.horizontal = horizontal
         this.rotation = rotation
         highlighted = -1
+        sticky = false
+        stickyPick = null
         visible = true
     }
+
+    /** Zostawia listę otwartą do wyboru dotknięciem. */
+    fun stick(onPick: (Int) -> Unit) {
+        sticky = true
+        stickyPick = onPick
+        highlighted = -1
+    }
+
+    fun choose(index: Int) {
+        val pick = stickyPick
+        close()
+        pick?.invoke(index)
+    }
+
+    fun isOpenAt(anchor: Rect) = visible && this.anchor == anchor
 
     /** Ustawia podświetlenie wg pozycji palca (w układzie okna); zwraca true, gdy się zmieniło. */
     fun track(root: Offset, density: androidx.compose.ui.unit.Density): Boolean {
@@ -269,6 +291,8 @@ class PickerState {
 
     fun close() {
         visible = false
+        sticky = false
+        stickyPick = null
     }
 }
 
@@ -305,6 +329,10 @@ private fun PickerLayer(picker: PickerState) {
             .fillMaxSize()
             .onGloballyPositioned { root = it.boundsInRoot() },
     ) {
+        // Lista otwarta dotknięciem: dotknięcie poza nią zamyka ją.
+        if (picker.visible && picker.sticky) {
+            Box(Modifier.fillMaxSize().pointerInput(Unit) { detectTapGestures { picker.close() } })
+        }
         AnimatedVisibility(
             visible = picker.visible,
             enter = fadeIn(tween(120)) + scaleIn(initialScale = 0.9f),
@@ -321,7 +349,9 @@ private fun PickerLayer(picker: PickerState) {
             },
         ) {
             val items: @Composable () -> Unit = {
-                picker.options.forEachIndexed { i, o -> PickerItem(o, i == picker.highlighted, i == picker.selected, picker.rotation) }
+                picker.options.forEachIndexed { i, o ->
+                    PickerItem(o, i == picker.highlighted, i == picker.selected, picker.rotation, onTap = if (picker.sticky) ({ picker.choose(i) }) else null)
+                }
             }
             if (picker.horizontal) {
                 Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(PICKER_STEP - PICKER_ITEM)) { items() }
@@ -339,7 +369,7 @@ private fun PickerLayer(picker: PickerState) {
  * z podpisem i cieniem. Pod palcem – powiększona i pełna biel, bieżąca – kropka.
  */
 @Composable
-private fun PickerItem(option: PickerOption, highlighted: Boolean, current: Boolean, rotation: Float) {
+private fun PickerItem(option: PickerOption, highlighted: Boolean, current: Boolean, rotation: Float, onTap: (() -> Unit)? = null) {
     val alpha by animateFloatAsState(if (highlighted || current) 1f else 0.7f, tween(90), label = "pickAlpha")
     val scale by animateFloatAsState(if (highlighted) 1.25f else 1f, spring(dampingRatio = 0.5f, stiffness = 800f), label = "pickScale")
     val shadow = androidx.compose.ui.text.TextStyle(
@@ -350,6 +380,7 @@ private fun PickerItem(option: PickerOption, highlighted: Boolean, current: Bool
             .size(PICKER_ITEM)
             .clip(RoundedCornerShape(14.dp))
             .background(Color.Black.copy(alpha = if (highlighted) 0.72f else 0.46f))
+            .then(if (onTap != null) Modifier.clickable(onClick = onTap) else Modifier)
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
@@ -435,8 +466,9 @@ private fun HintLayer(hints: HintState) {
 
 /**
  * Reaktywna powierzchnia dotyku: sprężyste wciśnięcie, haptyka, po przytrzymaniu dymek
- * z nazwą ([label]; [onLongPress] go zastępuje). Z [options]: przytrzymanie i przeciągnięcie
- * w dół (w pionowym pasku – w bok) rozwija listę – wybór jednym ruchem, puszczeniem palca.
+ * z nazwą ([label]; [onLongPress] go zastępuje). Z [options]: dotknięcie pokazuje wszystkie
+ * opcje do wyboru dotknięciem; przytrzymanie (lub przeciągnięcie w dół, w pionowym pasku – w bok)
+ * rozwija listę – wybór jednym ruchem, puszczeniem palca.
  */
 @Composable
 fun Modifier.reactive(
@@ -491,6 +523,7 @@ fun Modifier.reactive(
                 var expanded = false
                 var moved = false
                 var longFired = false
+                var keepOpen = false
                 try {
                     while (true) {
                         val waitFor = if (!moved && !longFired && !expanded) longTimeout else Long.MAX_VALUE
@@ -502,6 +535,14 @@ fun Modifier.reactive(
                         if (event == null) {
                             longFired = true
                             if (haptics) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            val opts = currentOptions
+                            if (opts != null && opts.size > 1 && picker != null) {
+                                // Przytrzymanie rozwija listę: przesuń palec i puść, by wybrać.
+                                expanded = true
+                                hints?.hide()
+                                picker.open(opts, currentSelected, bounds, horizontalPicker, rotationNow)
+                                continue
+                            }
                             val l = long
                             val text = currentLabel
                             if (l != null) l() else if (text != null) hints?.show(text, bounds)
@@ -511,14 +552,30 @@ fun Modifier.reactive(
                         if (!change.pressed) {
                             if (expanded) {
                                 val i = picker?.highlighted ?: -1
-                                picker?.close()
                                 if (i >= 0) {
+                                    picker?.close()
                                     pick(i)
                                     if (hintOnTap) tapped++
+                                } else {
+                                    // Puszczone bez wyboru – lista zostaje do wyboru dotknięciem.
+                                    picker?.stick { index -> pick(index) }
+                                    keepOpen = true
                                 }
                             } else if (!moved && !longFired) {
-                                click()
-                                if (hintOnTap) tapped++
+                                val opts = currentOptions
+                                if (opts != null && opts.size > 1 && picker != null) {
+                                    // Dotknięcie pokazuje wszystkie opcje (ponowne – zamyka listę).
+                                    if (picker.isOpenAt(bounds)) {
+                                        picker.close()
+                                    } else {
+                                        hints?.hide()
+                                        picker.open(opts, currentSelected, bounds, horizontalPicker, rotationNow)
+                                        picker.stick { index -> pick(index) }
+                                    }
+                                } else {
+                                    click()
+                                    if (hintOnTap) tapped++
+                                }
                             }
                             change.consume()
                             break
@@ -544,7 +601,7 @@ fun Modifier.reactive(
                     }
                 } finally {
                     pressed = false
-                    if (expanded) picker?.close()
+                    if (expanded && !keepOpen) picker?.close()
                 }
             }
         }

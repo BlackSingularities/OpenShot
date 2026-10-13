@@ -375,7 +375,7 @@ private fun ModeTab(mode: CaptureMode, s: ModeSettings, caps: CameraCaps, enable
                 SwitchRow(Icons.Rounded.Mic, tr("Nagrywaj dźwięk", "Record sound"), null, s.videoAudio, enabled) { v -> change { it.copy(videoAudio = v) } }
                 SwitchRow(Icons.Rounded.ZoomIn, tr("Płynne zbliżanie", "Smooth zoom"), tr("Wolny, równy najazd podczas nagrywania", "Slow, even zoom while recording"), s.cinematicZoom) { v -> change { it.copy(cinematicZoom = v) } }
             }
-            FramingGroup(s, change, showAspect = false, showHistogram = false, showTimer = false)
+            FramingGroup(s, change, showAspect = false, showHistogram = true, showTimer = false)
         }
 
         CaptureMode.SLOWMO -> {

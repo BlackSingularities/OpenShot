@@ -717,7 +717,7 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
             }
         }
 
-        if (bins != null && vm.cfg.histogram && vm.mode.isPhoto && !vm.videoMode) {
+        if (bins != null && vm.cfg.histogram && vm.mode != CaptureMode.SLOWMO && (vm.mode.isPhoto || vm.videoMode)) {
             DraggableOverlay(
                 rect = overlayArea,
                 photo = rect,

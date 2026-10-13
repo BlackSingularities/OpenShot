@@ -592,7 +592,9 @@ class CameraEngine(private val context: Context) {
                     Attempt(false, false, 0, false),
                 )
                 // Pomoce kadru potrzebują analizy – najpierw próby z nią, potem bez (wideo ma pierwszeństwo).
-                val attempts = (if (assist.any) baseAttempts.take(3).map { it.copy(analysis = true) } else emptyList())
+                // Analiza podglądu dla histogramu i pomocy kadru – najpierw próby z nią, potem bez.
+                val wantVideoAnalysis = assist.any || s.histogram
+                val attempts = (if (wantVideoAnalysis) baseAttempts.take(3).map { it.copy(analysis = true) } else emptyList())
                     .plus(baseAttempts)
                     .distinct()
                 var result: Camera? = null
@@ -619,7 +621,7 @@ class CameraEngine(private val context: Context) {
                                 .build()
                             useCases += ic
                         }
-                        if (a.analysis) useCases += buildAnalysis(aspectStrategy, histogram = false)
+                        if (a.analysis) useCases += buildAnalysis(aspectStrategy, histogram = s.histogram)
                         result = p.bindToLifecycle(owner, base, *useCases.toTypedArray())
                         videoCapture = vc
                         imageCapture = ic
@@ -647,9 +649,10 @@ class CameraEngine(private val context: Context) {
                 // Kolejne próby: zdjęcie + analiza, samo zdjęcie, sama analiza, tylko bufor wideo.
                 val photo = ic
                 val combos = buildList {
-                    if (assist.any) add(listOfNotNull<UseCase>(photo, buildAnalysis(aspectStrategy, histogram = false)))
+                    val wantMotionAnalysis = assist.any || s.histogram
+                    if (wantMotionAnalysis) add(listOfNotNull<UseCase>(photo, buildAnalysis(aspectStrategy, histogram = s.histogram)))
                     add(listOfNotNull<UseCase>(photo))
-                    if (assist.any) add(listOf<UseCase>(buildAnalysis(aspectStrategy, histogram = false)))
+                    if (wantMotionAnalysis) add(listOf<UseCase>(buildAnalysis(aspectStrategy, histogram = s.histogram)))
                     add(emptyList<UseCase>())
                 }
                 var motionBound: Camera? = null
