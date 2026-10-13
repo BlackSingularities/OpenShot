@@ -237,7 +237,9 @@ fun CameraScreen(vm: CameraViewModel, onToggleRearDisplay: () -> Unit = {}) {
         Surface.ROTATION_270 -> 270
         else -> 0
     }
-    LaunchedEffect(displaySurfaceRotation) { vm.engine.setDisplayRotation(displaySurfaceRotation) }
+    LaunchedEffect(displaySurfaceRotation, vm.holdOrientation) {
+        if (vm.displayRotation != displaySurfaceRotation && !vm.holdOrientation) vm.displayRotation = displaySurfaceRotation
+    }
     val relativeRotation = (vm.deviceRotation - (360 - displayDegrees) % 360 + 360) % 360
 
     var rotationAccum by remember { mutableFloatStateOf(0f) }

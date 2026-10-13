@@ -62,10 +62,13 @@ class MainActivity : ComponentActivity() {
                     if (!cameraGranted || !isGranted(Manifest.permission.RECORD_AUDIO)) request()
                 }
                 // Stały ekran (obracają się tylko elementy) albo pełny obrót – niezależnie od blokady systemu.
-                LaunchedEffect(vm.global.screenRotation) {
-                    requestedOrientation = when (vm.global.screenRotation) {
-                        ScreenRotation.FIXED -> ActivityInfo.SCREEN_ORIENTATION_NOSENSOR
-                        ScreenRotation.AUTO -> ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+                // Podczas nagrywania i przetwarzania orientacja jest zablokowana.
+                val hold = vm.holdOrientation
+                LaunchedEffect(vm.global.screenRotation, hold) {
+                    requestedOrientation = when {
+                        vm.global.screenRotation == ScreenRotation.FIXED -> ActivityInfo.SCREEN_ORIENTATION_NOSENSOR
+                        hold -> ActivityInfo.SCREEN_ORIENTATION_LOCKED
+                        else -> ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
                     }
                 }
                 if (cameraGranted) CameraScreen(vm, onToggleRearDisplay = rearDisplay::toggle) else PermissionScreen(onRequest = request)

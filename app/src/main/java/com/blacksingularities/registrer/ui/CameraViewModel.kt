@@ -66,7 +66,7 @@ enum class RecState { IDLE, RECORDING, PAUSED }
 data class Processing(val label: String, val progress: Float?)
 
 /** Klucz konfiguracji – jego zmiana wymusza ponowne związanie kamery. */
-data class BindKey(val mode: CaptureMode, val lens: Int, val cameraId: String?, val settings: ModeSettings)
+data class BindKey(val mode: CaptureMode, val lens: Int, val cameraId: String?, val display: Int, val settings: ModeSettings)
 
 class CameraViewModel(app: Application) : AndroidViewModel(app) {
     private val ctx get() = getApplication<Application>()
@@ -144,7 +144,18 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     private var burstJob: Job? = null
     private var intervalJob: Job? = null
 
-    val bindKey: BindKey get() = BindKey(mode, lensFacing, activeCameraId.takeIf { mode != CaptureMode.SLOWMO }, cfg.bindKey())
+    val bindKey: BindKey get() = BindKey(mode, lensFacing, activeCameraId.takeIf { mode != CaptureMode.SLOWMO }, displayRotation, cfg.bindKey())
+
+    /**
+     * Obrót wyświetlacza (Surface.ROTATION_*), z którym związano kamerę. Zmiana (tryb „Obracaj
+     * ekran”) wiąże kamerę od nowa – podgląd zawsze ma poprawny obrót i proporcje. Podczas
+     * nagrywania orientacja ekranu jest zablokowana, więc nagranie nie zostanie przerwane.
+     */
+    var displayRotation by mutableIntStateOf(Surface.ROTATION_0)
+
+    /** Nagrywanie lub przetwarzanie – ekran nie powinien się wtedy obracać. */
+    val holdOrientation: Boolean
+        get() = recState != RecState.IDLE || processing != null || bursting || intervalRunning || countdown != null
 
     /** Osobny aparat (szeroki kąt / tele) albo null, gdy aktywny jest aparat główny. */
     var activeCameraId by mutableStateOf<String?>(null); private set
@@ -219,6 +230,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
                 activeCameraId = null
                 return
             }
+            engine.setDisplayRotation(displayRotation)
             session = engine.bind(owner, surfaceProvider, BindRequest(lensFacing, mode, cfg, pro, activeCameraId), c)
             if (mode == CaptureMode.AUDIO) return
             val cam = engine.camera ?: return
