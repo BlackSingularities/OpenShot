@@ -275,6 +275,11 @@ data class ModeSettings(
     val tlDeflicker: Boolean = true,
     /** Blokada ekspozycji i balansu bieli na czas nagrania. */
     val tlLock: Boolean = false,
+    /** Braketowanie w trybie ręcznym: liczba zdjęć (0 = wyłączone) i krok w EV. */
+    val bracketCount: Int = 0,
+    val bracketStep: Float = 1f,
+    /** Płaski profil (LOG) w wideo trybu ręcznego. */
+    val flatProfile: Boolean = false,
     /** Tryb ręczny nagrywa wideo zamiast zdjęć. */
     val proVideo: Boolean = false,
     // audio
@@ -309,6 +314,7 @@ data class ModeSettings(
         slowMoFps = slowMoFps,
         proVideo = proVideo,
         tlResolution = tlResolution,
+        flatProfile = flatProfile,
         lowLightBoost = lowLightBoost,
     )
 
@@ -510,6 +516,9 @@ class SettingsStore(context: Context) {
             slowMoResolution = enumOr(prefs.getString(k + "slowRes", null), d.slowMoResolution),
             slowMoFps = prefs.getInt(k + "slowFps", d.slowMoFps),
             proVideo = prefs.getBoolean(k + "proVideo", d.proVideo),
+            bracketCount = prefs.getInt(k + "bracketCount", d.bracketCount),
+            bracketStep = prefs.getFloat(k + "bracketStep", d.bracketStep),
+            flatProfile = prefs.getBoolean(k + "flatProfile", d.flatProfile),
             tlSpeed = prefs.getInt(k + "tlSpeed", d.tlSpeed),
             tlFps = prefs.getInt(k + "tlFps", d.tlFps),
             tlResolution = enumOr(prefs.getString(k + "tlRes", null), d.tlResolution),
@@ -563,6 +572,9 @@ class SettingsStore(context: Context) {
             .putString(k + "slowRes", s.slowMoResolution.name)
             .putInt(k + "slowFps", s.slowMoFps)
             .putBoolean(k + "proVideo", s.proVideo)
+            .putInt(k + "bracketCount", s.bracketCount)
+            .putFloat(k + "bracketStep", s.bracketStep)
+            .putBoolean(k + "flatProfile", s.flatProfile)
             .putInt(k + "tlSpeed", s.tlSpeed)
             .putInt(k + "tlFps", s.tlFps)
             .putString(k + "tlRes", s.tlResolution.name)

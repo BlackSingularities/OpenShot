@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.17.0
+
+- **Braketowanie w trybie ręcznym** (zdjęcia): seria 3, 5 lub 7 zdjęć z krokiem ±0,7, ±1 albo ±2 EV, każde zapisane osobno – także w RAW – do późniejszej obróbki HDR. Przy ręcznej ekspozycji zmieniany jest czas naświetlania, w trybie automatycznym kompensacja EV. Włączasz je przyciskiem na górnym pasku albo w ustawieniach trybu ręcznego.
+
 ## 2.16.0
 
 - **Szybszy start aparatu**: wyniki sprawdzania obiektywów, formatów i profili zwolnionego tempa są zapamiętywane na telefonie, więc przy kolejnym uruchomieniu kamera startuje od razu. Świeże sprawdzenie odbywa się w tle po starcie; aktualizacja systemu lub aplikacji unieważnia zapamiętane dane.

@@ -1606,6 +1606,27 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
                     onClick = { vm.setProVideo(!cfg.proVideo) },
                 )
             }
+            if (vm.mode == CaptureMode.PRO && !cfg.proVideo) {
+                val counts = listOf(0, 3, 5, 7)
+                RoundIcon(
+                    Icons.Rounded.Exposure,
+                    if (cfg.bracketCount == 0) tr("Braketowanie wyłączone", "Bracketing off") else tr("Braketowanie: ${cfg.bracketCount} zdjęć", "Bracketing: ${cfg.bracketCount} shots"),
+                    rot,
+                    active = cfg.bracketCount > 0,
+                    badge = cfg.bracketCount.takeIf { it > 0 }?.toString(),
+                    enabled = !vm.busy,
+                    options = counts.map { c ->
+                        if (c == 0) {
+                            PickerOption(tr("Braketowanie wyłączone", "Bracketing off"), Icons.Rounded.Exposure, caption = tr("Wył.", "Off"))
+                        } else {
+                            PickerOption(tr("Braketowanie: $c zdjęć", "Bracketing: $c shots"), value = "$c", caption = "BRK")
+                        }
+                    },
+                    selected = counts.indexOf(cfg.bracketCount).coerceAtLeast(0),
+                    onPick = { i -> vm.updateProfile { it.copy(bracketCount = counts[i]) } },
+                    onClick = { vm.updateProfile { it.copy(bracketCount = counts[(counts.indexOf(it.bracketCount).coerceAtLeast(0) + 1) % counts.size]) } },
+                )
+            }
             if (vm.mode == CaptureMode.LONG) {
                 val blends = com.blacksingularities.registrer.data.LongBlend.entries
                 fun blendIcon(b: com.blacksingularities.registrer.data.LongBlend) =

@@ -1020,6 +1020,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
             mode == CaptureMode.HDR && session.extension == null -> hdrCapture()
             mode == CaptureMode.PORTRAIT && session.extension == null -> portraitCapture()
             mode == CaptureMode.LONG -> longCapture()
+            mode == CaptureMode.PRO && !cfg.proVideo && cfg.bracketCount >= 3 -> bracketCapture()
             mode.isMoment -> momentCapture()
             else -> {
                 val hardware = session.extension != null
@@ -1163,6 +1164,59 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         } finally {
             processing = null
         }
+    }
+
+    /**
+     * Braketowanie: seria zdjęć różniących się ekspozycją o [ModeSettings.bracketStep] EV,
+     * zapisywanych osobno (także w RAW) do późniejszej obróbki HDR. Przy ręcznej ekspozycji
+     * zmieniany jest czas naświetlania, w przeciwnym razie kompensacja EV.
+     */
+    private suspend fun bracketCapture() {
+        val n = cfg.bracketCount.coerceIn(3, 9)
+        val step = cfg.bracketStep
+        val half = n / 2
+        val manual = pro.manualExposure
+        if (!manual && evMax <= evMin) {
+            message = tr("Ten aparat nie pozwala zmieniać ekspozycji – braketowanie niedostępne", "This camera cannot change exposure – bracketing unavailable")
+            return
+        }
+        val rotation = surfaceRotation()
+        engine.setTargetRotation(rotation)
+        val baseExposure = pro.exposureNs ?: hud?.exposureNs ?: 16_666_666L
+        val baseEv = evIndex
+        val minExp = caps.exposureRange?.first ?: 100_000L
+        val maxExp = caps.exposureRange?.last ?: 1_000_000_000L
+        val label = tr("Braketowanie", "Bracketing")
+        var saved = 0
+        var last: Uri? = null
+        processing = Processing(label, 0f)
+        try {
+            for (k in -half..half) {
+                val ev = k * step
+                if (manual) {
+                    val exp = (baseExposure * Math.pow(2.0, ev.toDouble())).toLong().coerceIn(minExp, maxExp)
+                    engine.applyPro(pro.copy(exposureNs = exp))
+                } else {
+                    val idx = (baseEv + ev / evStep.coerceAtLeast(0.01f)).roundToInt().coerceIn(evMin, evMax)
+                    engine.setExposureIndex(idx)
+                }
+                // Czas na zastosowanie nowej ekspozycji przez sensor (kilka klatek).
+                delay(if (manual) 250 else 400)
+                playShutter(quiet = k != -half)
+                val r = engine.takePhoto(rotation, mirror(), "BRK")
+                if (r.uri != null) {
+                    saved++
+                    last = r.uri
+                }
+                processing = Processing("$label $saved/$n", saved.toFloat() / n)
+            }
+        } finally {
+            if (manual) engine.applyPro(pro) else engine.setExposureIndex(baseEv)
+            processing = null
+        }
+        last?.let { onSaved(it, false) }
+        val stepText = String.format(com.blacksingularities.registrer.i18n.Lang.locale, "%.1f", step)
+        message = tr("Braketowanie: zapisano $saved z $n zdjęć, krok $stepText EV", "Bracketing: saved $saved of $n photos, $stepText EV step")
     }
 
     private suspend fun portraitCapture() {

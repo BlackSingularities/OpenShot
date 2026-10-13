@@ -510,6 +510,32 @@ private fun ModeTab(mode: CaptureMode, s: ModeSettings, caps: CameraCaps, enable
                 }
                 else -> Unit
             }
+            if (mode == CaptureMode.PRO) {
+                Group(tr("Braketowanie", "Bracketing")) {
+                    Chips(
+                        Icons.Rounded.Exposure,
+                        tr("Liczba zdjęć", "Shots"),
+                        listOf(0, 3, 5, 7),
+                        s.bracketCount,
+                        { if (it == 0) tr("Wył.", "Off") else "$it" },
+                        enabled,
+                        hint = tr(
+                            "Seria o różnej ekspozycji, zapisana osobno – do późniejszej obróbki HDR",
+                            "A series with different exposures, saved separately – for later HDR editing",
+                        ),
+                    ) { v -> change { it.copy(bracketCount = v) } }
+                    if (s.bracketCount > 0) {
+                        Chips(
+                            Icons.Rounded.Tune,
+                            tr("Krok", "Step"),
+                            listOf(0.7f, 1f, 2f),
+                            s.bracketStep,
+                            { "±" + String.format(com.blacksingularities.registrer.i18n.Lang.locale, "%.1f", it) + " EV" },
+                            enabled,
+                        ) { v -> change { it.copy(bracketStep = v) } }
+                    }
+                }
+            }
             if (mode == CaptureMode.PHOTO || mode == CaptureMode.PRO) {
                 Group(tr("Seria i interwał", "Burst and interval")) {
                     if (mode == CaptureMode.PHOTO) {
