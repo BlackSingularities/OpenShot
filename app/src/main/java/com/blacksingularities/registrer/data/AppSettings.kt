@@ -244,6 +244,11 @@ data class GlobalSettings(
     val histogramSize: HistogramSize = HistogramSize.MEDIUM,
     val compassX: Float = 0.5f,
     val compassY: Float = 0.1f,
+    /** Obrys ostrości (focus peaking) we wszystkich trybach z obrazem. */
+    val peaking: Boolean = false,
+    /** Zebra – paski na prześwietlonych obszarach. */
+    val zebra: Boolean = false,
+    val zebraPercent: Int = 95,
     val levelStyle: LevelStyle = LevelStyle.HORIZON,
     /** Granica „prosto” w stopniach. */
     val levelTolerance: Float = 1f,
@@ -284,6 +289,9 @@ class SettingsStore(context: Context) {
             histogramSize = enumOr(prefs.getString("g.histSize", null), d.histogramSize),
             compassX = prefs.getFloat("g.compassX", d.compassX),
             compassY = prefs.getFloat("g.compassY", d.compassY),
+            peaking = prefs.getBoolean("g.peaking", d.peaking),
+            zebra = prefs.getBoolean("g.zebra", d.zebra),
+            zebraPercent = prefs.getInt("g.zebraPct", d.zebraPercent),
             levelStyle = enumOr(prefs.getString("g.levelStyle", null), d.levelStyle),
             levelTolerance = prefs.getFloat("g.levelTol", d.levelTolerance),
             levelPitch = prefs.getBoolean("g.levelPitch", d.levelPitch),
@@ -317,6 +325,9 @@ class SettingsStore(context: Context) {
             .putString("g.histSize", g.histogramSize.name)
             .putFloat("g.compassX", g.compassX)
             .putFloat("g.compassY", g.compassY)
+            .putBoolean("g.peaking", g.peaking)
+            .putBoolean("g.zebra", g.zebra)
+            .putInt("g.zebraPct", g.zebraPercent)
             .putString("g.levelStyle", g.levelStyle.name)
             .putFloat("g.levelTol", g.levelTolerance)
             .putBoolean("g.levelPitch", g.levelPitch)

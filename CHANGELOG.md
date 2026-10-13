@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.8.0
+
+- **Obrys ostrości** (focus peaking): najostrzejsze krawędzie kadru podświetlone na czerwono – ułatwia ręczne ustawianie ostrości.
+- **Zebra**: ukośne paski na prześwietlonych obszarach, próg 85/90/95/98% jasności.
+- Obie pomoce włącza się w ustawieniach ogólnych (sekcja „Pomoce kadru”) i działają we wszystkich trybach z podglądem: zdjęcia, wideo, zdjęcia ruchome, noc, HDR, długi czas i tryb ręczny (poza efektami sprzętowymi producenta). Maska uwzględnia obrót, przedni aparat i zoom cyfrowy.
+
 ## 2.7.0
 
 - **Rozbudowana poziomica** z czterema wyglądami do wyboru w ustawieniach ogólnych:

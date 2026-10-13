@@ -151,6 +151,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
@@ -613,6 +615,7 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
         )
 
         GridOverlay(vm.cfg.grids, ratio, Modifier.fillMaxSize(), centered)
+        AssistOverlay({ vm.assistFrame }, rect, crop, vm.lensFacing == CameraSelector.LENS_FACING_FRONT)
         if (vm.cfg.level && vm.mode != CaptureMode.AUDIO) {
             val gl = vm.global
             val calibration = remember(gl.levelCalX, gl.levelCalY, gl.levelCalZ) { floatArrayOf(gl.levelCalX, gl.levelCalY, gl.levelCalZ) }
@@ -777,6 +780,36 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
         }
 
         Box(Modifier.fillMaxSize().graphicsLayer { alpha = flashAlpha.value }.background(Color.Black))
+    }
+}
+
+/**
+ * Maska obrysu ostrości i zebry nad podglądem: klatka analizy obracana do pozycji ekranu,
+ * odbijana dla przedniego aparatu i powiększana jak podgląd przy zoomie cyfrowym.
+ * Stan czytany dopiero przy rysowaniu – nowa maska nie przebudowuje całego kadru.
+ */
+@Composable
+private fun AssistOverlay(frame: () -> com.blacksingularities.registrer.camera.AssistFrame?, rect: Rect, crop: Float, mirror: Boolean) {
+    Canvas(Modifier.fillMaxSize()) {
+        val f = frame() ?: return@Canvas
+        val bmp = f.bitmap
+        if (bmp.isRecycled || rect.width <= 0f) return@Canvas
+        val swap = f.rotation % 180 != 0
+        val dstW = if (swap) rect.height else rect.width
+        val dstH = if (swap) rect.width else rect.height
+        clipRect(rect.left, rect.top, rect.right, rect.bottom) {
+            withTransform({
+                translate(rect.center.x, rect.center.y)
+                scale(if (mirror) -crop else crop, crop, pivot = Offset.Zero)
+                rotate(f.rotation.toFloat(), pivot = Offset.Zero)
+            }) {
+                drawImage(
+                    bmp.asImageBitmap(),
+                    dstOffset = IntOffset((-dstW / 2f).roundToInt(), (-dstH / 2f).roundToInt()),
+                    dstSize = androidx.compose.ui.unit.IntSize(dstW.roundToInt(), dstH.roundToInt()),
+                )
+            }
+        }
     }
 }
 

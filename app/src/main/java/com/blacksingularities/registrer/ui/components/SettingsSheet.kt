@@ -112,6 +112,8 @@ import androidx.compose.material.icons.rounded.Link
 import com.blacksingularities.registrer.data.SharedGroup
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.material.icons.rounded.Gradient
+import androidx.compose.material.icons.rounded.CenterFocusWeak
 import androidx.compose.material.icons.rounded.Opacity
 import androidx.compose.material.icons.rounded.SwapVert
 import androidx.compose.material.icons.rounded.LinearScale
@@ -581,6 +583,31 @@ private fun GeneralTab(
             label = { it.label },
             short = { it.label.take(1) },
         ) { v -> onGlobal { it.copy(histogramSize = v) } }
+    }
+    Group("Pomoce kadru") {
+        Row(
+            Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            PillToggle(Icons.Rounded.CenterFocusWeak, "Obrys ostrości", g.peaking, Modifier.weight(1f)) { v -> onGlobal { it.copy(peaking = v) } }
+            PillToggle(Icons.Rounded.Gradient, "Zebra", g.zebra, Modifier.weight(1f)) { v -> onGlobal { it.copy(zebra = v) } }
+        }
+        CompactChoice(
+            Icons.Rounded.Gradient,
+            "Próg zebry",
+            listOf(85, 90, 95, 98),
+            g.zebraPercent,
+            label = { "$it% jasności" },
+            short = { "$it" },
+            hint = "Paski na prześwietleniach",
+        ) { v -> onGlobal { it.copy(zebraPercent = v) } }
+        Text(
+            "Czerwony obrys pokazuje najostrzejsze krawędzie – pomocny przy ręcznej ostrości. Działa we wszystkich trybach z podglądem (poza efektami sprzętowymi producenta).",
+            fontSize = 10.sp,
+            lineHeight = 13.sp,
+            color = Palette.TextDim,
+            modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 8.dp),
+        )
     }
     Group("Poziomica") {
         CompactChoice(

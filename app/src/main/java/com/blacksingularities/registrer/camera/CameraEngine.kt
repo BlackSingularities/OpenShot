@@ -101,6 +101,35 @@ class CameraEngine(private val context: Context) {
 
     var onHud: ((Hud) -> Unit)? = null
     var onHistogram: ((IntArray) -> Unit)? = null
+    var onAssist: ((AssistFrame?) -> Unit)? = null
+
+    /** Pomoce kadru (obrys ostrości, zebra) – zmiana na żywo; włączenie wymaga ponownego związania. */
+    @Volatile var assist = AssistConfig()
+
+    /** Analiza podglądu: histogram i pomoce kadru; większa rozdzielczość, gdy liczona jest maska. */
+    private fun buildAnalysis(aspectStrategy: AspectRatioStrategy, histogram: Boolean): ImageAnalysis {
+        val target = if (assist.any) Size(640, 480) else Size(320, 240)
+        return ImageAnalysis.Builder()
+            .setResolutionSelector(
+                ResolutionSelector.Builder()
+                    .setAspectRatioStrategy(aspectStrategy)
+                    .setResolutionStrategy(ResolutionStrategy(target, ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER))
+                    .build(),
+            )
+            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+            .build()
+            .also { a ->
+                a.setAnalyzer(
+                    analysisExecutor,
+                    FrameAnalyzer(
+                        histogram = histogram,
+                        config = { assist },
+                        onHistogram = { h -> main.execute { onHistogram?.invoke(h) } },
+                        onAssist = { f -> main.execute { onAssist?.invoke(f) } },
+                    ),
+                )
+            }
+    }
 
     val isRecording get() = recording != null
 
@@ -543,14 +572,18 @@ class CameraEngine(private val context: Context) {
                     VideoFps.AUTO -> 0
                 }
                 val bitrate = bitrateFor(quality, s.bitrate, fps)
-                data class Attempt(val hdr: Boolean, val stab: Boolean, val fps: Int, val snapshot: Boolean)
-                val attempts = listOf(
+                data class Attempt(val hdr: Boolean, val stab: Boolean, val fps: Int, val snapshot: Boolean, val analysis: Boolean = false)
+                val baseAttempts = listOf(
                     Attempt(s.videoHdr && caps.videoHlg, s.stabilization && caps.videoStabilization, fps, true),
                     Attempt(s.videoHdr && caps.videoHlg, s.stabilization && caps.videoStabilization, fps, false),
                     Attempt(false, s.stabilization && caps.videoStabilization, fps, false),
                     Attempt(false, false, fps, false),
                     Attempt(false, false, 0, false),
-                ).distinct()
+                )
+                // Pomoce kadru potrzebują analizy – najpierw próby z nią, potem bez (wideo ma pierwszeństwo).
+                val attempts = (if (assist.any) baseAttempts.take(3).map { it.copy(analysis = true) } else emptyList())
+                    .plus(baseAttempts)
+                    .distinct()
                 var result: Camera? = null
                 var lastError: Exception? = null
                 active = ActiveSession()
@@ -575,6 +608,7 @@ class CameraEngine(private val context: Context) {
                                 .build()
                             useCases += ic
                         }
+                        if (a.analysis) useCases += buildAnalysis(aspectStrategy, histogram = false)
                         result = p.bindToLifecycle(owner, base, *useCases.toTypedArray())
                         videoCapture = vc
                         imageCapture = ic
@@ -599,14 +633,27 @@ class CameraEngine(private val context: Context) {
                     .setResolutionSelector(ResolutionSelector.Builder().setAspectRatioStrategy(aspectStrategy).build())
                     .setJpegQuality(s.jpegQuality.coerceIn(1, 100))
                     .build()
-                bound = try {
-                    p.bindToLifecycle(owner, base, *listOfNotNull<UseCase>(buildPreview(), vc, ic).toTypedArray())
-                } catch (e: Exception) {
-                    if (ic == null) throw e
-                    ic = null
-                    p.unbindAll()
-                    p.bindToLifecycle(owner, base, buildPreview(), vc)
+                // Kolejne próby: zdjęcie + analiza, samo zdjęcie, sama analiza, tylko bufor wideo.
+                val photo = ic
+                val combos = buildList {
+                    if (assist.any) add(listOfNotNull<UseCase>(photo, buildAnalysis(aspectStrategy, histogram = false)))
+                    add(listOfNotNull<UseCase>(photo))
+                    if (assist.any) add(listOf<UseCase>(buildAnalysis(aspectStrategy, histogram = false)))
+                    add(emptyList<UseCase>())
                 }
+                var motionBound: Camera? = null
+                var motionError: Exception? = null
+                for (extra in combos) {
+                    try {
+                        p.unbindAll()
+                        motionBound = p.bindToLifecycle(owner, base, *(listOf<UseCase>(buildPreview(), vc) + extra).toTypedArray())
+                        ic = extra.firstOrNull { it is ImageCapture } as ImageCapture?
+                        break
+                    } catch (e: Exception) {
+                        motionError = e
+                    }
+                }
+                bound = motionBound ?: throw (motionError ?: IllegalStateException("Nie udało się uruchomić zdjęć ruchomych"))
                 videoCapture = vc
                 imageCapture = ic
                 active = ActiveSession(snapshotInVideo = ic != null)
@@ -657,18 +704,10 @@ class CameraEngine(private val context: Context) {
                 }
                 val ic = icBuilder.build()
 
-                // Analiza potrzebna do histogramu oraz do automatycznego doboru liczby klatek nocnych.
-                val wantAnalysis = wantedExtension == null && (s.histogram || req.mode == CaptureMode.NIGHT)
+                // Analiza: histogram, automatyczna liczba klatek nocnych i pomoce kadru.
+                val wantAnalysis = wantedExtension == null && (s.histogram || req.mode == CaptureMode.NIGHT || assist.any)
                 val analysis = if (wantAnalysis) {
-                    ImageAnalysis.Builder()
-                        .setResolutionSelector(
-                            ResolutionSelector.Builder()
-                                .setResolutionStrategy(ResolutionStrategy(Size(320, 240), ResolutionStrategy.FALLBACK_RULE_CLOSEST_HIGHER_THEN_LOWER))
-                                .build(),
-                        )
-                        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                        .build()
-                        .also { a -> a.setAnalyzer(analysisExecutor, HistogramAnalyzer { h -> main.execute { onHistogram?.invoke(h) } }) }
+                    buildAnalysis(aspectStrategy, histogram = s.histogram || req.mode == CaptureMode.NIGHT)
                 } else {
                     null
                 }

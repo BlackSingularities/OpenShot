@@ -13,6 +13,15 @@ class HistogramAnalyzer(private val onResult: (IntArray) -> Unit) : ImageAnalysi
     override fun analyze(image: ImageProxy) {
         try {
             if (frame++ % 3 != 0) return
+            onResult(compute(image))
+        } finally {
+            image.close()
+        }
+    }
+
+    companion object {
+        /** Histogramy jednej klatki (bez zamykania obrazu). */
+        fun compute(image: ImageProxy): IntArray {
             val yp = image.planes[0]
             val up = image.planes[1]
             val vp = image.planes[2]
@@ -43,9 +52,7 @@ class HistogramAnalyzer(private val onResult: (IntArray) -> Unit) : ImageAnalysi
                 }
                 y += 4
             }
-            onResult(bins)
-        } finally {
-            image.close()
+            return bins
         }
     }
 }

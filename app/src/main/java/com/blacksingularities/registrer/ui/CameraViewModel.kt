@@ -74,7 +74,7 @@ enum class RecState { IDLE, RECORDING, PAUSED }
 data class Processing(val label: String, val progress: Float?)
 
 /** Klucz konfiguracji – jego zmiana wymusza ponowne związanie kamery. */
-data class BindKey(val mode: CaptureMode, val lens: Int, val cameraId: String?, val display: Int, val settings: ModeSettings)
+data class BindKey(val mode: CaptureMode, val lens: Int, val cameraId: String?, val display: Int, val settings: ModeSettings, val assist: Boolean = false)
 
 class CameraViewModel(app: Application) : AndroidViewModel(app) {
     private val ctx get() = getApplication<Application>()
@@ -193,7 +193,12 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     private var burstJob: Job? = null
     private var intervalJob: Job? = null
 
-    val bindKey: BindKey get() = BindKey(mode, lensFacing, activeCameraId.takeIf { mode != CaptureMode.SLOWMO }, displayRotation, cfg.bindKey())
+    val bindKey: BindKey get() = BindKey(mode, lensFacing, activeCameraId.takeIf { mode != CaptureMode.SLOWMO }, displayRotation, cfg.bindKey(), global.peaking || global.zebra)
+
+    /** Maska obrysu ostrości / zebry dla bieżącej klatki podglądu. */
+    var assistFrame by mutableStateOf<com.blacksingularities.registrer.camera.AssistFrame?>(null); private set
+
+    private fun assistConfig() = com.blacksingularities.registrer.camera.AssistConfig(global.peaking, global.zebra, global.zebraPercent)
 
     /**
      * Obrót wyświetlacza (Surface.ROTATION_*), z którym związano kamerę. Zmiana (tryb „Obracaj
@@ -285,6 +290,8 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     init {
         engine.onHud = { hud = it }
         engine.onHistogram = { histogram = it }
+        engine.onAssist = { assistFrame = it }
+        engine.assist = assistConfig()
         refreshRecordings()
         audio.addListener(audioListener)
         externalMic = audio.externalInputName()
@@ -310,6 +317,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         cropZoom = 1f
         hud = null
         histogram = null
+        assistFrame = null
         focusLocked = false
         try {
             val facing = engine.resolveFacing(lensFacing)
@@ -393,6 +401,8 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         val before = global.geotag
         global = transform(global)
         store.saveGlobal(global)
+        engine.assist = assistConfig()
+        if (!global.peaking && !global.zebra) assistFrame = null
         if (global.geotag != before) refreshLocation()
     }
 
