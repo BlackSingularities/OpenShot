@@ -11,18 +11,20 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
 object Palette {
-    // Czarno-biały interfejs: akcent = biel, czerwień tylko dla nagrywania.
+    // Czarno-biały interfejs pod AMOLED: tła w czystej czerni, akcent = biel, czerwień tylko dla nagrywania.
     val Amber = Color(0xFFFFFFFF)
     val Coral = Color(0xFFE0E0E0)
     val Record = Color(0xFFFF3B47)
     val Moon = Color(0xFFBDBDBD)
-    val Ink = Color(0xFF0B0C10)
-    val Panel = Color(0xFF0B0B0B)
-    val PanelHigh = Color(0xFF1C1C1C)
+    val Ink = Color(0xFF000000)
+    val Panel = Color(0xFF000000)
+    val PanelHigh = Color(0xFF101010)
     val Glass = Color(0x29FFFFFF)
     val GlassStrong = Color(0x47000000)
     val TextDim = Color(0xB3FFFFFF)
     val TextFaint = Color(0x66FFFFFF)
+    /** Cienka obwódka elementów na czarnym tle (AMOLED – reszta pikseli zgaszona). */
+    val Hairline = Color(0x2EFFFFFF)
 }
 
 private val scheme = darkColorScheme(

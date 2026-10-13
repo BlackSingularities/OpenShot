@@ -111,11 +111,11 @@ enum class GlassLevel(val tint: Color) {
     /** Dolny panel sterowania. */
     Faint(Color(0xFF000000)),
     /** Przyciski i plakietki. */
-    Thin(Color(0xFF1C1C1C)),
+    Thin(Color(0xFF000000)),
     /** Paski i panele. */
-    Regular(Color(0xFF111111)),
+    Regular(Color(0xFF000000)),
     /** Arkusz ustawień. */
-    Thick(Color(0xFF0B0B0B)),
+    Thick(Color(0xFF000000)),
 }
 
 /** Aktywny element: biały blok z czarną ikoną. */
@@ -134,8 +134,17 @@ fun Modifier.glass(
 ): Modifier {
     if (LocalNoBackground.current) return this.clip(shape)
     val bg by animateColorAsState(if (active) ActiveTint else level.tint, tween(160), label = "flatBg")
-    return this.clip(shape).background(bg)
+    // Przyciski i plakietki: czarne z cienką obwódką – na AMOLED świeci tylko kontur.
+    val outlined = border && !active && level == GlassLevel.Thin
+    return this.clip(shape).background(bg).then(if (outlined) Modifier.border(1.dp, Palette.Hairline, shape) else Modifier)
 }
+
+/** Wypełnienie pod AMOLED: wybrany element – kolor [selectedColor], pozostałe – czerń z obwódką. */
+fun Modifier.amoledFill(selected: Boolean, shape: Shape, selectedColor: Color = Color.White): Modifier =
+    if (selected) this.background(selectedColor, shape) else this.border(1.dp, Palette.Hairline, shape)
+
+/** Sama cienka obwódka zamiast szarego tła. */
+fun Modifier.hairline(shape: Shape): Modifier = this.border(1.dp, Palette.Hairline, shape)
 
 /**
  * Obrót treści razem z układem: przy obrocie o 90°/270° szerokość i wysokość się zamieniają,

@@ -8,6 +8,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -177,7 +178,7 @@ fun ProPanel(
                     Modifier
                         .width(66.dp)
                         .clip(RoundedCornerShape(14.dp))
-                        .background(if (active == p) Color.White.copy(alpha = 0.14f) else Color.Transparent)
+                        .then(if (active == p) Modifier.border(1.dp, Color.White, RoundedCornerShape(14.dp)) else Modifier)
                         .clickable(enabled = enabled) { active = if (active == p) null else p }
                         .padding(vertical = 6.dp)
                         .graphicsLayer { alpha = if (enabled) 1f else 0.35f },

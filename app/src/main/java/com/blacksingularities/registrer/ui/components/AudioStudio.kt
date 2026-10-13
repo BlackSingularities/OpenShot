@@ -87,6 +87,8 @@ import com.blacksingularities.registrer.data.ModeSettings
 import com.blacksingularities.registrer.ui.RecState
 import com.blacksingularities.registrer.ui.theme.MonoDigits
 import com.blacksingularities.registrer.ui.theme.Palette
+import com.blacksingularities.registrer.ui.theme.hairline
+import com.blacksingularities.registrer.ui.theme.amoledFill
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -164,7 +166,7 @@ fun AudioStudio(
     Column(
         modifier
             .fillMaxSize()
-            .background(Brush.verticalGradient(listOf(Color(0xFF161320), Palette.Ink, Palette.Ink)))
+            .background(Color.Black)
             .padding(contentPadding),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -380,7 +382,7 @@ private fun Pills(items: List<Pair<String, Boolean>>) {
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier
                     .clip(RoundedCornerShape(50))
-                    .background(if (highlighted) Color.White else Color.White.copy(alpha = 0.08f))
+                    .amoledFill(highlighted, RoundedCornerShape(50), Color.White)
                     .padding(horizontal = 10.dp, vertical = 4.dp),
             )
         }
@@ -501,7 +503,8 @@ private fun RecordingCard(
         Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(18.dp))
-            .background(if (expanded) Palette.PanelHigh else Palette.Panel)
+            .background(if (expanded) Palette.PanelHigh else Color.Black)
+            .hairline(RoundedCornerShape(18.dp))
             .clickable(onClick = onToggleExpand)
             .padding(start = 8.dp, end = 8.dp, top = 8.dp, bottom = if (expanded) 4.dp else 8.dp),
     ) {
@@ -510,7 +513,7 @@ private fun RecordingCard(
                 Modifier
                     .size(42.dp)
                     .clip(CircleShape)
-                    .background(if (active) Color.White else Color.White.copy(alpha = 0.08f))
+                    .amoledFill(active, CircleShape, Color.White)
                     .clickable(onClick = onPlay),
                 contentAlignment = Alignment.Center,
             ) {
@@ -566,7 +569,7 @@ private fun RecordingCard(
                         color = if (speed != 1f) Palette.Ink else Color.White,
                         modifier = Modifier
                             .clip(RoundedCornerShape(50))
-                            .background(if (speed != 1f) Color.White else Color.White.copy(alpha = 0.08f))
+                            .amoledFill(speed != 1f, RoundedCornerShape(50), Color.White)
                             .clickable(onClick = onSpeed)
                             .padding(horizontal = 10.dp, vertical = 6.dp),
                     )

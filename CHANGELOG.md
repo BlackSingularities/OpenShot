@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.20.0
+
+- **Interfejs pod ekrany AMOLED**: tła w czystej czerni (zgaszone piksele) – ustawienia, dyktafon, panele, przyciski i plakietki. Zamiast szarych wypełnień elementy mają cienką obwódkę, a wybrane pozostają białe; dyktafon nie ma już fioletowego gradientu.
+
 ## 2.19.1
 
 - Naprawiono budowanie aplikacji (konflikt nazw w obsłudze wskaźnika dźwięku w wideo) – wydania 2.9–2.19 zawierają się w tej wersji.

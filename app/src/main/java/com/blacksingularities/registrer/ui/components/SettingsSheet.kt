@@ -172,6 +172,8 @@ import com.blacksingularities.registrer.data.VideoFps
 import com.blacksingularities.registrer.data.VolumeAction
 import com.blacksingularities.registrer.data.ScreenRotation
 import com.blacksingularities.registrer.ui.theme.Palette
+import com.blacksingularities.registrer.ui.theme.hairline
+import com.blacksingularities.registrer.ui.theme.amoledFill
 import com.blacksingularities.registrer.update.UpdateManager
 import com.blacksingularities.registrer.update.UpdateState
 import java.util.Locale
@@ -954,7 +956,7 @@ private fun IconToggle(icon: ImageVector, label: String, value: Boolean, modifie
     Column(
         modifier
             .clip(RoundedCornerShape(14.dp))
-            .background(if (value) Color.White else Color.White.copy(alpha = 0.06f))
+            .amoledFill(value, RoundedCornerShape(14.dp), Color.White)
             .toggleable(value = value, role = Role.Switch, onValueChange = onChange)
             .padding(vertical = 8.dp, horizontal = 2.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -978,7 +980,7 @@ private fun PillToggle(icon: ImageVector, label: String, value: Boolean, modifie
     Row(
         modifier
             .clip(RoundedCornerShape(50))
-            .background(if (value) Color.White else Color.White.copy(alpha = 0.06f))
+            .amoledFill(value, RoundedCornerShape(50), Color.White)
             .toggleable(value = value, role = Role.Switch, onValueChange = onChange)
             .padding(horizontal = 12.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -1025,7 +1027,7 @@ private fun <T> CompactChoice(
         Row(
             Modifier
                 .clip(RoundedCornerShape(50))
-                .background(Color.White.copy(alpha = 0.06f))
+                .hairline(RoundedCornerShape(50))
                 .padding(2.dp),
         ) {
             options.forEach { o ->
@@ -1192,7 +1194,7 @@ private fun Group(
                 Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(16.dp))
-                    .background(Color.White.copy(alpha = 0.06f))
+                    .hairline(RoundedCornerShape(16.dp))
                     .padding(vertical = 2.dp),
                 content = content,
             )
@@ -1206,7 +1208,7 @@ private fun RowIcon(icon: ImageVector) {
         Modifier
             .size(32.dp)
             .clip(CircleShape)
-            .background(Palette.Amber.copy(alpha = 0.14f)),
+            .hairline(CircleShape),
         contentAlignment = Alignment.Center,
     ) {
         Icon(icon, null, tint = Palette.Amber, modifier = Modifier.size(18.dp))
@@ -1278,7 +1280,7 @@ private fun <T> MultiChips(
                 Row(
                     Modifier
                         .clip(RoundedCornerShape(50))
-                        .background(if (sel) Palette.Amber else Color.White.copy(alpha = 0.07f))
+                        .amoledFill(sel, RoundedCornerShape(50), Palette.Amber)
                         .clickable { onToggle(o) }
                         .padding(start = if (sel) 8.dp else 12.dp, end = 12.dp, top = 6.dp, bottom = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -1330,7 +1332,7 @@ private fun <T> Chips(
                     fontWeight = if (sel) FontWeight.Bold else FontWeight.Medium,
                     modifier = Modifier
                         .clip(RoundedCornerShape(50))
-                        .background(if (sel) Palette.Amber else Color.White.copy(alpha = 0.07f))
+                        .amoledFill(sel, RoundedCornerShape(50), Palette.Amber)
                         .clickable(enabled = enabled) { onSelect(o) }
                         .padding(horizontal = 10.dp, vertical = 4.dp),
                 )
