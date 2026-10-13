@@ -112,6 +112,10 @@ import androidx.compose.material.icons.rounded.Link
 import com.blacksingularities.registrer.data.SharedGroup
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.material.icons.rounded.ScreenLockRotation
+import androidx.compose.ui.semantics.Role
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -240,7 +244,8 @@ fun SettingsSheet(
                         Text("Przywróć domyślne: ${current.title}", color = Palette.TextDim, fontSize = 13.sp)
                     }
                 }
-                Spacer(Modifier.height(20.dp))
+                Credits()
+                Spacer(Modifier.height(12.dp))
             }
         }
     }
@@ -491,42 +496,81 @@ private fun GeneralTab(
     onDownload: () -> Unit,
     onInstall: () -> Unit,
 ) {
+    Group("Przełączniki") {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            IconToggle(Icons.Rounded.Vibration, "Wibracje", g.haptics, Modifier.weight(1f)) { v -> onGlobal { it.copy(haptics = v) } }
+            IconToggle(Icons.Rounded.CameraAlt, "Migawka", g.shutterSound, Modifier.weight(1f)) { v -> onGlobal { it.copy(shutterSound = v) } }
+            IconToggle(Icons.Rounded.Alarm, "Odliczanie", g.timerBeep, Modifier.weight(1f)) { v -> onGlobal { it.copy(timerBeep = v) } }
+            IconToggle(Icons.Rounded.Speed, "Parametry", g.exposureInfo, Modifier.weight(1f)) { v -> onGlobal { it.copy(exposureInfo = v) } }
+            IconToggle(Icons.Rounded.Explore, "Kompas", g.compass, Modifier.weight(1f)) { v -> onGlobal { it.copy(compass = v) } }
+        }
+        Text(
+            "Dźwięk migawki, sygnał samowyzwalacza i nakładki w kadrze. Nakładki przeciągasz po kadrze, a upuszczone na koszu znikają.",
+            fontSize = 10.sp,
+            lineHeight = 13.sp,
+            color = Palette.TextDim,
+            modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 6.dp),
+        )
+    }
     Group("Obsługa") {
-        SwitchRow(Icons.Rounded.Vibration, "Wibracje", "Haptyka pokręteł, zoomu i poziomicy", g.haptics) { v -> onGlobal { it.copy(haptics = v) } }
-        SwitchRow(Icons.Rounded.CameraAlt, "Dźwięk migawki", null, g.shutterSound) { v -> onGlobal { it.copy(shutterSound = v) } }
-        SwitchRow(Icons.Rounded.Alarm, "Sygnał samowyzwalacza", null, g.timerBeep) { v -> onGlobal { it.copy(timerBeep = v) } }
-        SwitchRow(Icons.Rounded.Speed, "Parametry ekspozycji", "Przeciągnij, aby przesunąć; upuść na koszu, aby ukryć", g.exposureInfo) { v ->
-            onGlobal { it.copy(exposureInfo = v) }
-        }
-        SwitchRow(Icons.Rounded.Explore, "Kompas", "Przeciągnij, aby przesunąć; upuść na koszu, aby ukryć", g.compass) { v ->
-            onGlobal { it.copy(compass = v) }
-        }
-        Chips(Icons.Rounded.BarChart, "Histogram", com.blacksingularities.registrer.data.HistogramMode.entries, g.histogramMode, { it.label }, hint = "Dotknięcie histogramu też przełącza tryb") { v ->
-            onGlobal { it.copy(histogramMode = v) }
-        }
-        Chips(Icons.Rounded.BarChart, "Wielkość histogramu", com.blacksingularities.registrer.data.HistogramSize.entries, g.histogramSize, { it.label }) { v ->
-            onGlobal { it.copy(histogramSize = v) }
-        }
-        Chips(
+        CompactChoice(
             Icons.Rounded.ScreenRotation,
             "Obrót ekranu",
             ScreenRotation.entries,
             g.screenRotation,
-            { it.label },
+            label = { it.label },
+            icon = { if (it == ScreenRotation.FIXED) Icons.Rounded.ScreenLockRotation else Icons.Rounded.ScreenRotation },
             hint = g.screenRotation.description,
         ) { v -> onGlobal { it.copy(screenRotation = v) } }
-        Chips(Icons.Rounded.VolumeUp, "Klawisze głośności", VolumeAction.entries, g.volumeAction, { it.label }) { v -> onGlobal { it.copy(volumeAction = v) } }
+        CompactChoice(
+            Icons.Rounded.VolumeUp,
+            "Klawisze głośności",
+            VolumeAction.entries,
+            g.volumeAction,
+            label = { it.label },
+            icon = {
+                when (it) {
+                    VolumeAction.SHUTTER -> Icons.Rounded.CameraAlt
+                    VolumeAction.ZOOM -> Icons.Rounded.ZoomIn
+                    VolumeAction.NONE -> Icons.Rounded.VolumeUp
+                }
+            },
+        ) { v -> onGlobal { it.copy(volumeAction = v) } }
+        CompactChoice(
+            Icons.Rounded.BarChart,
+            "Histogram",
+            com.blacksingularities.registrer.data.HistogramMode.entries,
+            g.histogramMode,
+            label = { it.label },
+            hint = "Dotknięcie histogramu w kadrze też przełącza",
+        ) { v -> onGlobal { it.copy(histogramMode = v) } }
+        CompactChoice(
+            Icons.Rounded.AspectRatio,
+            "Wielkość histogramu",
+            com.blacksingularities.registrer.data.HistogramSize.entries,
+            g.histogramSize,
+            label = { it.label },
+            short = { it.label.take(1) },
+        ) { v -> onGlobal { it.copy(histogramSize = v) } }
     }
     Group("Aktualizacje") {
         UpdateRow(update, onCheck, onDownload, onInstall)
-        SwitchRow(Icons.Rounded.Autorenew, "Sprawdzaj automatycznie", "Przy uruchomieniu, co najwyżej co 3 godziny", g.autoCheckUpdates) { v ->
-            onGlobal { it.copy(autoCheckUpdates = v) }
-        }
-        SwitchRow(Icons.Rounded.Download, "Pobieraj i instaluj automatycznie", "Instalacja po wyjściu z aplikacji", g.autoDownloadUpdates) { v ->
-            onGlobal { it.copy(autoDownloadUpdates = v) }
+        Row(
+            Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            PillToggle(Icons.Rounded.Autorenew, "Sprawdzaj sam", g.autoCheckUpdates, Modifier.weight(1f)) { v ->
+                onGlobal { it.copy(autoCheckUpdates = v) }
+            }
+            PillToggle(Icons.Rounded.Download, "Instaluj sam", g.autoDownloadUpdates, Modifier.weight(1f)) { v ->
+                onGlobal { it.copy(autoDownloadUpdates = v) }
+            }
         }
     }
-    Group("Ten aparat") {
+    Group("Ten aparat", collapsible = true, initiallyExpanded = false) {
         val lenses = (caps.lensZooms + caps.auxLenses.map { it.factor }).distinct().sorted()
             .joinToString(" · ") { formatZoom(it) + "×" }.ifEmpty { "1×" }
         InfoRow(Icons.Rounded.ZoomIn, "Obiektywy: $lenses")
@@ -536,6 +580,138 @@ private fun GeneralTab(
         if (caps.slowMo) InfoRow(Icons.Rounded.SlowMotionVideo, "Zwolnione tempo: " + caps.slowMoProfiles.joinToString { "${it.resolution.label} ${it.fps} kl/s" })
         InfoRow(Icons.Rounded.Tune, if (caps.manualSensor) "Pełne sterowanie ręczne sensora" else "Ograniczone sterowanie ręczne")
         InfoRow(Icons.Rounded.Info, "Pliki: DCIM/OpenShot · Recordings/OpenShot")
+    }
+}
+
+/** Kafelek-przełącznik: sama ikona z krótkim podpisem; włączony – biały. */
+@Composable
+private fun IconToggle(icon: ImageVector, label: String, value: Boolean, modifier: Modifier = Modifier, onChange: (Boolean) -> Unit) {
+    Column(
+        modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (value) Color.White else Color.White.copy(alpha = 0.06f))
+            .toggleable(value = value, role = Role.Switch, onValueChange = onChange)
+            .padding(vertical = 8.dp, horizontal = 2.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Icon(icon, null, tint = if (value) Palette.Ink else Palette.TextDim, modifier = Modifier.size(20.dp))
+        Spacer(Modifier.height(3.dp))
+        Text(
+            label,
+            fontSize = 10.sp,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            color = if (value) Palette.Ink else Palette.TextDim,
+            fontWeight = if (value) FontWeight.SemiBold else FontWeight.Normal,
+        )
+    }
+}
+
+/** Przełącznik w formie pigułki: ikona i etykieta w jednej linii. */
+@Composable
+private fun PillToggle(icon: ImageVector, label: String, value: Boolean, modifier: Modifier = Modifier, onChange: (Boolean) -> Unit) {
+    Row(
+        modifier
+            .clip(RoundedCornerShape(50))
+            .background(if (value) Color.White else Color.White.copy(alpha = 0.06f))
+            .toggleable(value = value, role = Role.Switch, onValueChange = onChange)
+            .padding(horizontal = 12.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
+    ) {
+        Icon(icon, null, tint = if (value) Palette.Ink else Palette.TextDim, modifier = Modifier.size(16.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(label, fontSize = 12.sp, maxLines = 1, color = if (value) Palette.Ink else Palette.TextDim)
+    }
+}
+
+/**
+ * Wybór w jednej linii: ikona, nazwa z bieżącą wartością pod spodem i przełącznik segmentowy
+ * po prawej – ikonami ([icon]) albo krótkim tekstem ([short]).
+ */
+@Composable
+private fun <T> CompactChoice(
+    rowIcon: ImageVector,
+    title: String,
+    options: List<T>,
+    selected: T,
+    label: (T) -> String,
+    icon: ((T) -> ImageVector)? = null,
+    short: (T) -> String = label,
+    hint: String? = null,
+    onSelect: (T) -> Unit,
+) {
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(rowIcon, null, tint = Palette.TextDim, modifier = Modifier.size(18.dp))
+        Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
+            Text(title, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                hint?.let { "${label(selected)} · $it" } ?: label(selected),
+                fontSize = 10.sp,
+                lineHeight = 12.sp,
+                color = Palette.TextDim,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        Row(
+            Modifier
+                .clip(RoundedCornerShape(50))
+                .background(Color.White.copy(alpha = 0.06f))
+                .padding(2.dp),
+        ) {
+            options.forEach { o ->
+                val sel = o == selected
+                Box(
+                    Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(if (sel) Color.White else Color.Transparent)
+                        .selectable(selected = sel, role = Role.RadioButton, onClick = { onSelect(o) })
+                        .padding(horizontal = if (icon != null) 10.dp else 9.dp, vertical = 5.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    if (icon != null) {
+                        Icon(icon(o), label(o), tint = if (sel) Palette.Ink else Palette.TextDim, modifier = Modifier.size(16.dp))
+                    } else {
+                        Text(
+                            short(o),
+                            fontSize = 11.sp,
+                            fontWeight = if (sel) FontWeight.Bold else FontWeight.Medium,
+                            color = if (sel) Palette.Ink else Palette.TextDim,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Stopka każdej zakładki: wersja i autor (adres otwiera się po dotknięciu). */
+@Composable
+private fun Credits() {
+    val uriHandler = LocalUriHandler.current
+    Column(
+        Modifier.fillMaxWidth().padding(top = 10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text("OpenShot ${UpdateManager.currentVersion}", fontSize = 11.sp, color = Palette.TextDim)
+        Text(
+            buildAnnotatedString {
+                append("Pomysł i wykonanie: ")
+                withStyle(SpanStyle(color = Color.White, fontWeight = FontWeight.SemiBold, textDecoration = TextDecoration.Underline)) {
+                    append("redzikowski.com")
+                }
+            },
+            fontSize = 12.sp,
+            color = Palette.TextDim,
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .clickable { runCatching { uriHandler.openUri("https://redzikowski.com") } }
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+        )
     }
 }
 
@@ -556,19 +732,6 @@ private fun UpdateRow(update: UpdateState, onCheck: () -> Unit, onDownload: () -
             RowIcon(Icons.Rounded.SystemUpdate)
             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                 Text("OpenShot ${UpdateManager.currentVersion}", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                val uriHandler = LocalUriHandler.current
-                Text(
-                    buildAnnotatedString {
-                        append("Pomysł i wykonanie · ")
-                        withStyle(SpanStyle(color = Color.White, textDecoration = TextDecoration.Underline)) { append("redzikowski.com") }
-                    },
-                    fontSize = 11.sp,
-                    color = Palette.TextDim,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .clickable { runCatching { uriHandler.openUri("https://redzikowski.com") } }
-                        .padding(vertical = 2.dp),
-                )
                 Text(status, fontSize = 12.sp, color = if (update is UpdateState.Available || update is UpdateState.Ready) Palette.Amber else Palette.TextDim, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
             if (action != null) {
