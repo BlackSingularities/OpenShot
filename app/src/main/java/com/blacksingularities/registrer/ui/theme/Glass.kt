@@ -71,6 +71,12 @@ import kotlin.math.roundToInt
 /** Źródło rozmycia – żywy obraz kamery. Brak (null) = przyciemniona półprzezroczystość. */
 val LocalHaze = staticCompositionLocalOf<HazeState?> { null }
 
+/**
+ * Rozmycie tylko tam, gdzie jest włączone (górne przyciski). Pozostałe elementy mają
+ * zwykłe półprzezroczyste ciemne tło.
+ */
+val LocalBlur = staticCompositionLocalOf { false }
+
 /** Czy wykonywać haptykę przy dotyku elementów interfejsu. */
 val LocalHaptics = staticCompositionLocalOf { true }
 
@@ -106,7 +112,7 @@ fun Modifier.glass(
     active: Boolean = false,
     border: Boolean = true,
 ): Modifier {
-    val haze = LocalHaze.current
+    val haze = LocalHaze.current.takeIf { LocalBlur.current }
     val tint by animateColorAsState(if (active) ActiveTint else level.tint, tween(220), label = "glassTint")
     val clipped = this.clip(shape)
     val blurred = if (haze != null) {

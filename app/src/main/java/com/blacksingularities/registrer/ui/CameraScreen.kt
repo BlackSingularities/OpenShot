@@ -1,5 +1,7 @@
 package com.blacksingularities.registrer.ui
 
+import com.blacksingularities.registrer.ui.theme.LocalBlur
+import androidx.compose.runtime.CompositionLocalProvider
 import com.blacksingularities.registrer.ui.theme.BlockShape
 import com.blacksingularities.registrer.ui.theme.GlassValueButton
 import com.blacksingularities.registrer.ui.theme.GlassToolbar
@@ -356,7 +358,7 @@ private fun TallLayout(ui: Ui, previewView: PreviewView) {
                 .padding(horizontal = 12.dp),
             contentAlignment = Alignment.Center,
         ) {
-            if (isVideoRecording(vm)) RecordingClock(vm, ui.iconRotation) else TopControls(ui, vertical = false)
+            if (isVideoRecording(vm)) RecordingClock(vm, ui.iconRotation) else CompositionLocalProvider(LocalBlur provides true) { TopControls(ui, vertical = false) }
         }
 
         Column(
@@ -400,7 +402,7 @@ private fun WideLayout(ui: Ui, previewView: PreviewView) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
-            if (isVideoRecording(vm)) RecordingClock(vm, ui.iconRotation) else TopControls(ui, vertical = true)
+            if (isVideoRecording(vm)) RecordingClock(vm, ui.iconRotation) else CompositionLocalProvider(LocalBlur provides true) { TopControls(ui, vertical = true) }
         }
         Box(Modifier.weight(1f).fillMaxHeight()) {
             PreviewArea(ui, previewView, centered = true, ratio = 1f / vm.effectiveAspect.ratio, modifier = Modifier.fillMaxSize())
