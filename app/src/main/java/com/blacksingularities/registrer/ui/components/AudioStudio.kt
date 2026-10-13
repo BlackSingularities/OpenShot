@@ -341,7 +341,7 @@ fun AudioStudio(
 private fun idleSummary(s: ModeSettings, externalMic: String?): List<Pair<String, Boolean>> = buildList {
     add(
         when (s.audioInput) {
-            AudioInput.AUTO -> (externalMic?.let { "Auto · $it" } ?: "Mikrofon: auto") to false
+            AudioInput.AUTO -> (externalMic?.let { "Auto · $it" } ?: "Mikrofon dobierany samoczynnie") to false
             AudioInput.BUILTIN -> "Mikrofon telefonu" to true
             AudioInput.EXTERNAL -> (externalMic ?: "Brak mikrofonu zewnętrznego") to (externalMic != null)
         },
@@ -349,7 +349,7 @@ private fun idleSummary(s: ModeSettings, externalMic: String?): List<Pair<String
     add(s.audioSource.label to (s.audioSource != com.blacksingularities.registrer.data.AudioSourceType.STANDARD))
     if (s.audioGainDb > 0) add("+${s.audioGainDb} dB" to true)
     if (s.audioNoiseSuppression) add("Redukcja szumów" to true)
-    if (s.audioAgc) add("Auto-głośność" to true)
+    if (s.audioAgc) add("Samoczynna głośność" to true)
     if (s.audioSkipSilence) add("Pomijanie ciszy" to true)
     if (s.audioAutoStopMin > 0) add("Stop po ${autoStopLabel(s.audioAutoStopMin)}" to true)
 }

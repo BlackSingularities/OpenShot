@@ -19,18 +19,18 @@ Najnowszy plik APK jest zawsze w **[Releases → Latest](../../releases/latest)*
 |---|---|
 | **Noc** | Sprzętowy tryb nocny producenta (CameraX Extensions), a gdy go brak – własny potok: seria 4–12 klatek, wyrównanie, uśrednianie z odrzucaniem „duchów” i adaptacyjne mapowanie tonów. |
 | **Portret** | Sprzętowe rozmycie tła (Bokeh), jeśli telefon je udostępnia. |
-| **Foto** | Szybka migawka lub priorytet jakości, lampa auto/wł./latarka, samowyzwalacz 3/10 s. |
-| **Live** | Odpowiednik Live Photo: zdjęcie oraz około 3 s ruchu przed i po naciśnięciu migawki. |
+| **Zdjęcie** | Szybka migawka lub priorytet jakości, lampa auto/wł./latarka, samowyzwalacz 3/10 s. |
+| **Zdjęcie ruchome** | Zdjęcie oraz około 3 s ruchu przed i po naciśnięciu migawki. |
 | **HDR** | Sprzętowy HDR albo fuzja 3 ekspozycji (−1,7 / 0 / +1,7 EV) z lokalnym mapowaniem tonów. |
-| **Pro** | Fotograficzny tryb ręczny: ISO, czas naświetlania (do 30″, jeśli sensor pozwala), ostrość z odległością, balans bieli i EV. |
+| **Tryb ręczny** | Fotograficzny tryb ręczny: ISO, czas naświetlania (do 30″, jeśli sensor pozwala), ostrość z odległością, balans bieli i EV. |
 
 - **RAW (DNG) i RAW+JPEG** z automatycznym wyborem sensora RAW, także gdy telefon udostępnia go jako osobny aparat fizyczny.
 
 ### Wideo
 - 4K / 1080p / 720p, **HDR 10-bit (HLG)** i **stabilizacja**, jeśli urządzenie je obsługuje (automatyczny dobór do możliwości).
-- **Slow-motion** na głównym tylnym obiektywie 1×: wybór każdej wykrytej pary rozdzielczość + klatkaż (m.in. 120/240 kl/s, zależnie od telefonu).
+- **Zwolnione tempo** na głównym tylnym obiektywie 1×: wybór każdej wykrytej pary rozdzielczość + klatkaż (m.in. 120/240 kl/s, zależnie od telefonu).
 - Pauza i wznowienie, latarka, dźwięk.
-- **Kinowy zoom** – wolny, płynny najazd podczas nagrywania.
+- **Płynne zbliżanie** – wolny, równy najazd podczas nagrywania.
 
 ### Dyktafon
 - AAC/M4A: *Mowa* (96 kb/s mono), *Muzyka* (256 kb/s stereo), *Studio* (320 kb/s stereo) oraz *Bezstratny* WAV 16-bit 48 kHz.

@@ -1050,12 +1050,12 @@ private fun BoxScope.FrameInfo(ui: Ui) {
     ) {
         Row(verticalAlignment = Alignment.Top) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (vm.focusLocked) Badge("AE/AF · zablokowane  ✕", color = Palette.Amber, onClick = vm::unlockFocus)
+                if (vm.focusLocked) Badge("Ostrość i ekspozycja zablokowane  ✕", color = Palette.Amber, onClick = vm::unlockFocus)
                 if (vm.intervalRunning) {
                     val total = vm.cfg.intervalCount
                     Badge("Interwał · ${vm.intervalShot}${if (total > 0) "/$total" else ""}", color = Palette.Amber)
                 }
-                if (vm.rearDisplayActive) Badge("Selfie głównym aparatem", color = Palette.Amber)
+                if (vm.rearDisplayActive) Badge("Autoportret głównym aparatem", color = Palette.Amber)
             }
         }
         AnimatedVisibility(
@@ -1479,13 +1479,13 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
                     GlassValueButton(
                         resValue,
                         resUnit,
-                        "Slow-motion ${current.label}",
+                        "Zwolnione tempo ${current.label}",
                         rot,
                         active = true,
                         enabled = !vm.busy && resolutions.size > 1,
                         options = resolutions.map { r ->
                             val (v, u) = resolutionGlyph(r)
-                            PickerOption("Slow-motion ${r.label}", value = v, caption = u)
+                            PickerOption("Zwolnione tempo ${r.label}", value = v, caption = u)
                         },
                         selected = resolutions.indexOf(current),
                         onPick = { i -> vm.setSlowMoResolution(resolutions[i]) },
@@ -1555,7 +1555,7 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
             if (vm.rearDisplayAvailable || vm.rearDisplayActive) {
                 RoundIcon(
                     Icons.Rounded.FlipToBack,
-                    if (vm.rearDisplayActive) "Wróć na ekran wewnętrzny" else "Selfie głównym aparatem",
+                    if (vm.rearDisplayActive) "Wróć na ekran wewnętrzny" else "Autoportret głównym aparatem",
                     rot,
                     active = vm.rearDisplayActive,
                     enabled = !vm.busy,

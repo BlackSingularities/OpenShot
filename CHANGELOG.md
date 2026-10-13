@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.4.1
+
+- Polskie nazwy zamiast zapożyczeń: tryby *Ręczny* (Pro), *Ruchome* (Live), *Zdjęcie* (Foto), *Zwolnione tempo* (Slow-mo) i *Dyktafon* (Audio); w ustawieniach pełne nazwy trybów.
+- Także: *Płynne zbliżanie* (kinowy zoom), *Rozmycie tła* (bokeh), *Autoportret głównym aparatem* (selfie), *Ostrość i ekspozycja zablokowane* (AE/AF), *Szybkość (bez opóźnienia)* (ZSL), *Samoczynna głośność*, profile dźwięku *Studyjny* i przetwarzanie *Zwykłe*.
+
 ## 2.4.0
 
 ### Dyktafon

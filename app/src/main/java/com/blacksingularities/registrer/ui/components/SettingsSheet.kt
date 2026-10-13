@@ -197,7 +197,7 @@ fun SettingsSheet(
                 items(options, key = { it?.name ?: "GENERAL" }) { mode ->
                     TabChip(
                         if (mode == null) Icons.Rounded.Settings else modeIcon(mode),
-                        mode?.label ?: "Ogólne",
+                        mode?.title ?: "Ogólne",
                         tab == mode,
                     ) { tab = mode }
                 }
@@ -212,7 +212,7 @@ fun SettingsSheet(
                 items(options, key = { it?.name ?: "GENERAL" }) { mode ->
                     TabChip(
                         if (mode == null) Icons.Rounded.Settings else modeIcon(mode),
-                        mode?.label ?: "Ogólne",
+                        mode?.title ?: "Ogólne",
                         tab == mode,
                         modifier = Modifier.fillMaxWidth(),
                     ) { tab = mode }
@@ -245,7 +245,7 @@ fun SettingsSheet(
                     ) {
                         Icon(Icons.Rounded.RestartAlt, null, tint = Palette.TextDim, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("Przywróć domyślne dla trybu ${current.label}", color = Palette.TextDim, fontSize = 13.sp)
+                        Text("Przywróć domyślne: ${current.title}", color = Palette.TextDim, fontSize = 13.sp)
                     }
                 }
                 Spacer(Modifier.height(20.dp))
@@ -306,10 +306,10 @@ private fun ModeTab(mode: CaptureMode, s: ModeSettings, caps: CameraCaps, enable
                     SwitchRow(Icons.Rounded.Brightness4, "Wzmocnienie w ciemności", "Jaśniejszy obraz przy słabym świetle", s.lowLightBoost, enabled) { v -> change { it.copy(lowLightBoost = v) } }
                 }
             }
-            Group("Dźwięk i zoom") {
+            Group("Dźwięk i zbliżanie") {
                 shared(SharedGroup.VIDEO)
                 SwitchRow(Icons.Rounded.Mic, "Nagrywaj dźwięk", null, s.videoAudio, enabled) { v -> change { it.copy(videoAudio = v) } }
-                SwitchRow(Icons.Rounded.ZoomIn, "Kinowy zoom", "Wolny, płynny najazd podczas nagrywania", s.cinematicZoom) { v -> change { it.copy(cinematicZoom = v) } }
+                SwitchRow(Icons.Rounded.ZoomIn, "Płynne zbliżanie", "Wolny, równy najazd podczas nagrywania", s.cinematicZoom) { v -> change { it.copy(cinematicZoom = v) } }
             }
             FramingGroup(s, change, showAspect = false, showHistogram = false, showTimer = false)
         }
@@ -332,7 +332,7 @@ private fun ModeTab(mode: CaptureMode, s: ModeSettings, caps: CameraCaps, enable
                         change { it.copy(slowMoFps = selectedFps) }
                     }
                 }
-                SwitchRow(Icons.Rounded.ZoomIn, "Kinowy zoom", null, s.cinematicZoom) { v -> change { it.copy(cinematicZoom = v) } }
+                SwitchRow(Icons.Rounded.ZoomIn, "Płynne zbliżanie", null, s.cinematicZoom) { v -> change { it.copy(cinematicZoom = v) } }
             }
             FramingGroup(s, change, showAspect = false, showHistogram = false, showTimer = false)
         }
@@ -359,7 +359,7 @@ private fun ModeTab(mode: CaptureMode, s: ModeSettings, caps: CameraCaps, enable
                     }
                 }
                 if (AudioEngine.agcAvailable) {
-                    SwitchRow(Icons.Rounded.GraphicEq, "Automatyczna głośność", "Wyrównuje cichych i głośnych mówców", s.audioAgc, enabled) { v ->
+                    SwitchRow(Icons.Rounded.GraphicEq, "Samoczynna głośność", "Wyrównuje cichych i głośnych mówców", s.audioAgc, enabled) { v ->
                         change { it.copy(audioAgc = v) }
                     }
                 }
@@ -398,7 +398,7 @@ private fun ModeTab(mode: CaptureMode, s: ModeSettings, caps: CameraCaps, enable
                     } else if (effects.isNotEmpty()) {
                         InfoRow(Icons.Rounded.Face, "Sprzętowy efekt producenta: ${effects.first().label}")
                     } else {
-                        InfoRow(Icons.Rounded.Face, "Programowy bokeh – wykrywanie osoby i rozmycie tła (tylny i przedni aparat)")
+                        InfoRow(Icons.Rounded.Face, "Programowe rozmycie tła – wykrywanie osoby (tylny i przedni aparat)")
                     }
                     if (!caps.bokehExtension) {
                         Slider(Icons.Rounded.Face, "Siła rozmycia tła", s.portraitBlur, 0..100, true) { v -> change { it.copy(portraitBlur = v) } }
@@ -445,12 +445,12 @@ private fun ModeTab(mode: CaptureMode, s: ModeSettings, caps: CameraCaps, enable
                 Slider(Icons.Rounded.HighQuality, "Jakość JPEG", s.jpegQuality, 70..100, enabled) { v -> change { it.copy(jpegQuality = v) } }
                 if (mode != CaptureMode.NIGHT && mode != CaptureMode.HDR) {
                     val priorities = CapturePriority.entries
-                    Chips(Icons.Rounded.Bolt, "Priorytet migawki", priorities, s.priority, { if (it == CapturePriority.SPEED && caps.zsl) "Szybkość (ZSL)" else it.label }, enabled) { v ->
+                    Chips(Icons.Rounded.Bolt, "Priorytet migawki", priorities, s.priority, { if (it == CapturePriority.SPEED && caps.zsl) "Szybkość (bez opóźnienia)" else it.label }, enabled) { v ->
                         change { it.copy(priority = v) }
                     }
                 }
                 if (caps.hasFront) {
-                    SwitchRow(Icons.Rounded.Flip, "Lustrzane selfie", "Zapis jak w podglądzie przedniego aparatu", s.mirrorFront) { v -> change { it.copy(mirrorFront = v) } }
+                    SwitchRow(Icons.Rounded.Flip, "Lustrzane odbicie autoportretu", "Zapis jak w podglądzie przedniego aparatu", s.mirrorFront) { v -> change { it.copy(mirrorFront = v) } }
                 }
             }
             FramingGroup(s, change, showAspect = true, showHistogram = true, showTimer = true, enabled = enabled)
@@ -532,7 +532,7 @@ private fun GeneralTab(
         if (caps.cameraSummary.isNotEmpty()) ExpandableInfoRow(Icons.Rounded.CameraAlt, "Wykryte aparaty", caps.cameraSummary)
         InfoRow(Icons.Rounded.Image, "Formaty: " + caps.photoFormats.sortedBy { it.ordinal }.joinToString { it.label })
         InfoRow(Icons.Rounded.Movie, "Wideo: " + caps.videoResolutions.joinToString { it.label } + (if (caps.fps60) " · 60 kl/s" else "") + (if (caps.videoHlg) " · HLG" else ""))
-        if (caps.slowMo) InfoRow(Icons.Rounded.SlowMotionVideo, "Slow-mo: " + caps.slowMoProfiles.joinToString { "${it.resolution.label} ${it.fps} kl/s" })
+        if (caps.slowMo) InfoRow(Icons.Rounded.SlowMotionVideo, "Zwolnione tempo: " + caps.slowMoProfiles.joinToString { "${it.resolution.label} ${it.fps} kl/s" })
         InfoRow(Icons.Rounded.Tune, if (caps.manualSensor) "Pełne sterowanie ręczne sensora" else "Ograniczone sterowanie ręczne")
         InfoRow(Icons.Rounded.Info, "Pliki: DCIM/OpenShot · Recordings/OpenShot")
     }

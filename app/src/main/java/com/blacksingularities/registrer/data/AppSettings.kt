@@ -64,7 +64,7 @@ enum class VideoBitrate(val label: String) {
 }
 
 enum class PortraitEffect(val label: String) {
-    BOKEH("Bokeh"),
+    BOKEH("Rozmycie tła"),
     RETOUCH("Retusz"),
 }
 
@@ -90,7 +90,7 @@ enum class AudioPreset(
 ) {
     VOICE("Mowa", "AAC 96 kb/s · mono · 44,1 kHz", 44_100, 96_000, 1),
     MUSIC("Muzyka", "AAC 256 kb/s · stereo · 48 kHz", 48_000, 256_000, 2),
-    STUDIO("Studio", "AAC 320 kb/s · stereo · 48 kHz", 48_000, 320_000, 2),
+    STUDIO("Studyjny", "AAC 320 kb/s · stereo · 48 kHz", 48_000, 320_000, 2),
     LOSSLESS("Bezstratny", "WAV 16-bit · stereo · 48 kHz · ok. 11 MB/min", 48_000, 0, 2, lossless = true),
 }
 
@@ -101,7 +101,7 @@ enum class AudioInput(val label: String, val description: String) {
 }
 
 enum class AudioSourceType(val label: String, val description: String) {
-    STANDARD("Standard", "Domyślne przetwarzanie mikrofonu"),
+    STANDARD("Zwykłe", "Domyślne przetwarzanie mikrofonu"),
     RAW("Surowy", "Bez filtrów – najwierniejszy dźwięk"),
     VOICE("Głos", "Redukcja szumów i echa"),
     CAMCORDER("Kierunkowy", "Mikrofon skierowany jak w kamerze"),

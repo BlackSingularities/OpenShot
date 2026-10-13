@@ -1024,7 +1024,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
                 zoomTarget = 1f
                 pro = ProSettings()
             }
-            message = "Selfie głównym aparatem – złóż telefon lub dotknij ikony, by wrócić"
+            message = "Autoportret głównym aparatem – złóż telefon lub dotknij ikony, by wrócić"
         }
     }
 

@@ -9,20 +9,21 @@ import com.blacksingularities.registrer.data.VideoResolution
 /**
  * Kolejność deklaracji = kolejność na karuzeli. Foto i Wideo sąsiadują w środku; w lewo rośnie
  * specjalizacja fotograficzna (aż do Pro), w prawo wideo i nagrania bez obrazu (Audio na końcu).
- * Live (zdjęcie ruchome) stoi tuż przy Foto.
+ * Zdjęcie ruchome stoi tuż przy zwykłym zdjęciu.
  */
-enum class CaptureMode(val label: String, val isPhoto: Boolean, val isVideo: Boolean) {
+/** [label] – krótka nazwa na karuzeli, [title] – pełna nazwa w ustawieniach i komunikatach. */
+enum class CaptureMode(val label: String, val isPhoto: Boolean, val isVideo: Boolean, val title: String = label) {
     /** Ręczne ISO, czas, ostrość i balans bieli dla fotografii. */
-    PRO("Pro", true, false),
+    PRO("Ręczny", true, false, "Tryb ręczny"),
     NIGHT("Noc", true, false),
     HDR("HDR", true, false),
     PORTRAIT("Portret", true, false),
-    /** Odpowiednik Live Photo: zdjęcie + ~3 s ruchu wokół naciśnięcia migawki. */
-    MOTION("Live", true, false),
-    PHOTO("Foto", true, false),
+    /** Zdjęcie ruchome: zdjęcie + ~3 s ruchu wokół naciśnięcia migawki. */
+    MOTION("Ruchome", true, false, "Zdjęcie ruchome"),
+    PHOTO("Zdjęcie", true, false),
     VIDEO("Wideo", false, true),
-    SLOWMO("Slow-mo", false, true),
-    AUDIO("Audio", false, false),
+    SLOWMO("Zwolnione", false, true, "Zwolnione tempo"),
+    AUDIO("Dyktafon", false, false),
 }
 
 enum class FlashSetting { OFF, AUTO, ON, TORCH }
