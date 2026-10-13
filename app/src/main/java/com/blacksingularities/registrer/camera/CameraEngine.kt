@@ -205,8 +205,12 @@ class CameraEngine(private val context: Context) {
             summary.append(" · od ").append(String.format(java.util.Locale.US, "%.2f", minZ)).append("×")
             if (logical) summary.append(" · logiczny")
             if (id == primaryId) summary.append(" · główny")
+            if (id != primaryId && id in physicalIds) summary.append(" · też fizyczny")
 
-            if (id == primaryId || id in physicalIds || focal == null || primaryFocal == null) continue
+            // Sensor bywa jednocześnie osobnym aparatem i członkiem aparatu logicznego (Huawei Mate X7:
+            // szeroki kąt #4 i fizyczny #4 aparatu #0). Osobny aparat wiąże się niezawodnie, a otwarcie
+            // sensora fizycznego przez aparat logiczny wielu producentów nie obsługuje – ma pierwszeństwo.
+            if (id == primaryId || focal == null || primaryFocal == null) continue
             if (mp in 0.1f..4.9f) continue // makro / głębia
             val factor = roundLens(focal / primaryFocal)
             if (factor in 0.86f..1.3f) continue

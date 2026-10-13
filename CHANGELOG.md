@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.4.7
+
+- Szeroki kąt na telefonach, które udostępniają ten sam sensor jako osobny aparat i jako część aparatu logicznego (np. Huawei Mate X7): aplikacja otwiera go jako osobny aparat zamiast przez aparat logiczny, czego producent nie obsługuje. W diagnostyce takie aparaty mają dopisek „też fizyczny”.
+
 ## 2.4.6
 
 - Sekcja Aktualizacje jest na dole ustawień ogólnych, a podpis „Pomysł i wykonanie: redzikowski.com” z numerem wersji znajduje się w jej wnętrzu.
