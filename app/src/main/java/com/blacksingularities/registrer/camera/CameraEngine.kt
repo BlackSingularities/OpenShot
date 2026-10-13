@@ -68,6 +68,7 @@ import java.util.concurrent.TimeUnit
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import kotlin.math.abs
+import kotlin.math.ln
 import kotlin.math.max
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
@@ -762,6 +763,7 @@ class CameraEngine(private val context: Context) {
             runCatching { bound.cameraControl.enableLowLightBoostAsync(true) }
         }
 
+        flatProfile = proVideo && s.flatProfile && caps.flatProfile && !active.videoHdr
         if (req.mode == CaptureMode.PRO) applyPro(req.pro) else applyBaseOptions()
         applyFlash(s.flash, video)
         return active
@@ -785,6 +787,9 @@ class CameraEngine(private val context: Context) {
         runCatching { Camera2CameraControl.from(cam.cameraControl).setCaptureRequestOptions(baseOptions ?: CaptureRequestOptions.Builder().build()) }
     }
 
+    /** Płaski profil aktywny w bieżącej sesji (tryb ręczny – wideo). */
+    @Volatile private var flatProfile = false
+
     fun applyPro(pro: ProSettings) {
         val cam = camera ?: return
         if (session.extension != null) return
@@ -804,6 +809,19 @@ class CameraEngine(private val context: Context) {
         if (focus != null) {
             b.setCaptureRequestOption(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_OFF)
             b.setCaptureRequestOption(CaptureRequest.LENS_FOCUS_DISTANCE, focus)
+        }
+        if (flatProfile) {
+            // Płaski profil (LOG): logarytmiczna krzywa podnosi cienie i łagodnie kompresuje
+            // światła, bez wyostrzania – materiał pod późniejszą korekcję kolorów.
+            val curve = FloatArray(LOG_POINTS * 2)
+            for (i in 0 until LOG_POINTS) {
+                val x = i / (LOG_POINTS - 1f)
+                curve[i * 2] = x
+                curve[i * 2 + 1] = (ln(1f + LOG_STRENGTH * x) / ln(1f + LOG_STRENGTH)).coerceIn(0f, 1f)
+            }
+            b.setCaptureRequestOption(CaptureRequest.TONEMAP_MODE, CaptureRequest.TONEMAP_MODE_CONTRAST_CURVE)
+            b.setCaptureRequestOption(CaptureRequest.TONEMAP_CURVE, android.hardware.camera2.params.TonemapCurve(curve, curve.copyOf(), curve.copyOf()))
+            b.setCaptureRequestOption(CaptureRequest.EDGE_MODE, CaptureRequest.EDGE_MODE_OFF)
         }
         if (pro.whiteBalance != WhiteBalance.AUTO) {
             b.setCaptureRequestOption(CaptureRequest.CONTROL_AWB_MODE, pro.whiteBalance.awbMode)
@@ -1071,3 +1089,9 @@ class CameraEngine(private val context: Context) {
         analysisExecutor.shutdown()
     }
 }
+
+/** Liczba punktów krzywej płaskiego profilu (minimum gwarantowane przez sterownik: 32). */
+private const val LOG_POINTS = 32
+
+/** Siła krzywej logarytmicznej: większa = bardziej płaski obraz. */
+private const val LOG_STRENGTH = 12f

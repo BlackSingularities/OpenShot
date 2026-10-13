@@ -1590,6 +1590,17 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
                     onClick = { vm.updateProfile { it.copy(tlStopMin = stops[(stops.indexOf(it.tlStopMin).coerceAtLeast(0) + 1) % stops.size]) } },
                 )
             }
+            if (vm.mode == CaptureMode.PRO && cfg.proVideo && vm.caps.flatProfile) {
+                GlassValueButton(
+                    "LOG",
+                    null,
+                    if (cfg.flatProfile) tr("Płaski profil (LOG) włączony", "Flat profile (LOG) on") else tr("Płaski profil (LOG) wyłączony", "Flat profile (LOG) off"),
+                    rot,
+                    active = cfg.flatProfile,
+                    enabled = !vm.busy,
+                    onClick = { vm.updateProfile { it.copy(flatProfile = !it.flatProfile) } },
+                )
+            }
             if (vm.mode == CaptureMode.PRO) {
                 RoundIcon(
                     if (cfg.proVideo) Icons.Rounded.Videocam else Icons.Rounded.PhotoCamera,

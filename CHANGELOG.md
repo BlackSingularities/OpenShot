@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.18.0
+
+- **Płaski profil (LOG)** w wideo trybu ręcznego: logarytmiczna krzywa tonalna podnosi cienie i łagodnie kompresuje światła, a wyostrzanie jest wyłączone – materiał do późniejszej korekcji kolorów. Przełącznik „LOG” na górnym pasku i w ustawieniach trybu ręcznego; pojawia się tylko, gdy sterownik aparatu pozwala na własną krzywą (nie łączy się z HDR).
+
 ## 2.17.0
 
 - **Braketowanie w trybie ręcznym** (zdjęcia): seria 3, 5 lub 7 zdjęć z krokiem ±0,7, ±1 albo ±2 EV, każde zapisane osobno – także w RAW – do późniejszej obróbki HDR. Przy ręcznej ekspozycji zmieniany jest czas naświetlania, w trybie automatycznym kompensacja EV. Włączasz je przyciskiem na górnym pasku albo w ustawieniach trybu ręcznego.

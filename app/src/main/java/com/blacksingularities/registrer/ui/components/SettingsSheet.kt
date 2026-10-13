@@ -324,6 +324,19 @@ private fun ModeTab(mode: CaptureMode, s: ModeSettings, caps: CameraCaps, enable
             Chips(Icons.Rounded.Tune, tr("Nagrywanie", "Capture"), listOf(false, true), s.proVideo, { if (it) tr("Wideo", "Video") else tr("Zdjęcia", "Photos") }, enabled, hint = tr("Ręczne ISO, czas, ostrość i balans bieli działają w obu wariantach", "Manual ISO, shutter, focus and white balance work in both")) { v ->
                 change { it.copy(proVideo = v) }
             }
+            if (s.proVideo) {
+                if (caps.flatProfile) {
+                    SwitchRow(
+                        Icons.Rounded.Gradient,
+                        tr("Płaski profil (LOG)", "Flat profile (LOG)"),
+                        tr("Miękka krzywa i bez wyostrzania – pod korekcję kolorów; nie łączy się z HDR", "Soft curve, no sharpening – for colour grading; not combined with HDR"),
+                        s.flatProfile,
+                        enabled,
+                    ) { v -> change { it.copy(flatProfile = v) } }
+                } else {
+                    InfoRow(Icons.Rounded.Gradient, tr("Ten aparat nie pozwala na płaski profil (LOG)", "This camera does not allow a flat (LOG) profile"))
+                }
+            }
         }
         // Wariant wideo ma te same ustawienia co tryb Wideo (zapisywane w profilu trybu ręcznego).
         if (s.proVideo) {
