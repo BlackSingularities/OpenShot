@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.sp
 import com.blacksingularities.registrer.ui.theme.LocalHaptics
 import com.blacksingularities.registrer.ui.theme.MonoDigits
 import com.blacksingularities.registrer.ui.theme.Palette
+import com.blacksingularities.registrer.ui.theme.activeContent
 import com.blacksingularities.registrer.ui.theme.glass
 import com.blacksingularities.registrer.ui.theme.reactive
 import com.blacksingularities.registrer.ui.theme.rotatedLayout
@@ -100,7 +101,7 @@ fun QuickControl(
             Icon(
                 icon,
                 null,
-                tint = if (isDefault) Color.White else Palette.Ink,
+                tint = if (isDefault) Color.White else activeContent(),
                 modifier = Modifier.size(18.dp).graphicsLayer { rotationZ = rotation },
             )
         }

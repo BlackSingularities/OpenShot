@@ -43,6 +43,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
+import com.blacksingularities.registrer.ui.theme.activeContent
 import com.blacksingularities.registrer.ui.theme.glass
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -144,7 +145,7 @@ fun ModeDial(
                         .glass(BlockShape, active = isSel, border = isSel),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(modeIcon(m), m.label, tint = if (isSel) Palette.Ink else Color.White, modifier = Modifier.size(16.dp))
+                    Icon(modeIcon(m), m.label, tint = if (isSel) activeContent() else Color.White, modifier = Modifier.size(16.dp))
                 }
                 Text(
                     m.label.uppercase(),

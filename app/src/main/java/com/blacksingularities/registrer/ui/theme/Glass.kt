@@ -90,6 +90,16 @@ val LocalToolbar = staticCompositionLocalOf { false }
  */
 val LocalHintOnTap = staticCompositionLocalOf { false }
 
+/**
+ * Główny interfejs aparatu: bez żadnych teł – same ikony i napisy na obrazie.
+ * Aktywny element to biała ikona z kropką pod spodem. Ustawienia i wyskakujące listy mają tło.
+ */
+val LocalNoBackground = staticCompositionLocalOf { false }
+
+/** Kolor treści aktywnego elementu: czarny na białym bloku albo biały, gdy nie ma teł. */
+@Composable
+fun activeContent(): Color = if (LocalNoBackground.current) Color.White else Palette.Ink
+
 /** Dymki z nazwą elementu pokazywane po przytrzymaniu. */
 val LocalHints = staticCompositionLocalOf<HintState?> { null }
 
@@ -122,6 +132,7 @@ fun Modifier.glass(
     active: Boolean = false,
     border: Boolean = true,
 ): Modifier {
+    if (LocalNoBackground.current) return this.clip(shape)
     val bg by animateColorAsState(if (active) ActiveTint else level.tint, tween(160), label = "flatBg")
     return this.clip(shape).background(bg)
 }
@@ -539,7 +550,7 @@ fun GlassIconButton(
     onPick: (Int) -> Unit = {},
     onClick: () -> Unit,
 ) {
-    val iconTint by animateColorAsState(tint ?: if (active) Palette.Ink else Color.White, tween(200), label = "iconTint")
+    val iconTint by animateColorAsState(tint ?: if (active) activeContent() else Color.White, tween(200), label = "iconTint")
     Box(
         modifier
             .reactive(label, enabled, onLongPress, options, selected, onPick, rotation, onClick)
@@ -555,6 +566,7 @@ fun GlassIconButton(
             ) { ic ->
                 Icon(ic, null, tint = iconTint, modifier = Modifier.size(size * 0.5f))
             }
+            if (active && LocalNoBackground.current) ActiveDot(size)
             if (badge != null) {
                 Text(
                     badge,
@@ -572,9 +584,23 @@ fun GlassIconButton(
     }
 }
 
+/** Kropka pod ikoną – znacznik aktywności, gdy przyciski nie mają tła. */
+@Composable
+private fun BoxScope.ActiveDot(size: Dp) {
+    Box(
+        Modifier
+            .align(Alignment.Center)
+            .offset(y = size * 0.36f)
+            .size(4.dp)
+            .clip(CircleShape)
+            .background(Color.White),
+    )
+}
+
 /** Tło przycisku: własne szkło, a w pasku narzędzi – płaskie, z bursztynem dla aktywnych. */
 @Composable
 private fun Modifier.buttonSurface(shape: Shape, level: GlassLevel, active: Boolean): Modifier {
+    if (LocalNoBackground.current) return this.clip(shape)
     if (!LocalToolbar.current) return glass(shape, level, active = active)
     val bg by animateColorAsState(if (active) ActiveTint else Color.Transparent, tween(200), label = "flatBg")
     return this.clip(shape).background(bg)
@@ -599,7 +625,7 @@ fun GlassValueButton(
     onPick: (Int) -> Unit = {},
     onClick: () -> Unit,
 ) {
-    val color by animateColorAsState(if (active) Palette.Ink else Color.White, tween(200), label = "valueColor")
+    val color by animateColorAsState(if (active) activeContent() else Color.White, tween(200), label = "valueColor")
     Box(
         modifier
             .reactive(label, enabled, null, options, selected, onPick, rotation, onClick)
@@ -680,7 +706,7 @@ fun GlassChip(
     enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
-    val color by animateColorAsState(if (active) Palette.Ink else Color.White, tween(200), label = "chipText")
+    val color by animateColorAsState(if (active) activeContent() else Color.White, tween(200), label = "chipText")
     Box(
         modifier
             .reactive(label, enabled, onClick = onClick)

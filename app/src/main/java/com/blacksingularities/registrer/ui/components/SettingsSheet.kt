@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -159,25 +160,16 @@ fun SettingsSheet(
 ) {
     var tab by remember { mutableStateOf<CaptureMode?>(initialMode) }
 
-    // Arkusz w tym samym oknie co podgląd – dzięki temu tło jest rozmytym obrazem kamery.
-    BoxWithConstraints(Modifier.fillMaxWidth()) {
+    // Pełny ekran.
+    Box(Modifier.fillMaxSize()) {
         Column(
             Modifier
-                .fillMaxWidth()
-                .heightIn(max = maxHeight * 0.86f)
-                .padding(horizontal = 6.dp)
-                .glass(RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp), GlassLevel.Thick)
+                .fillMaxSize()
+                .background(GlassLevel.Thick.tint)
                 .pointerInput(Unit) { detectTapGestures { } }
+                .statusBarsPadding()
                 .navigationBarsPadding(),
         ) {
-            Box(
-                Modifier
-                    .padding(top = 10.dp)
-                    .align(Alignment.CenterHorizontally)
-                    .size(width = 38.dp, height = 4.dp)
-                    .clip(RoundedCornerShape(50))
-                    .background(Color.White.copy(alpha = 0.35f)),
-            )
             Row(Modifier.padding(start = 20.dp, end = 12.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Ustawienia", fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                 GlassIconButton(Icons.Rounded.Close, "Zamknij", 0f, size = 38.dp, onClick = onDismiss)
@@ -195,7 +187,7 @@ fun SettingsSheet(
             }
             Spacer(Modifier.height(10.dp))
             AnimatedContent(
-                modifier = Modifier.weight(1f, fill = false),
+                modifier = Modifier.weight(1f),
                 targetState = tab,
                 transitionSpec = { fadeIn() togetherWith fadeOut() },
                 label = "settingsTab",

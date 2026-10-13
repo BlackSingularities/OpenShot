@@ -1,5 +1,7 @@
 package com.blacksingularities.registrer.ui
 
+import com.blacksingularities.registrer.ui.theme.activeContent
+import com.blacksingularities.registrer.ui.theme.LocalNoBackground
 import androidx.compose.ui.draw.clipToBounds
 import com.blacksingularities.registrer.ui.theme.LocalPickerHorizontal
 import com.blacksingularities.registrer.ui.theme.PickerOption
@@ -300,9 +302,19 @@ fun CameraScreen(vm: CameraViewModel, onToggleRearDisplay: () -> Unit = {}) {
 
     BackHandler(enabled = showSettings) { showSettings = false }
     GlassScope(haptics = haptics) {
-        BoxWithConstraints(Modifier.fillMaxSize().background(Color.Black)) {
-            val wide = maxWidth > maxHeight * 1.05f
-            if (wide) WideLayout(ui, previewView) else TallLayout(ui, previewView)
+        // Główny interfejs: bez teł, napisy z lekkim cieniem dla czytelności na jasnym obrazie.
+        CompositionLocalProvider(
+            LocalNoBackground provides true,
+            androidx.compose.material3.LocalTextStyle provides androidx.compose.material3.LocalTextStyle.current.merge(
+                androidx.compose.ui.text.TextStyle(
+                    shadow = androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha = 0.7f), Offset(0f, 1f), 5f),
+                ),
+            ),
+        ) {
+            BoxWithConstraints(Modifier.fillMaxSize().background(Color.Black)) {
+                val wide = maxWidth > maxHeight * 1.05f
+                if (wide) WideLayout(ui, previewView) else TallLayout(ui, previewView)
+            }
         }
 
         AnimatedVisibility(
@@ -319,9 +331,9 @@ fun CameraScreen(vm: CameraViewModel, onToggleRearDisplay: () -> Unit = {}) {
         }
         AnimatedVisibility(
             visible = showSettings,
-            enter = slideInVertically(spring(dampingRatio = 0.86f, stiffness = 420f)) { it } + fadeIn(),
-            exit = slideOutVertically(tween(220)) { it } + fadeOut(tween(200)),
-            modifier = Modifier.align(Alignment.BottomCenter),
+            enter = slideInVertically(spring(dampingRatio = 0.9f, stiffness = 500f)) { it / 6 } + fadeIn(tween(160)),
+            exit = slideOutVertically(tween(180)) { it / 6 } + fadeOut(tween(160)),
+            modifier = Modifier.fillMaxSize(),
         ) {
             SettingsSheet(
             initialMode = vm.mode,
@@ -1402,7 +1414,7 @@ private fun RecordingClock(vm: CameraViewModel, rotation: Float) {
 private fun Badge(text: String, mono: Boolean = false, color: Color = Color.White, onClick: (() -> Unit)? = null) {
     Text(
         text,
-        color = if (color == Palette.Amber) Palette.Ink else color,
+        color = if (color == Palette.Amber) activeContent() else color,
         fontSize = 11.sp,
         fontWeight = FontWeight.SemiBold,
         letterSpacing = 0.8.sp,

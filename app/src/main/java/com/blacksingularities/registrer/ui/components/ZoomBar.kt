@@ -62,6 +62,7 @@ import androidx.compose.ui.unit.sp
 import com.blacksingularities.registrer.ui.theme.Palette
 import androidx.compose.foundation.layout.heightIn
 import com.blacksingularities.registrer.ui.theme.rotatedLayout
+import com.blacksingularities.registrer.ui.theme.activeContent
 import com.blacksingularities.registrer.ui.theme.glass
 import com.blacksingularities.registrer.ui.theme.GlassLevel
 import kotlinx.coroutines.launch
@@ -111,7 +112,7 @@ fun LensSelector(
                     .size(36.dp)
                     .graphicsLayer { scaleX = scale; scaleY = scale; rotationZ = iconRotation }
                     .clip(RoundedCornerShape(50))
-                    .background(if (isActive) Color.White.copy(alpha = 0.16f) else Color.Transparent)
+                    
                     .clickable {
                         if (haptics) haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         onSelect(p)
@@ -285,10 +286,10 @@ fun ZoomControls(
                         .padding(horizontal = 16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(Icons.Rounded.CenterFocusStrong, null, tint = Palette.Ink, modifier = Modifier.size(18.dp).graphicsLayer { rotationZ = iconRotation })
+                    Icon(Icons.Rounded.CenterFocusStrong, null, tint = activeContent(), modifier = Modifier.size(18.dp).graphicsLayer { rotationZ = iconRotation })
                     Text(
                         "  Ostrość  " + (focusLabel ?: "AF"),
-                        color = Palette.Ink,
+                        color = activeContent(),
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.rotatedLayout(iconRotation),
