@@ -325,25 +325,25 @@ private fun PickerLayer(picker: PickerState) {
     }
 }
 
+/**
+ * Opcja rozwijanej listy – bez tła, jak reszta interfejsu aparatu: ikona lub wartość
+ * z podpisem i cieniem. Pod palcem – powiększona i pełna biel, bieżąca – kropka.
+ */
 @Composable
 private fun PickerItem(option: PickerOption, highlighted: Boolean, current: Boolean, rotation: Float) {
-    val bg by animateColorAsState(if (highlighted) ActiveTint else GlassLevel.Thin.tint, tween(90), label = "pickBg")
-    val fg by animateColorAsState(
-        when {
-            highlighted -> Palette.Ink
-            current -> Palette.Amber
-            else -> Color.White
-        },
-        tween(90),
-        label = "pickFg",
+    val alpha by animateFloatAsState(if (highlighted || current) 1f else 0.7f, tween(90), label = "pickAlpha")
+    val scale by animateFloatAsState(if (highlighted) 1.25f else 1f, spring(dampingRatio = 0.5f, stiffness = 800f), label = "pickScale")
+    val shadow = androidx.compose.ui.text.TextStyle(
+        shadow = androidx.compose.ui.graphics.Shadow(Color.Black.copy(alpha = 0.8f), Offset(0f, 1f), 6f),
     )
-    val scale by animateFloatAsState(if (highlighted) 1.1f else 1f, spring(dampingRatio = 0.5f, stiffness = 800f), label = "pickScale")
     Box(
         Modifier
             .size(PICKER_ITEM)
-            .graphicsLayer { scaleX = scale; scaleY = scale }
-            .clip(BlockShape)
-            .background(bg)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+                this.alpha = alpha
+            }
             .semantics { contentDescription = option.label },
         contentAlignment = Alignment.Center,
     ) {
@@ -352,12 +352,26 @@ private fun PickerItem(option: PickerOption, highlighted: Boolean, current: Bool
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             if (option.icon != null) {
-                Icon(option.icon, null, tint = fg, modifier = Modifier.size(22.dp))
+                Icon(option.icon, null, tint = Color.White, modifier = Modifier.size(22.dp))
             } else {
-                Text(option.value ?: option.label, color = fg, fontSize = 14.sp, fontWeight = FontWeight.Black, maxLines = 1)
+                Text(option.value ?: option.label, color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Black, maxLines = 1, style = shadow)
             }
-            if (option.caption != null) {
-                Text(option.caption, color = fg.copy(alpha = 0.75f), fontSize = 8.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+            Text(
+                option.caption ?: option.label,
+                color = Color.White,
+                fontSize = 9.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                style = shadow,
+            )
+            if (current) {
+                Box(
+                    Modifier
+                        .padding(top = 2.dp)
+                        .size(4.dp)
+                        .clip(CircleShape)
+                        .background(Color.White),
+                )
             }
         }
     }
