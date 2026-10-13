@@ -1,5 +1,6 @@
 package com.blacksingularities.registrer.audio
 
+import com.blacksingularities.registrer.i18n.tr
 import android.annotation.SuppressLint
 import android.content.ContentUris
 import android.content.ContentValues
@@ -207,7 +208,7 @@ class AudioEngine private constructor(private val context: Context) {
 
     /** Rozpoczyna nagrywanie; zwraca null przy powodzeniu albo opis błędu. */
     fun start(cfg: Config): String? {
-        if (status != RecorderStatus.IDLE) return "Nagrywanie już trwa"
+        if (status != RecorderStatus.IDLE) return tr("Nagrywanie już trwa", "Recording is already running")
         val preset = cfg.preset
         val source = sourceFor(cfg.source)
         val attempts = listOf(
@@ -221,7 +222,7 @@ class AudioEngine private constructor(private val context: Context) {
             record = createRecord(s, ch, rate)
             if (record != null) break
         }
-        val rec = record ?: return "mikrofon jest zajęty albo niedostępny"
+        val rec = record ?: return tr("mikrofon jest zajęty albo niedostępny", "the microphone is busy or unavailable")
         val rate = rec.sampleRate
         val channels = rec.channelCount
 
@@ -240,13 +241,13 @@ class AudioEngine private constructor(private val context: Context) {
         val uri = runCatching { resolver.insert(collection, values) }.getOrNull()
         if (uri == null) {
             rec.release()
-            return "nie można utworzyć pliku"
+            return tr("nie można utworzyć pliku", "cannot create the file")
         }
         val pfd = runCatching { resolver.openFileDescriptor(uri, "rw") }.getOrNull()
         if (pfd == null) {
             rec.release()
             runCatching { resolver.delete(uri, null, null) }
-            return "nie można otworzyć pliku"
+            return tr("nie można otworzyć pliku", "cannot open the file")
         }
         val sink: Sink = try {
             if (preset.lossless) WavSink(pfd.fileDescriptor, rate, channels) else AacSink.create(pfd.fileDescriptor, rate, channels, preset.bitRate)
@@ -254,7 +255,7 @@ class AudioEngine private constructor(private val context: Context) {
             rec.release()
             runCatching { pfd.close() }
             runCatching { resolver.delete(uri, null, null) }
-            return "koder dźwięku niedostępny (${e.message})"
+            return tr("koder dźwięku niedostępny (${e.message})", "audio encoder unavailable (${e.message})")
         }
 
         val effects = mutableListOf<android.media.audiofx.AudioEffect>()
@@ -276,7 +277,7 @@ class AudioEngine private constructor(private val context: Context) {
             runCatching { sink.close() }
             runCatching { pfd.close() }
             runCatching { resolver.delete(uri, null, null) }
-            return "mikrofon jest używany przez inną aplikację"
+            return tr("mikrofon jest używany przez inną aplikację", "the microphone is used by another app")
         }
 
         sampleRate = rate
@@ -290,7 +291,7 @@ class AudioEngine private constructor(private val context: Context) {
         stopRequested = false
         markers.clear()
         val chLabel = if (channels == 2) "stereo" else "mono"
-        val khz = String.format(Locale("pl", "PL"), "%.1f", rate / 1000f).removeSuffix(",0")
+        val khz = String.format(com.blacksingularities.registrer.i18n.Lang.locale, "%.1f", rate / 1000f).removeSuffix(",0").removeSuffix(".0")
         formatLabel = if (preset.lossless) "WAV 16-bit · $chLabel · $khz kHz" else "AAC ${preset.bitRate / 1000} kb/s · $chLabel · $khz kHz"
         deviceName = (runCatching { rec.routedDevice }.getOrNull() ?: preferredDevice(cfg.input))?.let { describe(it) }
         status = RecorderStatus.RECORDING
@@ -386,7 +387,7 @@ class AudioEngine private constructor(private val context: Context) {
             while (!stopRequested) {
                 val n = rec.read(chunk, 0, chunk.size)
                 if (n < 0) {
-                    error = "błąd odczytu mikrofonu ($n)"
+                    error = tr("błąd odczytu mikrofonu ($n)", "microphone read error ($n)")
                     break
                 }
                 if (n == 0) continue
@@ -481,7 +482,7 @@ class AudioEngine private constructor(private val context: Context) {
             uri = if (published) uri else null,
             durationMs = duration,
             autoStopped = autoStopped,
-            error = error ?: if (!closed && duration >= 300) "nie udało się zamknąć pliku" else null,
+            error = error ?: if (!closed && duration >= 300) tr("nie udało się zamknąć pliku", "could not close the file") else null,
         )
         paused = false
         silent = false
@@ -526,7 +527,7 @@ class AudioEngine private constructor(private val context: Context) {
                     items += AudioItem(
                         id = id,
                         uri = ContentUris.withAppendedId(collection, id),
-                        name = c.getString(nameCol) ?: "Nagranie",
+                        name = c.getString(nameCol) ?: tr("Nagranie", "Recording"),
                         durationMs = c.getLong(durCol),
                         sizeBytes = c.getLong(sizeCol),
                         dateAddedSec = c.getLong(dateCol),
@@ -592,14 +593,14 @@ class AudioEngine private constructor(private val context: Context) {
         fun describe(d: AudioDeviceInfo): String {
             val name = d.productName?.toString()?.takeIf { it.isNotBlank() && it != Build.MODEL }
             return when (d.type) {
-                AudioDeviceInfo.TYPE_BUILTIN_MIC -> "Mikrofon telefonu"
-                AudioDeviceInfo.TYPE_WIRED_HEADSET -> "Mikrofon przewodowy"
+                AudioDeviceInfo.TYPE_BUILTIN_MIC -> tr("Mikrofon telefonu", "Phone microphone")
+                AudioDeviceInfo.TYPE_WIRED_HEADSET -> tr("Mikrofon przewodowy", "Wired microphone")
                 AudioDeviceInfo.TYPE_USB_DEVICE, AudioDeviceInfo.TYPE_USB_HEADSET, AudioDeviceInfo.TYPE_USB_ACCESSORY ->
                     "USB" + (name?.let { ": $it" } ?: "")
                 AudioDeviceInfo.TYPE_BLE_HEADSET, AudioDeviceInfo.TYPE_BLUETOOTH_SCO ->
                     "Bluetooth" + (name?.let { ": $it" } ?: "")
-                AudioDeviceInfo.TYPE_LINE_ANALOG, AudioDeviceInfo.TYPE_LINE_DIGITAL -> "Wejście liniowe"
-                else -> name ?: "Mikrofon"
+                AudioDeviceInfo.TYPE_LINE_ANALOG, AudioDeviceInfo.TYPE_LINE_DIGITAL -> tr("Wejście liniowe", "Line input")
+                else -> name ?: tr("Mikrofon", "Microphone")
             }
         }
 

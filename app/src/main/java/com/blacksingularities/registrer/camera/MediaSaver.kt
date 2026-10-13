@@ -1,5 +1,6 @@
 package com.blacksingularities.registrer.camera
 
+import com.blacksingularities.registrer.i18n.tr
 import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
@@ -135,7 +136,7 @@ object MediaSaver {
         val collection = MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
         val uri = resolver.insert(collection, values) ?: return null
         try {
-            val out = resolver.openOutputStream(uri) ?: error("Brak dostępu do pliku")
+            val out = resolver.openOutputStream(uri) ?: error(tr("Brak dostępu do pliku", "No access to the file"))
             out.use { os -> file.inputStream().use { it.copyTo(os) } }
             resolver.update(uri, ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }, null, null)
             return uri

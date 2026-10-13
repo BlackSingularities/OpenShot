@@ -1,5 +1,6 @@
 package com.blacksingularities.registrer.ui.components
 
+import com.blacksingularities.registrer.i18n.tr
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -37,8 +38,7 @@ import kotlin.math.log10
  * Poziom czytany w fazie rysowania – wskaźnik nie przebudowuje reszty ekranu.
  */
 @Composable
-fun VideoAudioMeter(level: () -> Float, peakDb: () -> Float, note: String?, recording: Boolean) {
-    val problem = note != null && (note.startsWith("wyciszony") || note.startsWith("mikrofon zajęty") || note.startsWith("błąd") || note.startsWith("nagrywanie bez"))
+fun VideoAudioMeter(level: () -> Float, peakDb: () -> Float, note: String?, recording: Boolean, problem: Boolean = false) {
     Column(
         Modifier
             .width(176.dp)
@@ -67,7 +67,7 @@ fun VideoAudioMeter(level: () -> Float, peakDb: () -> Float, note: String?, reco
             Spacer(Modifier.width(6.dp))
             val db = peakDb()
             Text(
-                if (db <= -59f) "−∞" else String.format(Locale("pl", "PL"), "%.0f", db).replace('-', '−'),
+                if (db <= -59f) "−∞" else String.format(com.blacksingularities.registrer.i18n.Lang.locale, "%.0f", db).replace('-', '−'),
                 fontSize = 10.sp,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Bold,
@@ -76,7 +76,7 @@ fun VideoAudioMeter(level: () -> Float, peakDb: () -> Float, note: String?, reco
             )
         }
         Text(
-            note ?: if (recording) "Nagrywany dźwięk" else "Mikrofon",
+            note ?: if (recording) tr("Nagrywany dźwięk", "Recorded audio") else tr("Mikrofon", "Microphone"),
             fontSize = 9.sp,
             color = if (problem) Palette.Record else Palette.TextDim,
             maxLines = 1,

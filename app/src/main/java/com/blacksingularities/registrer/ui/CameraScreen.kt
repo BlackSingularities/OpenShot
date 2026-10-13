@@ -1,5 +1,6 @@
 package com.blacksingularities.registrer.ui
 
+import com.blacksingularities.registrer.i18n.tr
 import androidx.compose.ui.layout.boundsInRoot
 import androidx.compose.ui.layout.onGloballyPositioned
 import com.blacksingularities.registrer.ui.theme.activeContent
@@ -754,6 +755,7 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
                     peakDb = { vm.videoPeakDb },
                     note = vm.videoAudioNote,
                     recording = vm.recState != RecState.IDLE,
+                    problem = vm.recState != RecState.IDLE && vm.videoAudioProblem,
                 )
             }
         }
@@ -792,7 +794,7 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
                     .glass(CircleShape, active = overlayOverTrash),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.Rounded.Delete, "Usuń nakładkę", tint = if (overlayOverTrash) Palette.Ink else Color.White)
+                Icon(Icons.Rounded.Delete, tr("Usuń nakładkę", "Remove overlay"), tint = if (overlayOverTrash) Palette.Ink else Color.White)
             }
         }
 
@@ -1003,7 +1005,7 @@ private fun ZoomNavigator(bitmap: ImageBitmap, zoom: Float, baseZoom: Float) {
     ) {
         Image(
             bitmap = bitmap,
-            contentDescription = "Nawigator dużego zoomu",
+            contentDescription = tr("Nawigator dużego zoomu", "High-zoom navigator"),
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize(),
         )
@@ -1129,12 +1131,12 @@ private fun BoxScope.FrameInfo(ui: Ui) {
     ) {
         Row(verticalAlignment = Alignment.Top) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                if (vm.focusLocked) Badge("Ostrość i ekspozycja zablokowane  ✕", color = Palette.Amber, onClick = vm::unlockFocus)
+                if (vm.focusLocked) Badge(tr("Ostrość i ekspozycja zablokowane  ✕", "Focus and exposure locked  ✕"), color = Palette.Amber, onClick = vm::unlockFocus)
                 if (vm.intervalRunning) {
                     val total = vm.cfg.intervalCount
-                    Badge("Interwał · ${vm.intervalShot}${if (total > 0) "/$total" else ""}", color = Palette.Amber)
+                    Badge(tr("Interwał · ${vm.intervalShot}${if (total > 0) "/$total" else ""}", "Interval · ${vm.intervalShot}${if (total > 0) "/$total" else ""}"), color = Palette.Amber)
                 }
-                if (vm.rearDisplayActive) Badge("Autoportret głównym aparatem", color = Palette.Amber)
+                if (vm.rearDisplayActive) Badge(tr("Autoportret głównym aparatem", "Selfie with the main camera"), color = Palette.Amber)
                 if (vm.tlRunning) TimelapseBadge(vm)
             }
         }
@@ -1253,7 +1255,7 @@ private fun CaptureTools(ui: Ui) {
             onFocusRate = vm::nudgeFocus,
             evAvailable = vm.mode == CaptureMode.PRO && vm.evMax > vm.evMin,
             evMode = vm.rockerEv,
-            evLabel = String.format(java.util.Locale.US, "%+.1f EV", vm.evIndex * vm.evStep).replace('.', ','),
+            evLabel = String.format(java.util.Locale.US, "%+.1f EV", vm.evIndex * vm.evStep).let { if (com.blacksingularities.registrer.i18n.Lang.polish) it.replace('.', ',') else it },
             onToggleEv = vm::toggleRockerEv,
             onEvRate = vm::nudgeEv,
         )
@@ -1278,7 +1280,7 @@ private fun ProCaptureSwitch(vm: CameraViewModel, rotation: Float) {
             .background(Color.Black.copy(alpha = 0.45f))
             .padding(3.dp),
     ) {
-        listOf(false to "ZDJĘCIE", true to "WIDEO").forEach { (isVideo, label) ->
+        listOf(false to tr("ZDJĘCIE", "PHOTO"), true to tr("WIDEO", "VIDEO")).forEach { (isVideo, label) ->
             val selected = video == isVideo
             Row(
                 Modifier
@@ -1325,7 +1327,7 @@ private fun ModeQuickControl(ui: Ui, modifier: Modifier = Modifier) {
         val values = (vm.evMin..vm.evMax).toList()
         QuickControl(
             icon = Icons.Rounded.Exposure,
-            label = "Kompensacja ekspozycji",
+            label = tr("Kompensacja ekspozycji", "Exposure compensation"),
             options = values.map { String.format(java.util.Locale.US, "%+.1f EV", it * vm.evStep) },
             selected = values.indexOf(vm.evIndex).coerceAtLeast(0),
             defaultIndex = values.indexOf(0).takeIf { it >= 0 },
@@ -1341,7 +1343,7 @@ private fun ModeQuickControl(ui: Ui, modifier: Modifier = Modifier) {
             val values = (0..10).map { it * 10 }
             QuickControl(
                 icon = Icons.Rounded.BlurOn,
-                label = "Rozmycie tła",
+                label = tr("Rozmycie tła", "Background blur"),
                 options = values.map { "$it%" },
                 selected = values.indexOfFirst { it >= cfg.portraitBlur }.let { if (it < 0) values.lastIndex else it },
                 defaultIndex = values.indexOf(60),
@@ -1355,7 +1357,7 @@ private fun ModeQuickControl(ui: Ui, modifier: Modifier = Modifier) {
             val values = listOf(0, 4, 6, 8, 10, 12, 16)
             QuickControl(
                 icon = Icons.Rounded.Layers,
-                label = "Liczba klatek nocnych",
+                label = tr("Liczba klatek nocnych", "Night frame count"),
                 options = values.map { if (it == 0) "Auto ${vm.autoNightFrames()}" else "×$it" },
                 selected = values.indexOf(cfg.nightFrames).coerceAtLeast(0),
                 defaultIndex = 0,
@@ -1380,7 +1382,7 @@ private fun ModeQuickControl(ui: Ui, modifier: Modifier = Modifier) {
             val values = com.blacksingularities.registrer.ui.components.LONG_SECONDS
             QuickControl(
                 icon = Icons.Rounded.ShutterSpeed,
-                label = "Czas naświetlania · ${cfg.longBlend.label}",
+                label = tr("Czas naświetlania · ${cfg.longBlend.label}", "Exposure time · ${cfg.longBlend.label}"),
                 options = values.map { "$it s" },
                 selected = values.indexOf(cfg.longSeconds).coerceAtLeast(0),
                 defaultIndex = values.indexOf(2),
@@ -1394,7 +1396,7 @@ private fun ModeQuickControl(ui: Ui, modifier: Modifier = Modifier) {
             val values = listOf(1.0f, 1.3f, 1.7f, 2.0f, 2.5f)
             QuickControl(
                 icon = Icons.Rounded.HdrOn,
-                label = "Rozpiętość ekspozycji HDR",
+                label = tr("Rozpiętość ekspozycji HDR", "HDR exposure spread"),
                 options = values.map { String.format(java.util.Locale.US, "±%.1f EV", it) },
                 selected = values.indexOfFirst { abs(it - cfg.hdrStops) < 0.05f }.let { if (it < 0) 2 else it },
                 defaultIndex = 2,
@@ -1406,7 +1408,7 @@ private fun ModeQuickControl(ui: Ui, modifier: Modifier = Modifier) {
             val values = com.blacksingularities.registrer.data.AudioPreset.entries
             QuickControl(
                 icon = Icons.Rounded.GraphicEq,
-                label = "Jakość nagrania: ${cfg.audioPreset.description}",
+                label = tr("Jakość nagrania: ${cfg.audioPreset.description}", "Recording quality: ${cfg.audioPreset.description}"),
                 options = values.map { it.label },
                 selected = values.indexOf(cfg.audioPreset),
                 defaultIndex = values.indexOf(com.blacksingularities.registrer.data.AudioPreset.MUSIC),
@@ -1431,11 +1433,11 @@ private fun ShutterCluster(ui: Ui) {
     Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
         val thumb = vm.thumbnail
         if (vm.videoMode && vm.recState != RecState.IDLE && vm.session.snapshotInVideo) {
-            RoundIcon(Icons.Rounded.PhotoCamera, "Zdjęcie z wideo", rot, size = 48.dp, onClick = vm::snapshot)
+            RoundIcon(Icons.Rounded.PhotoCamera, tr("Zdjęcie z wideo", "Photo from video"), rot, size = 48.dp, onClick = vm::snapshot)
         } else if (isAudio && vm.audioState != RecState.IDLE) {
             RoundIcon(
                 Icons.Rounded.Flag,
-                "Dodaj znacznik",
+                tr("Dodaj znacznik", "Add marker"),
                 rot,
                 size = 48.dp,
                 active = vm.audioMarkers > 0,
@@ -1446,14 +1448,14 @@ private fun ShutterCluster(ui: Ui) {
         } else if (!isAudio && thumb != null) {
             Image(
                 bitmap = thumb.asImageBitmap(),
-                contentDescription = "Ostatnie ujęcie",
+                contentDescription = tr("Ostatnie ujęcie", "Last shot"),
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
                     .size(44.dp)
                     .graphicsLayer { rotationZ = rot }
                     .clip(CircleShape)
                     .border(1.5.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.9f), Color.White.copy(alpha = 0.3f))), CircleShape)
-                    .reactive("Galeria") {
+                    .reactive(tr("Galeria", "Gallery")) {
                         val uri = vm.lastUri ?: return@reactive
                         val type = if (vm.lastIsVideo) "video/*" else "image/*"
                         val review = Intent("android.provider.action.REVIEW").setDataAndType(uri, type)
@@ -1496,7 +1498,7 @@ private fun ShutterCluster(ui: Ui) {
     when {
         recording -> RoundIcon(
             if (paused) Icons.Rounded.PlayArrow else Icons.Rounded.Pause,
-            if (paused) "Wznów" else "Pauza",
+            if (paused) tr("Wznów", "Resume") else tr("Pauza", "Pause"),
             rot,
             size = 48.dp,
             onClick = vm::togglePause,
@@ -1507,7 +1509,7 @@ private fun ShutterCluster(ui: Ui) {
                 tween(420),
                 label = "switch",
             )
-            RoundIcon(Icons.Rounded.Cameraswitch, "Zmień obiektyw", rot + spin, size = 48.dp, enabled = !vm.busy, onClick = vm::switchLens)
+            RoundIcon(Icons.Rounded.Cameraswitch, tr("Zmień obiektyw", "Switch camera"), rot + spin, size = 48.dp, enabled = !vm.busy, onClick = vm::switchLens)
         }
         else -> Spacer(Modifier.size(48.dp))
     }
@@ -1522,23 +1524,23 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
         if (vm.mode != CaptureMode.AUDIO) {
             val cfg = vm.cfg
             val (flashIcon, flashName) = when (cfg.flash) {
-                FlashSetting.OFF -> Icons.Rounded.FlashOff to "Lampa wyłączona"
-                FlashSetting.AUTO -> Icons.Rounded.FlashAuto to "Lampa automatyczna"
-                FlashSetting.ON -> Icons.Rounded.FlashOn to "Lampa włączona"
-                FlashSetting.TORCH -> Icons.Rounded.FlashlightOn to "Latarka"
+                FlashSetting.OFF -> Icons.Rounded.FlashOff to tr("Lampa wyłączona", "Flash off")
+                FlashSetting.AUTO -> Icons.Rounded.FlashAuto to tr("Lampa automatyczna", "Auto flash")
+                FlashSetting.ON -> Icons.Rounded.FlashOn to tr("Lampa włączona", "Flash on")
+                FlashSetting.TORCH -> Icons.Rounded.FlashlightOn to tr("Latarka", "Torch")
             }
             RoundIcon(
                 flashIcon,
-                if (vm.caps.hasFlash) flashName else "Brak lampy",
+                if (vm.caps.hasFlash) flashName else tr("Brak lampy", "No flash"),
                 rot,
                 active = cfg.flash != FlashSetting.OFF,
                 enabled = vm.caps.hasFlash,
                 options = vm.flashOptions().map { f ->
                     when (f) {
-                        FlashSetting.OFF -> PickerOption("Lampa wyłączona", Icons.Rounded.FlashOff, caption = "Wył.")
-                        FlashSetting.AUTO -> PickerOption("Lampa automatyczna", Icons.Rounded.FlashAuto, caption = "Auto")
-                        FlashSetting.ON -> PickerOption("Lampa włączona", Icons.Rounded.FlashOn, caption = "Wł.")
-                        FlashSetting.TORCH -> PickerOption("Latarka", Icons.Rounded.FlashlightOn, caption = "Latarka")
+                        FlashSetting.OFF -> PickerOption(tr("Lampa wyłączona", "Flash off"), Icons.Rounded.FlashOff, caption = tr("Wył.", "Off"))
+                        FlashSetting.AUTO -> PickerOption(tr("Lampa automatyczna", "Auto flash"), Icons.Rounded.FlashAuto, caption = "Auto")
+                        FlashSetting.ON -> PickerOption(tr("Lampa włączona", "Flash on"), Icons.Rounded.FlashOn, caption = tr("Wł.", "On"))
+                        FlashSetting.TORCH -> PickerOption(tr("Latarka", "Torch"), Icons.Rounded.FlashlightOn, caption = tr("Latarka", "Torch"))
                     }
                 },
                 selected = vm.flashOptions().indexOf(cfg.flash),
@@ -1550,11 +1552,11 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
                 GlassValueButton(
                     cfg.tlResolution.label.removeSuffix("p"),
                     if (cfg.tlResolution.label.endsWith("p")) "p" else null,
-                    "Film poklatkowy ${cfg.tlResolution.label}",
+                    tr("Film poklatkowy ${cfg.tlResolution.label}", "Time-lapse ${cfg.tlResolution.label}"),
                     rot,
                     active = cfg.tlResolution != com.blacksingularities.registrer.data.TimelapseResolution.FHD,
                     enabled = !vm.busy && resolutions.size > 1,
-                    options = resolutions.map { r -> PickerOption("Film ${r.label}", value = r.label.removeSuffix("p"), caption = if (r.label.endsWith("p")) "p" else null) },
+                    options = resolutions.map { r -> PickerOption(tr("Film ${r.label}", "Video ${r.label}"), value = r.label.removeSuffix("p"), caption = if (r.label.endsWith("p")) "p" else null) },
                     selected = resolutions.indexOf(cfg.tlResolution),
                     onPick = { i -> vm.updateProfile { it.copy(tlResolution = resolutions[i]) } },
                     onClick = { vm.updateProfile { it.copy(tlResolution = resolutions[(resolutions.indexOf(it.tlResolution) + 1).mod(resolutions.size)]) } },
@@ -1562,11 +1564,11 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
                 val fpsOptions = listOf(24, 30, 60)
                 GlassValueButton(
                     "${cfg.tlFps}",
-                    "kl/s",
-                    "Klatkaż filmu ${cfg.tlFps} kl/s",
+                    tr("kl/s", "fps"),
+                    tr("Klatkaż filmu ${cfg.tlFps} kl/s", "Video frame rate ${cfg.tlFps} fps"),
                     rot,
                     enabled = !vm.busy,
-                    options = fpsOptions.map { f -> PickerOption("Klatkaż filmu $f kl/s", value = "$f", caption = "kl/s") },
+                    options = fpsOptions.map { f -> PickerOption(tr("Klatkaż filmu $f kl/s", "Video frame rate $f fps"), value = "$f", caption = tr("kl/s", "fps")) },
                     selected = fpsOptions.indexOf(cfg.tlFps),
                     onPick = { i -> vm.updateProfile { it.copy(tlFps = fpsOptions[i]) } },
                     onClick = { vm.updateProfile { it.copy(tlFps = fpsOptions[(fpsOptions.indexOf(it.tlFps) + 1).mod(fpsOptions.size)]) } },
@@ -1574,14 +1576,14 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
                 val stops = listOf(0, 5, 15, 30, 60, 120)
                 RoundIcon(
                     if (cfg.tlStopMin > 0) Icons.Rounded.Timer else Icons.Rounded.TimerOff,
-                    if (cfg.tlStopMin > 0) "Zakończ po ${com.blacksingularities.registrer.ui.components.autoStopLabel(cfg.tlStopMin)}" else "Zakończenie ręczne",
+                    if (cfg.tlStopMin > 0) tr("Zakończ po ${com.blacksingularities.registrer.ui.components.autoStopLabel(cfg.tlStopMin)}", "Stop after ${com.blacksingularities.registrer.ui.components.autoStopLabel(cfg.tlStopMin)}") else tr("Zakończenie ręczne", "Stop manually"),
                     rot,
                     active = cfg.tlStopMin > 0,
                     badge = cfg.tlStopMin.takeIf { it > 0 }?.let { if (it < 60) "$it" else "${it / 60}h" },
                     enabled = !vm.busy,
                     options = stops.map { m ->
-                        if (m == 0) PickerOption("Zakończenie ręczne", Icons.Rounded.TimerOff, caption = "Ręcznie")
-                        else PickerOption("Zakończ po ${com.blacksingularities.registrer.ui.components.autoStopLabel(m)}", value = if (m < 60) "$m" else "${m / 60}", caption = if (m < 60) "min" else "h")
+                        if (m == 0) PickerOption(tr("Zakończenie ręczne", "Stop manually"), Icons.Rounded.TimerOff, caption = tr("Ręcznie", "Manual"))
+                        else PickerOption(tr("Zakończ po ${com.blacksingularities.registrer.ui.components.autoStopLabel(m)}", "Stop after ${com.blacksingularities.registrer.ui.components.autoStopLabel(m)}"), value = if (m < 60) "$m" else "${m / 60}", caption = if (m < 60) "min" else "h")
                     },
                     selected = stops.indexOf(cfg.tlStopMin).coerceAtLeast(0),
                     onPick = { i -> vm.updateProfile { it.copy(tlStopMin = stops[i]) } },
@@ -1591,13 +1593,13 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
             if (vm.mode == CaptureMode.PRO) {
                 RoundIcon(
                     if (cfg.proVideo) Icons.Rounded.Videocam else Icons.Rounded.PhotoCamera,
-                    if (cfg.proVideo) "Tryb ręczny: wideo" else "Tryb ręczny: zdjęcia",
+                    if (cfg.proVideo) tr("Tryb ręczny: wideo", "Manual mode: video") else tr("Tryb ręczny: zdjęcia", "Manual mode: photos"),
                     rot,
                     active = cfg.proVideo,
                     enabled = !vm.busy,
                     options = listOf(
-                        PickerOption("Tryb ręczny: zdjęcia", Icons.Rounded.PhotoCamera, caption = "Zdjęcia"),
-                        PickerOption("Tryb ręczny: wideo", Icons.Rounded.Videocam, caption = "Wideo"),
+                        PickerOption(tr("Tryb ręczny: zdjęcia", "Manual mode: photos"), Icons.Rounded.PhotoCamera, caption = tr("Zdjęcia", "Photos")),
+                        PickerOption(tr("Tryb ręczny: wideo", "Manual mode: video"), Icons.Rounded.Videocam, caption = tr("Wideo", "Video")),
                     ),
                     selected = if (cfg.proVideo) 1 else 0,
                     onPick = { i -> vm.setProVideo(i == 1) },
@@ -1614,7 +1616,7 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
                     rot,
                     active = cfg.longBlend == com.blacksingularities.registrer.data.LongBlend.TRAILS,
                     enabled = !vm.busy,
-                    options = blends.map { PickerOption(it.label, blendIcon(it), caption = if (it == com.blacksingularities.registrer.data.LongBlend.TRAILS) "Smugi" else "Ruch") },
+                    options = blends.map { PickerOption(it.label, blendIcon(it), caption = if (it == com.blacksingularities.registrer.data.LongBlend.TRAILS) tr("Smugi", "Trails") else tr("Ruch", "Motion")) },
                     selected = blends.indexOf(cfg.longBlend),
                     onPick = { i -> vm.updateProfile { it.copy(longBlend = blends[i]) } },
                     onClick = { vm.updateProfile { it.copy(longBlend = blends[(blends.indexOf(it.longBlend) + 1) % blends.size]) } },
@@ -1623,13 +1625,13 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
             if (vm.mode.isPhoto && !vm.videoMode) {
                 RoundIcon(
                     Icons.Rounded.Timer,
-                    if (cfg.timerSeconds == 0) "Samowyzwalacz wyłączony" else "Samowyzwalacz ${cfg.timerSeconds} s",
+                    if (cfg.timerSeconds == 0) tr("Samowyzwalacz wyłączony", "Self-timer off") else tr("Samowyzwalacz ${cfg.timerSeconds} s", "Self-timer ${cfg.timerSeconds} s"),
                     rot,
                     active = cfg.timerSeconds > 0,
                     badge = cfg.timerSeconds.takeIf { it > 0 }?.toString(),
                     options = TIMER_STEPS.map { t ->
-                        if (t == 0) PickerOption("Samowyzwalacz wyłączony", Icons.Rounded.TimerOff, caption = "Wył.")
-                        else PickerOption("Samowyzwalacz $t s", value = "$t", caption = "s")
+                        if (t == 0) PickerOption(tr("Samowyzwalacz wyłączony", "Self-timer off"), Icons.Rounded.TimerOff, caption = tr("Wył.", "Off"))
+                        else PickerOption(tr("Samowyzwalacz $t s", "Self-timer $t s"), value = "$t", caption = "s")
                     },
                     selected = TIMER_STEPS.indexOf(cfg.timerSeconds),
                     onPick = { i -> vm.setTimer(TIMER_STEPS[i]) },
@@ -1638,11 +1640,11 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
                 val frame = remember(cfg.aspect) { frameIcon(cfg.aspect) }
                 RoundIcon(
                     frame,
-                    "Proporcje ${cfg.aspect.label}",
+                    tr("Proporcje ${cfg.aspect.label}", "Aspect ratio ${cfg.aspect.label}"),
                     rot,
                     enabled = !vm.busy,
                     options = com.blacksingularities.registrer.data.AspectRatioMode.entries.map { a ->
-                        PickerOption("Proporcje ${a.label}", frameIcon(a), caption = a.label)
+                        PickerOption(tr("Proporcje ${a.label}", "Aspect ratio ${a.label}"), frameIcon(a), caption = a.label)
                     },
                     selected = cfg.aspect.ordinal,
                     onPick = { i -> vm.setAspect(com.blacksingularities.registrer.data.AspectRatioMode.entries[i]) },
@@ -1682,13 +1684,13 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
                     GlassValueButton(
                         resValue,
                         resUnit,
-                        "Rozdzielczość ${cfg.videoResolution.label}",
+                        tr("Rozdzielczość ${cfg.videoResolution.label}", "Resolution ${cfg.videoResolution.label}"),
                         rot,
                         active = cfg.videoResolution == com.blacksingularities.registrer.data.VideoResolution.UHD,
                         enabled = !vm.busy && vm.caps.videoResolutions.size > 1,
                         options = vm.caps.videoResolutions.map { r ->
                             val (v, u) = resolutionGlyph(r)
-                            PickerOption("Rozdzielczość ${r.label}", value = v, caption = u)
+                            PickerOption(tr("Rozdzielczość ${r.label}", "Resolution ${r.label}"), value = v, caption = u)
                         },
                         selected = vm.caps.videoResolutions.indexOf(cfg.videoResolution),
                         onPick = { i -> vm.setVideoResolution(vm.caps.videoResolutions[i]) },
@@ -1701,13 +1703,13 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
                     GlassValueButton(
                         resValue,
                         resUnit,
-                        "Zwolnione tempo ${current.label}",
+                        tr("Zwolnione tempo ${current.label}", "Slow motion ${current.label}"),
                         rot,
                         active = true,
                         enabled = !vm.busy && resolutions.size > 1,
                         options = resolutions.map { r ->
                             val (v, u) = resolutionGlyph(r)
-                            PickerOption("Zwolnione tempo ${r.label}", value = v, caption = u)
+                            PickerOption(tr("Zwolnione tempo ${r.label}", "Slow motion ${r.label}"), value = v, caption = u)
                         },
                         selected = resolutions.indexOf(current),
                         onPick = { i -> vm.setSlowMoResolution(resolutions[i]) },
@@ -1717,20 +1719,20 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
                 val slowFps = vm.slowMoFpsOptions()
                 val fpsChoices = if (vm.mode == CaptureMode.SLOWMO) slowFps.size else vm.videoFpsOptions().size
                 val autoFps = vm.mode != CaptureMode.SLOWMO && cfg.videoFps == com.blacksingularities.registrer.data.VideoFps.AUTO
-                val fpsNumber = vm.fpsLabel.removeSuffix(" kl/s").removePrefix("Auto").trim()
+                val fpsNumber = vm.fpsLabel.removeSuffix(tr(" kl/s", " fps")).removePrefix("Auto").trim()
                 GlassValueButton(
                     if (autoFps) (vm.session.fps.takeIf { it > 0 }?.toString() ?: "A") else fpsNumber,
-                    if (autoFps) "auto" else "kl/s",
-                    "Klatkaż ${vm.fpsLabel}",
+                    if (autoFps) "auto" else tr("kl/s", "fps"),
+                    tr("Klatkaż ${vm.fpsLabel}", "Frame rate ${vm.fpsLabel}"),
                     rot,
                     active = !autoFps,
                     enabled = !vm.busy && fpsChoices > 1,
                     options = if (vm.mode == CaptureMode.SLOWMO) {
-                        slowFps.map { f -> PickerOption("Zwolnione tempo $f kl/s", value = "$f", caption = "kl/s") }
+                        slowFps.map { f -> PickerOption(tr("Zwolnione tempo $f kl/s", "Slow motion $f fps"), value = "$f", caption = tr("kl/s", "fps")) }
                     } else {
                         vm.videoFpsOptions().map { f ->
-                            if (f == com.blacksingularities.registrer.data.VideoFps.AUTO) PickerOption("Klatkaż automatyczny", value = "A", caption = "auto")
-                            else PickerOption("Klatkaż ${f.fps} kl/s", value = "${f.fps}", caption = "kl/s")
+                            if (f == com.blacksingularities.registrer.data.VideoFps.AUTO) PickerOption(tr("Klatkaż automatyczny", "Auto frame rate"), value = "A", caption = "auto")
+                            else PickerOption(tr("Klatkaż ${f.fps} kl/s", "Frame rate ${f.fps} fps"), value = "${f.fps}", caption = tr("kl/s", "fps"))
                         }
                     },
                     selected = if (vm.mode == CaptureMode.SLOWMO) slowFps.indexOf(cfg.slowMoFps).coerceAtLeast(0)
@@ -1743,13 +1745,13 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
                 if (vm.mode != CaptureMode.SLOWMO && vm.caps.videoHlg) {
                     RoundIcon(
                         if (cfg.videoHdr) Icons.Rounded.HdrOn else Icons.Rounded.HdrOff,
-                        if (cfg.videoHdr) "Wideo HDR (HLG)" else "Wideo SDR",
+                        if (cfg.videoHdr) tr("Wideo HDR (HLG)", "HDR video (HLG)") else tr("Wideo SDR", "SDR video"),
                         rot,
                         active = cfg.videoHdr,
                         enabled = !vm.busy,
                         options = listOf(
-                            PickerOption("Wideo SDR", Icons.Rounded.HdrOff, caption = "SDR"),
-                            PickerOption("Wideo HDR (HLG)", Icons.Rounded.HdrOn, caption = "HLG"),
+                            PickerOption(tr("Wideo SDR", "SDR video"), Icons.Rounded.HdrOff, caption = "SDR"),
+                            PickerOption(tr("Wideo HDR (HLG)", "HDR video (HLG)"), Icons.Rounded.HdrOn, caption = "HLG"),
                         ),
                         selected = if (cfg.videoHdr) 1 else 0,
                         onPick = { i -> vm.setVideoHdr(i == 1) },
@@ -1759,13 +1761,13 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
                 if (vm.mode != CaptureMode.SLOWMO && vm.caps.videoStabilization) {
                     RoundIcon(
                         Icons.Rounded.VideoStable,
-                        if (cfg.stabilization) "Stabilizacja włączona" else "Stabilizacja wyłączona",
+                        if (cfg.stabilization) tr("Stabilizacja włączona", "Stabilization on") else tr("Stabilizacja wyłączona", "Stabilization off"),
                         rot,
                         active = cfg.stabilization,
                         enabled = !vm.busy,
                         options = listOf(
-                            PickerOption("Stabilizacja wyłączona", Icons.Rounded.VideoStable, caption = "Wył."),
-                            PickerOption("Stabilizacja włączona", Icons.Rounded.VideoStable, caption = "Wł."),
+                            PickerOption(tr("Stabilizacja wyłączona", "Stabilization off"), Icons.Rounded.VideoStable, caption = tr("Wył.", "Off")),
+                            PickerOption(tr("Stabilizacja włączona", "Stabilization on"), Icons.Rounded.VideoStable, caption = tr("Wł.", "On")),
                         ),
                         selected = if (cfg.stabilization) 1 else 0,
                         onPick = { i -> vm.setStabilization(i == 1) },
@@ -1777,7 +1779,7 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
             if (vm.subjectPreviewAvailable || vm.subjectPreviewActive) {
                 RoundIcon(
                     Icons.Rounded.PresentToAll,
-                    if (vm.subjectPreviewActive) "Wyłącz podgląd dla fotografowanego" else "Podgląd dla fotografowanego na drugim ekranie",
+                    if (vm.subjectPreviewActive) tr("Wyłącz podgląd dla fotografowanego", "Turn off subject preview") else tr("Podgląd dla fotografowanego na drugim ekranie", "Subject preview on the second screen"),
                     rot,
                     active = vm.subjectPreviewActive,
                     onClick = ui.onSubjectPreview,
@@ -1786,7 +1788,7 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
             if (vm.rearDisplayAvailable || vm.rearDisplayActive) {
                 RoundIcon(
                     Icons.Rounded.FlipToBack,
-                    if (vm.rearDisplayActive) "Wróć na ekran wewnętrzny" else "Autoportret głównym aparatem",
+                    if (vm.rearDisplayActive) tr("Wróć na ekran wewnętrzny", "Back to the inner screen") else tr("Autoportret głównym aparatem", "Selfie with the main camera"),
                     rot,
                     active = vm.rearDisplayActive,
                     enabled = !vm.busy,
@@ -1798,7 +1800,7 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
         }
     }
     val settings: @Composable () -> Unit = {
-        RoundIcon(Icons.Rounded.Settings, "Ustawienia", rot, onClick = ui.onSettings)
+        RoundIcon(Icons.Rounded.Settings, tr("Ustawienia", "Settings"), rot, onClick = ui.onSettings)
     }
     // Jeden szklany pasek z przyciskami + osobne kółko ustawień. Gdy przycisków jest więcej,
     // niż mieści ekran (wąski ekran zewnętrzny folda), pasek się przewija.
@@ -1882,13 +1884,13 @@ private fun ExposureStrip(vm: CameraViewModel, modifier: Modifier = Modifier) {
     val pro = if (vm.mode == CaptureMode.PRO) vm.pro else null
     data class Item(val icon: ImageVector?, val name: String, val value: String, val manual: Boolean = false)
     val items = buildList {
-        add(Item(if (vm.videoMode) Icons.Rounded.Videocam else Icons.Rounded.Image, "Rozdzielczość", resolutionText(vm)))
+        add(Item(if (vm.videoMode) Icons.Rounded.Videocam else Icons.Rounded.Image, tr("Rozdzielczość", "Resolution"), resolutionText(vm)))
         val iso = pro?.iso ?: hud?.iso
         add(Item(null, "ISO", iso?.toString() ?: "—", pro?.iso != null))
         val shutter = pro?.exposureNs ?: hud?.exposureNs
-        add(Item(Icons.Rounded.ShutterSpeed, "Czas naświetlania", shutter?.let { formatShutter(it) } ?: "—", pro?.exposureNs != null))
-        hud?.aperture?.let { add(Item(Icons.Rounded.Camera, "Przysłona", String.format(java.util.Locale.US, "f/%.1f", it))) }
-        add(Item(Icons.Rounded.Exposure, "Kompensacja EV", String.format(java.util.Locale.US, "%+.1f", vm.evIndex * vm.evStep), vm.evIndex != 0))
+        add(Item(Icons.Rounded.ShutterSpeed, tr("Czas naświetlania", "Shutter"), shutter?.let { formatShutter(it) } ?: "—", pro?.exposureNs != null))
+        hud?.aperture?.let { add(Item(Icons.Rounded.Camera, tr("Przysłona", "Aperture"), String.format(java.util.Locale.US, "f/%.1f", it))) }
+        add(Item(Icons.Rounded.Exposure, tr("Kompensacja EV", "EV compensation"), String.format(java.util.Locale.US, "%+.1f", vm.evIndex * vm.evStep), vm.evIndex != 0))
         add(Item(Icons.Rounded.ZoomIn, "Zoom", com.blacksingularities.registrer.ui.components.formatZoom(vm.displayZoom) + "×"))
     }
     Row(
@@ -1972,7 +1974,7 @@ private fun RecordingClock(vm: CameraViewModel, rotation: Float) {
         )
         Spacer(Modifier.width(8.dp))
         Text(formatClock(vm.recNanos / 1_000_000, tenths = false), style = MonoDigits, color = Color.White)
-        if (vm.recMuted) Text("  ·  bez dźwięku", fontSize = 11.sp, color = Palette.TextDim)
+        if (vm.recMuted) Text(tr("  ·  bez dźwięku", "  ·  no sound"), fontSize = 11.sp, color = Palette.TextDim)
     }
 }
 
@@ -2004,7 +2006,7 @@ private fun GridButton(vm: CameraViewModel, rotation: Float) {
         CompositionLocalProvider(LocalHintOnTap provides false) {
             RoundIcon(
                 Icons.Rounded.GridOn,
-                "Siatki",
+                tr("Siatki", "Grids"),
                 rotation,
                 tint = if (grids.isEmpty()) Palette.TextFaint else Color.White,
                 onClick = { open = true },
@@ -2035,7 +2037,7 @@ private fun GridButton(vm: CameraViewModel, rotation: Float) {
             if (grids.isNotEmpty()) {
                 DropdownMenuItem(
                     modifier = Modifier.padding(vertical = 1.dp).clip(RoundedCornerShape(14.dp)).background(Color.Black.copy(alpha = 0.58f)),
-                    text = { Text("Wyłącz wszystkie", color = Palette.TextDim) },
+                    text = { Text(tr("Wyłącz wszystkie", "Turn all off"), color = Palette.TextDim) },
                     leadingIcon = { Icon(Icons.Rounded.Close, null, tint = Palette.TextDim) },
                     onClick = {
                         vm.updateProfile { it.copy(grids = emptySet()) }
@@ -2061,8 +2063,8 @@ private fun TimelapseBadge(vm: CameraViewModel) {
     val film = vm.tlFrames.toFloat() / vm.cfg.tlFps.coerceAtLeast(1)
     val size = vm.tlSize?.let { "$it · " } ?: ""
     Badge(
-        "● Poklatkowy · $size${vm.tlFrames} kl. · film " +
-            String.format(java.util.Locale("pl", "PL"), "%.1f", film) + " s · " +
+        tr("● Poklatkowy · $size${vm.tlFrames} kl. · film ", "● Time-lapse · $size${vm.tlFrames} fr. · video ") +
+            String.format(com.blacksingularities.registrer.i18n.Lang.locale, "%.1f", film) + " s · " +
             com.blacksingularities.registrer.ui.components.formatClock(elapsed, false),
         color = Palette.Record,
     )
@@ -2079,10 +2081,10 @@ private fun UpdateBanner(
     modifier: Modifier = Modifier,
 ) {
     val content: Triple<String, String?, (() -> Unit)?>? = when (state) {
-        is UpdateState.Available -> Triple("Nowa wersja ${state.info.version}", "Pobierz", onDownload)
-        is UpdateState.Downloading -> Triple("Pobieranie ${state.info.version} · ${(state.progress * 100).roundToInt()}%", null, null)
-        is UpdateState.Ready -> Triple("Wersja ${state.info.version} gotowa", "Zainstaluj", onInstall)
-        is UpdateState.Installing -> Triple("Instalowanie ${state.info.version}…", null, null)
+        is UpdateState.Available -> Triple(tr("Nowa wersja ${state.info.version}", "New version ${state.info.version}"), tr("Pobierz", "Download"), onDownload)
+        is UpdateState.Downloading -> Triple(tr("Pobieranie ${state.info.version} · ${(state.progress * 100).roundToInt()}%", "Downloading ${state.info.version} · ${(state.progress * 100).roundToInt()}%"), null, null)
+        is UpdateState.Ready -> Triple(tr("Wersja ${state.info.version} gotowa", "Version ${state.info.version} ready"), tr("Zainstaluj", "Install"), onInstall)
+        is UpdateState.Installing -> Triple(tr("Instalowanie ${state.info.version}…", "Installing ${state.info.version}…"), null, null)
         is UpdateState.Failed -> Triple(state.message, null, null)
         else -> null
     }
@@ -2116,7 +2118,7 @@ private fun UpdateBanner(
                     Modifier.size(32.dp).clip(CircleShape).clickable(onClick = onDismiss),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(Icons.Rounded.Close, "Zamknij", tint = Palette.TextDim, modifier = Modifier.size(16.dp))
+                    Icon(Icons.Rounded.Close, tr("Zamknij", "Close"), tint = Palette.TextDim, modifier = Modifier.size(16.dp))
                 }
             } else {
                 Spacer(Modifier.width(10.dp))
@@ -2138,11 +2140,11 @@ private fun AudioTopControls(vm: CameraViewModel, rot: Float) {
     }
     RoundIcon(
         inputIcon(cfg.audioInput),
-        "Mikrofon: ${cfg.audioInput.label}" + (vm.externalMic?.let { " · podłączony $it" } ?: ""),
+        tr("Mikrofon: ${cfg.audioInput.label}", "Microphone: ${cfg.audioInput.label}") + (vm.externalMic?.let { tr(" · podłączony $it", " · connected $it") } ?: ""),
         rot,
         active = cfg.audioInput != com.blacksingularities.registrer.data.AudioInput.AUTO || vm.externalMic != null,
         enabled = idle,
-        options = inputs.map { PickerOption("Mikrofon: ${it.label}", inputIcon(it), caption = it.label) },
+        options = inputs.map { PickerOption(tr("Mikrofon: ${it.label}", "Microphone: ${it.label}"), inputIcon(it), caption = it.label) },
         selected = inputs.indexOf(cfg.audioInput),
         onPick = { i -> vm.updateProfile { it.copy(audioInput = inputs[i]) } },
         onClick = { vm.updateProfile { it.copy(audioInput = inputs[(inputs.indexOf(it.audioInput) + 1) % inputs.size]) } },
@@ -2150,11 +2152,11 @@ private fun AudioTopControls(vm: CameraViewModel, rot: Float) {
     GlassValueButton(
         if (cfg.audioGainDb == 0) "0" else "+${cfg.audioGainDb}",
         "dB",
-        "Wzmocnienie ${if (cfg.audioGainDb == 0) "wyłączone" else "+${cfg.audioGainDb} dB"}",
+        tr("Wzmocnienie ${if (cfg.audioGainDb == 0) "wyłączone" else "+${cfg.audioGainDb} dB"}", "Gain ${if (cfg.audioGainDb == 0) "off" else "+${cfg.audioGainDb} dB"}"),
         rot,
         active = cfg.audioGainDb > 0,
         enabled = idle,
-        options = AUDIO_GAIN_STEPS.map { g -> PickerOption(if (g == 0) "Bez wzmocnienia" else "Wzmocnienie +$g dB", value = if (g == 0) "0" else "+$g", caption = "dB") },
+        options = AUDIO_GAIN_STEPS.map { g -> PickerOption(if (g == 0) tr("Bez wzmocnienia", "No gain") else tr("Wzmocnienie +$g dB", "Gain +$g dB"), value = if (g == 0) "0" else "+$g", caption = "dB") },
         selected = AUDIO_GAIN_STEPS.indexOf(cfg.audioGainDb).coerceAtLeast(0),
         onPick = { i -> vm.updateProfile { it.copy(audioGainDb = AUDIO_GAIN_STEPS[i]) } },
         onClick = {
@@ -2167,7 +2169,7 @@ private fun AudioTopControls(vm: CameraViewModel, rot: Float) {
     if (com.blacksingularities.registrer.audio.AudioEngine.noiseSuppressionAvailable) {
         RoundIcon(
             if (cfg.audioNoiseSuppression) Icons.Rounded.NoiseAware else Icons.Rounded.NoiseControlOff,
-            if (cfg.audioNoiseSuppression) "Redukcja szumów włączona" else "Redukcja szumów wyłączona",
+            if (cfg.audioNoiseSuppression) tr("Redukcja szumów włączona", "Noise reduction on") else tr("Redukcja szumów wyłączona", "Noise reduction off"),
             rot,
             active = cfg.audioNoiseSuppression,
             enabled = idle,
@@ -2176,7 +2178,7 @@ private fun AudioTopControls(vm: CameraViewModel, rot: Float) {
     }
     RoundIcon(
         Icons.Rounded.FastForward,
-        if (cfg.audioSkipSilence) "Pomijanie ciszy włączone" else "Pomijanie ciszy wyłączone",
+        if (cfg.audioSkipSilence) tr("Pomijanie ciszy włączone", "Skip silence on") else tr("Pomijanie ciszy wyłączone", "Skip silence off"),
         rot,
         active = cfg.audioSkipSilence,
         enabled = idle,
@@ -2184,14 +2186,14 @@ private fun AudioTopControls(vm: CameraViewModel, rot: Float) {
     )
     RoundIcon(
         if (cfg.audioAutoStopMin > 0) Icons.Rounded.Timer else Icons.Rounded.TimerOff,
-        if (cfg.audioAutoStopMin > 0) "Automatyczny stop po ${com.blacksingularities.registrer.ui.components.autoStopLabel(cfg.audioAutoStopMin)}" else "Bez automatycznego stopu",
+        if (cfg.audioAutoStopMin > 0) tr("Automatyczny stop po ${com.blacksingularities.registrer.ui.components.autoStopLabel(cfg.audioAutoStopMin)}", "Auto stop after ${com.blacksingularities.registrer.ui.components.autoStopLabel(cfg.audioAutoStopMin)}") else tr("Bez automatycznego stopu", "No auto stop"),
         rot,
         active = cfg.audioAutoStopMin > 0,
         badge = cfg.audioAutoStopMin.takeIf { it > 0 }?.let { if (it < 60) "$it" else "${it / 60}h" },
         enabled = idle,
         options = AUDIO_AUTOSTOP_STEPS.map { m ->
-            if (m == 0) PickerOption("Bez automatycznego stopu", Icons.Rounded.TimerOff, caption = "Wył.")
-            else PickerOption("Stop po ${com.blacksingularities.registrer.ui.components.autoStopLabel(m)}", value = if (m < 60) "$m" else "${m / 60}", caption = if (m < 60) "min" else "h")
+            if (m == 0) PickerOption(tr("Bez automatycznego stopu", "No auto stop"), Icons.Rounded.TimerOff, caption = tr("Wył.", "Off"))
+            else PickerOption(tr("Stop po ${com.blacksingularities.registrer.ui.components.autoStopLabel(m)}", "Stop after ${com.blacksingularities.registrer.ui.components.autoStopLabel(m)}"), value = if (m < 60) "$m" else "${m / 60}", caption = if (m < 60) "min" else "h")
         },
         selected = AUDIO_AUTOSTOP_STEPS.indexOf(cfg.audioAutoStopMin).coerceAtLeast(0),
         onPick = { i -> vm.updateProfile { it.copy(audioAutoStopMin = AUDIO_AUTOSTOP_STEPS[i]) } },

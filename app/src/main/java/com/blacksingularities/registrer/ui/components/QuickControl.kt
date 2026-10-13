@@ -1,5 +1,6 @@
 package com.blacksingularities.registrer.ui.components
 
+import com.blacksingularities.registrer.i18n.tr
 import com.blacksingularities.registrer.ui.theme.BlockShape
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.animateFloatAsState
@@ -105,7 +106,7 @@ fun QuickControl(
         Box(
             Modifier
                 .size(34.dp)
-                .reactive("Zwiń: $label", enabled) { expanded = false }
+                .reactive(tr("Zwiń: $label", "Collapse: $label"), enabled) { expanded = false }
                 .glass(BlockShape, active = !isDefault),
             contentAlignment = Alignment.Center,
         ) {

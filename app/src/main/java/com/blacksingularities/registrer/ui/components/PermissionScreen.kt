@@ -1,5 +1,6 @@
 package com.blacksingularities.registrer.ui.components
 
+import com.blacksingularities.registrer.i18n.tr
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
@@ -41,14 +42,14 @@ fun PermissionScreen(onRequest: () -> Unit) {
     ) {
         Image(
             painter = painterResource(R.drawable.openshot_icon_foreground),
-            contentDescription = "Ikona OpenShot",
+            contentDescription = tr("Ikona OpenShot", "OpenShot icon"),
             modifier = Modifier.size(112.dp),
         )
         Spacer(Modifier.height(28.dp))
         Text("OpenShot", fontSize = 30.sp, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(10.dp))
         Text(
-            "Aby robić zdjęcia, filmować i nagrywać dźwięk, aplikacja potrzebuje dostępu do aparatu i mikrofonu. Nic nie opuszcza Twojego telefonu.",
+            tr("Aby robić zdjęcia, filmować i nagrywać dźwięk, aplikacja potrzebuje dostępu do aparatu i mikrofonu. Nic nie opuszcza Twojego telefonu.", "To take photos, shoot video and record sound, the app needs access to the camera and microphone. Nothing leaves your phone."),
             color = Palette.TextDim,
             textAlign = TextAlign.Center,
             fontSize = 15.sp,
@@ -57,10 +58,10 @@ fun PermissionScreen(onRequest: () -> Unit) {
         Button(
             onClick = onRequest,
             colors = ButtonDefaults.buttonColors(containerColor = Palette.Amber, contentColor = Palette.Ink),
-        ) { Text("Zezwól na dostęp", fontWeight = FontWeight.Bold) }
+        ) { Text(tr("Zezwól na dostęp", "Allow access"), fontWeight = FontWeight.Bold) }
         TextButton(onClick = {
             val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context.packageName, null))
             runCatching { context.startActivity(intent) }
-        }) { Text("Otwórz ustawienia systemu", color = Palette.TextDim) }
+        }) { Text(tr("Otwórz ustawienia systemu", "Open system settings"), color = Palette.TextDim) }
     }
 }

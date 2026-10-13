@@ -1,5 +1,6 @@
 package com.blacksingularities.registrer.fold
 
+import com.blacksingularities.registrer.i18n.tr
 import android.app.Activity
 import android.app.Presentation
 import android.content.Context
@@ -72,14 +73,14 @@ class SubjectPreview(
     fun summary(): String = runCatching {
         val list = displays?.displays.orEmpty().joinToString("\n") { d ->
             val state = when (d.state) {
-                Display.STATE_ON -> "wł."
-                Display.STATE_OFF -> "wył."
-                else -> "stan ${d.state}"
+                Display.STATE_ON -> tr("wł.", "on")
+                Display.STATE_OFF -> tr("wył.", "off")
+                else -> tr("stan ${d.state}", "state ${d.state}")
             }
             val mode = d.mode
             "#${d.displayId} ${d.name} · ${mode.physicalWidth}×${mode.physicalHeight} · $state"
         }
-        val rear = if (controller == null) "brak WindowArea" else if (rearAvailable) "tylny ekran: dostępny" else "tylny ekran: niedostępny"
+        val rear = if (controller == null) tr("brak WindowArea", "no WindowArea") else if (rearAvailable) tr("tylny ekran: dostępny", "rear screen: available") else tr("tylny ekran: niedostępny", "rear screen: unavailable")
         "$list\n$rear"
     }.getOrDefault("")
 

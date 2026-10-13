@@ -1,5 +1,6 @@
 package com.blacksingularities.registrer.ui.components
 
+import com.blacksingularities.registrer.i18n.tr
 import android.content.Intent
 import android.text.format.DateUtils
 import androidx.compose.animation.AnimatedVisibility
@@ -102,7 +103,7 @@ fun formatClock(ms: Long, tenths: Boolean = true): String {
     return if (tenths) base + "." + (ms % 1000) / 100 else base
 }
 
-private val PL = Locale("pl", "PL")
+private val PL: Locale get() = com.blacksingularities.registrer.i18n.Lang.locale
 
 /** Bieżący stan nagrywania przekazywany do studia. */
 data class AudioLive(
@@ -176,7 +177,7 @@ fun AudioStudio(
         Text(
             when {
                 live.finishing -> "ZAPISYWANIE"
-                live.state == RecState.RECORDING && live.silent -> "CISZA · POMIJANA"
+                live.state == RecState.RECORDING && live.silent -> tr("CISZA · POMIJANA", "SILENCE · SKIPPED")
                 live.state == RecState.RECORDING -> "NAGRYWANIE"
                 live.state == RecState.PAUSED -> "PAUZA"
                 else -> settings.audioPreset.description.uppercase(PL)
@@ -194,8 +195,8 @@ fun AudioStudio(
                 buildList {
                     add(live.format to false)
                     live.device?.let { add(it to false) }
-                    if (live.markers > 0) add("Znaczniki: ${live.markers}" to true)
-                    if (live.skippedMs >= 1000) add("Pominięto ${formatClock(live.skippedMs, false)}" to false)
+                    if (live.markers > 0) add(tr("Znaczniki: ${live.markers}", "Markers: ${live.markers}") to true)
+                    if (live.skippedMs >= 1000) add(tr("Pominięto ${formatClock(live.skippedMs, false)}", "Skipped ${formatClock(live.skippedMs, false)}") to false)
                 },
             )
         } else {
@@ -209,7 +210,7 @@ fun AudioStudio(
         }
         Row(Modifier.fillMaxWidth().padding(start = 20.dp, end = 8.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text("Nagrania", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text(tr("Nagrania", "Recordings"), fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 if (recordings.isNotEmpty()) {
                     val total = recordings.sumOf { it.durationMs }
                     val size = recordings.sumOf { it.sizeBytes }
@@ -225,7 +226,7 @@ fun AudioStudio(
                     searching = !searching
                     if (!searching) query = ""
                 }) {
-                    Icon(if (searching) Icons.Rounded.Close else Icons.Rounded.Search, if (searching) "Zamknij wyszukiwanie" else "Szukaj", tint = Palette.TextDim)
+                    Icon(if (searching) Icons.Rounded.Close else Icons.Rounded.Search, if (searching) tr("Zamknij wyszukiwanie", "Close search") else tr("Szukaj", "Search"), tint = Palette.TextDim)
                 }
             }
         }
@@ -234,21 +235,21 @@ fun AudioStudio(
                 value = query,
                 onValueChange = { query = it },
                 singleLine = true,
-                placeholder = { Text("Szukaj w nazwach") },
+                placeholder = { Text(tr("Szukaj w nazwach", "Search names")) },
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 4.dp),
             )
         }
         if (recordings.isEmpty()) {
             Text(
-                "Brak nagrań. Naciśnij migawkę, aby zacząć – nagrywanie trwa także przy zgaszonym ekranie.",
+                tr("Brak nagrań. Naciśnij migawkę, aby zacząć – nagrywanie trwa także przy zgaszonym ekranie.", "No recordings. Press the shutter to start – recording continues with the screen off too."),
                 color = Palette.TextFaint,
                 fontSize = 13.sp,
                 modifier = Modifier.padding(24.dp),
             )
         } else if (filtered.isEmpty()) {
-            Text("Brak nagrań pasujących do „$query”", color = Palette.TextFaint, fontSize = 13.sp, modifier = Modifier.padding(24.dp))
+            Text(tr("Brak nagrań pasujących do „$query”", "No recordings match “$query”"), color = Palette.TextFaint, fontSize = 13.sp, modifier = Modifier.padding(24.dp))
         }
-        val entries = remember(filtered) { groupByDay(filtered) }
+        val entries = remember(filtered, com.blacksingularities.registrer.i18n.Lang.polish) { groupByDay(filtered) }
         LazyColumn(
             Modifier
                 .weight(1f)
@@ -289,7 +290,7 @@ fun AudioStudio(
                                     putExtra(Intent.EXTRA_TITLE, item.title)
                                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                 }
-                                runCatching { context.startActivity(Intent.createChooser(send, "Udostępnij nagranie")) }
+                                runCatching { context.startActivity(Intent.createChooser(send, tr("Udostępnij nagranie", "Share recording"))) }
                             },
                             onRename = { pendingRename = item },
                             onDelete = { pendingDelete = item },
@@ -303,12 +304,12 @@ fun AudioStudio(
     pendingDelete?.let { item ->
         AlertDialog(
             onDismissRequest = { pendingDelete = null },
-            title = { Text("Usunąć nagranie?") },
+            title = { Text(tr("Usunąć nagranie?", "Delete recording?")) },
             text = { Text(item.title) },
             confirmButton = {
-                TextButton(onClick = { onDelete(item); pendingDelete = null }) { Text("Usuń", color = Palette.Record) }
+                TextButton(onClick = { onDelete(item); pendingDelete = null }) { Text(tr("Usuń", "Delete"), color = Palette.Record) }
             },
-            dismissButton = { TextButton(onClick = { pendingDelete = null }) { Text("Anuluj") } },
+            dismissButton = { TextButton(onClick = { pendingDelete = null }) { Text(tr("Anuluj", "Cancel")) } },
             containerColor = Palette.PanelHigh,
         )
     }
@@ -317,22 +318,22 @@ fun AudioStudio(
         var name by remember(item.id) { mutableStateOf(item.title) }
         AlertDialog(
             onDismissRequest = { pendingRename = null },
-            title = { Text("Zmień nazwę") },
+            title = { Text(tr("Zmień nazwę", "Rename")) },
             text = {
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it.take(80) },
                     singleLine = true,
-                    supportingText = { Text("Rozszerzenie .${item.name.substringAfterLast('.', "m4a")} zostanie zachowane") },
+                    supportingText = { Text(tr("Rozszerzenie .${item.name.substringAfterLast('.', "m4a")} zostanie zachowane", "The .${item.name.substringAfterLast('.', "m4a")} extension will be kept")) },
                 )
             },
             confirmButton = {
                 TextButton(
                     enabled = name.isNotBlank(),
                     onClick = { onRename(item, name); pendingRename = null },
-                ) { Text("Zapisz") }
+                ) { Text(tr("Zapisz", "Save")) }
             },
-            dismissButton = { TextButton(onClick = { pendingRename = null }) { Text("Anuluj") } },
+            dismissButton = { TextButton(onClick = { pendingRename = null }) { Text(tr("Anuluj", "Cancel")) } },
             containerColor = Palette.PanelHigh,
         )
     }
@@ -341,17 +342,17 @@ fun AudioStudio(
 private fun idleSummary(s: ModeSettings, externalMic: String?): List<Pair<String, Boolean>> = buildList {
     add(
         when (s.audioInput) {
-            AudioInput.AUTO -> (externalMic?.let { "Auto · $it" } ?: "Mikrofon dobierany samoczynnie") to false
-            AudioInput.BUILTIN -> "Mikrofon telefonu" to true
-            AudioInput.EXTERNAL -> (externalMic ?: "Brak mikrofonu zewnętrznego") to (externalMic != null)
+            AudioInput.AUTO -> (externalMic?.let { "Auto · $it" } ?: tr("Mikrofon dobierany samoczynnie", "Microphone chosen automatically")) to false
+            AudioInput.BUILTIN -> tr("Mikrofon telefonu", "Phone microphone") to true
+            AudioInput.EXTERNAL -> (externalMic ?: tr("Brak mikrofonu zewnętrznego", "No external microphone")) to (externalMic != null)
         },
     )
     add(s.audioSource.label to (s.audioSource != com.blacksingularities.registrer.data.AudioSourceType.STANDARD))
     if (s.audioGainDb > 0) add("+${s.audioGainDb} dB" to true)
-    if (s.audioNoiseSuppression) add("Redukcja szumów" to true)
-    if (s.audioAgc) add("Samoczynna głośność" to true)
-    if (s.audioSkipSilence) add("Pomijanie ciszy" to true)
-    if (s.audioAutoStopMin > 0) add("Stop po ${autoStopLabel(s.audioAutoStopMin)}" to true)
+    if (s.audioNoiseSuppression) add(tr("Redukcja szumów", "Noise reduction") to true)
+    if (s.audioAgc) add(tr("Samoczynna głośność", "Auto gain") to true)
+    if (s.audioSkipSilence) add(tr("Pomijanie ciszy", "Skip silence") to true)
+    if (s.audioAutoStopMin > 0) add(tr("Stop po ${autoStopLabel(s.audioAutoStopMin)}", "Stop after ${autoStopLabel(s.audioAutoStopMin)}") to true)
 }
 
 fun autoStopLabel(min: Int): String = if (min < 60) "$min min" else "${min / 60} h"
@@ -455,8 +456,8 @@ private fun groupByDay(items: List<AudioItem>): List<Entry> {
     for (item in items) {
         val ms = item.dateAddedSec * 1000
         val label = when {
-            DateUtils.isToday(ms) -> "DZIŚ"
-            DateUtils.isToday(ms + DateUtils.DAY_IN_MILLIS) -> "WCZORAJ"
+            DateUtils.isToday(ms) -> tr("DZIŚ", "TODAY")
+            DateUtils.isToday(ms + DateUtils.DAY_IN_MILLIS) -> tr("WCZORAJ", "YESTERDAY")
             SimpleDateFormat("yyyy", PL).format(Date(ms)) == year -> SimpleDateFormat("EEEE, d MMMM", PL).format(Date(ms)).uppercase(PL)
             else -> SimpleDateFormat("d MMMM yyyy", PL).format(Date(ms)).uppercase(PL)
         }
@@ -515,14 +516,14 @@ private fun RecordingCard(
             ) {
                 Icon(
                     if (playing) Icons.Rounded.Pause else Icons.Rounded.PlayArrow,
-                    contentDescription = if (playing) "Pauza" else "Odtwórz",
+                    contentDescription = if (playing) tr("Pauza", "Pause") else tr("Odtwórz", "Play"),
                     tint = if (active) Palette.Ink else Color.White,
                 )
             }
             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                 Text(item.title, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 val time = SimpleDateFormat("HH:mm", PL).format(Date(item.dateAddedSec * 1000))
-                val markers = if (item.markers.isNotEmpty()) " · znaczniki: ${item.markers.size}" else ""
+                val markers = if (item.markers.isNotEmpty()) tr(" · znaczniki: ${item.markers.size}", " · markers: ${item.markers.size}") else ""
                 Text(
                     "${formatClock(item.durationMs, false)} · ${item.format} · ${formatSize(item.sizeBytes)} · $time$markers",
                     color = Palette.TextDim,
@@ -553,10 +554,10 @@ private fun RecordingCard(
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = { onSkip(-10_000) }, enabled = active) {
-                        Icon(Icons.Rounded.Replay10, "10 s wstecz", tint = if (active) Color.White else Palette.TextFaint)
+                        Icon(Icons.Rounded.Replay10, tr("10 s wstecz", "Back 10 s"), tint = if (active) Color.White else Palette.TextFaint)
                     }
                     IconButton(onClick = { onSkip(10_000) }, enabled = active) {
-                        Icon(Icons.Rounded.Forward10, "10 s naprzód", tint = if (active) Color.White else Palette.TextFaint)
+                        Icon(Icons.Rounded.Forward10, tr("10 s naprzód", "Forward 10 s"), tint = if (active) Color.White else Palette.TextFaint)
                     }
                     Text(
                         String.format(PL, "%.2f", speed).trimEnd('0').trimEnd(',') + "×",
@@ -570,12 +571,12 @@ private fun RecordingCard(
                             .padding(horizontal = 10.dp, vertical = 6.dp),
                     )
                     if (item.markers.isNotEmpty()) {
-                        IconButton(onClick = onNextMarker) { Icon(Icons.Rounded.Flag, "Następny znacznik", tint = Color.White) }
+                        IconButton(onClick = onNextMarker) { Icon(Icons.Rounded.Flag, tr("Następny znacznik", "Next marker"), tint = Color.White) }
                     }
                     Spacer(Modifier.weight(1f))
-                    IconButton(onClick = onRename) { Icon(Icons.Rounded.Edit, "Zmień nazwę", tint = Palette.TextDim) }
-                    IconButton(onClick = onShare) { Icon(Icons.Rounded.Share, "Udostępnij", tint = Palette.TextDim) }
-                    IconButton(onClick = onDelete) { Icon(Icons.Rounded.Delete, "Usuń", tint = Palette.TextDim) }
+                    IconButton(onClick = onRename) { Icon(Icons.Rounded.Edit, tr("Zmień nazwę", "Rename"), tint = Palette.TextDim) }
+                    IconButton(onClick = onShare) { Icon(Icons.Rounded.Share, tr("Udostępnij", "Share"), tint = Palette.TextDim) }
+                    IconButton(onClick = onDelete) { Icon(Icons.Rounded.Delete, tr("Usuń", "Delete"), tint = Palette.TextDim) }
                 }
             }
         }

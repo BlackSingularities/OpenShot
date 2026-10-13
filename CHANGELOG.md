@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.15.0
+
+- **Pełna angielska wersja językowa** / *Full English localization*: cały interfejs, komunikaty, powiadomienia, kafelek, skróty i opisy ustawień.
+- Język wybiera się automatycznie według systemu (także według języka ustawionego dla samej aplikacji w Androidzie 13+) albo ręcznie w Ustawieniach → Ogólne → Język: Auto / Polski / English. Zmiana działa od razu, bez ponownego uruchamiania.
+- Liczby, daty i jednostki formatowane według języka (przecinek lub kropka dziesiętna, kl/s lub fps).
+
 ## 2.14.0
 
 - **Skróty z ikony aplikacji** (przytrzymaj ikonę OpenShot): *Nagraj dźwięk* – od razu zaczyna nagrywać dyktafonem, *Wideo*, *Autoportret* – przedni aparat w trybie zdjęć.

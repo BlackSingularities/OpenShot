@@ -35,6 +35,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        com.blacksingularities.registrer.i18n.Lang.apply(vm.global.language, this)
         enableEdgeToEdge()
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         WindowCompat.getInsetsController(window, window.decorView).apply {

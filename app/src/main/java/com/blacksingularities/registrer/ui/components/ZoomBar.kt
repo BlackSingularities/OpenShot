@@ -1,5 +1,6 @@
 package com.blacksingularities.registrer.ui.components
 
+import com.blacksingularities.registrer.i18n.tr
 import com.blacksingularities.registrer.ui.theme.BlockShape
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
@@ -79,7 +80,7 @@ fun formatZoom(z: Float): String {
         abs(z - z.roundToInt()) < 0.05f && z >= 1f -> String.format(Locale.US, "%.0f", z)
         else -> String.format(Locale.US, "%.1f", z)
     }
-    return text.replace('.', ',')
+    return text.let { if (com.blacksingularities.registrer.i18n.Lang.polish) it.replace('.', ',') else it }
 }
 
 /**
@@ -154,9 +155,9 @@ fun ZoomRocker(
     onRate: (rate: Float, dt: Float) -> Unit,
     modifier: Modifier = Modifier,
     leftIcon: ImageVector = Icons.Rounded.Remove,
-    leftLabel: String = "Oddal",
+    leftLabel: String = tr("Oddal", "Zoom out"),
     rightIcon: ImageVector = Icons.Rounded.Add,
-    rightLabel: String = "Przybliż",
+    rightLabel: String = tr("Przybliż", "Zoom in"),
 ) {
     val haptic = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
@@ -306,7 +307,7 @@ fun ZoomControls(
                 ) {
                     Icon(if (control == 1) Icons.Rounded.CenterFocusStrong else Icons.Rounded.Exposure, null, tint = activeContent(), modifier = Modifier.size(18.dp).graphicsLayer { rotationZ = iconRotation })
                     Text(
-                        if (control == 1) "  Ostrość  " + (focusLabel ?: "AF") else "  Ekspozycja  $evLabel",
+                        if (control == 1) tr("  Ostrość  ", "  Focus  ") + (focusLabel ?: "AF") else tr("  Ekspozycja  $evLabel", "  Exposure  $evLabel"),
                         color = activeContent(),
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
@@ -325,17 +326,17 @@ fun ZoomControls(
                         haptics = haptics,
                         onRate = onFocusRate,
                         leftIcon = Icons.Rounded.LocalFlorist,
-                        leftLabel = "Bliżej",
+                        leftLabel = tr("Bliżej", "Closer"),
                         rightIcon = Icons.Rounded.Landscape,
-                        rightLabel = "Dalej",
+                        rightLabel = tr("Dalej", "Farther"),
                     )
                 } else if (adjustingEv) {
                     ZoomRocker(
                         enabled = true,
                         haptics = haptics,
                         onRate = onEvRate,
-                        leftLabel = "Ciemniej",
-                        rightLabel = "Jaśniej",
+                        leftLabel = tr("Ciemniej", "Darker"),
+                        rightLabel = tr("Jaśniej", "Brighter"),
                     )
                 } else {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -354,7 +355,7 @@ fun ZoomControls(
                     Spacer(Modifier.width(8.dp))
                     GlassIconButton(
                         Icons.Rounded.CenterFocusStrong,
-                        if (focusMode) "Suwak: ostrość – dotknij, by wrócić do zoomu" else "Suwak steruje ostrością",
+                        if (focusMode) tr("Suwak: ostrość – dotknij, by wrócić do zoomu", "Slider: focus – tap to go back to zoom") else tr("Suwak steruje ostrością", "Slider controls focus"),
                         iconRotation,
                         size = 36.dp,
                         active = focusMode,
@@ -365,7 +366,7 @@ fun ZoomControls(
                     Spacer(Modifier.width(6.dp))
                     GlassIconButton(
                         Icons.Rounded.Exposure,
-                        if (evMode) "Suwak EV – dotknij, by wrócić do zoomu" else "Suwak steruje EV",
+                        if (evMode) tr("Suwak EV – dotknij, by wrócić do zoomu", "EV slider – tap to go back to zoom") else tr("Suwak steruje EV", "Slider controls EV"),
                         iconRotation,
                         size = 36.dp,
                         active = evMode,

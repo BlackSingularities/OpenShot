@@ -1,5 +1,6 @@
 package com.blacksingularities.registrer.ui.components
 
+import com.blacksingularities.registrer.i18n.tr
 import android.content.Context
 import android.hardware.Sensor
 import android.hardware.SensorEvent
@@ -167,7 +168,7 @@ fun LevelOverlay(
 
 private fun degrees(v: Float, signed: Boolean = false): String {
     val text = String.format(Locale.US, if (signed) "%+.1f°" else "%.1f°", if (signed) v else abs(v))
-    return text.replace('.', ',').replace('-', '−')
+    return text.let { if (com.blacksingularities.registrer.i18n.Lang.polish) it.replace('.', ',') else it }.replace('-', '−')
 }
 
 private fun DrawScope.label(measurer: TextMeasurer, text: String, color: Color, at: Offset, size: Int = 11, center: Boolean = true) {
@@ -301,7 +302,7 @@ private fun DrawScope.drawAviation(
             }
             drawPath(tri, accent)
         }
-        val text = if (showPitch) "P ${degrees(deviation)} · N ${degrees(pitch, true)}" else "P ${degrees(deviation)}"
+        val text = if (showPitch) tr("P ${degrees(deviation)} · N ${degrees(pitch, true)}", "R ${degrees(deviation)} · P ${degrees(pitch, true)}") else tr("P ${degrees(deviation)}", "R ${degrees(deviation)}")
         label(measurer, text, accent, Offset(c.x, c.y + arcR * 0.45f))
     }
 }

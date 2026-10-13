@@ -1,5 +1,6 @@
 package com.blacksingularities.registrer.ui.components
 
+import com.blacksingularities.registrer.i18n.tr
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -86,7 +87,7 @@ fun ShutterButton(
         modifier
             .size(74.dp)
             .graphicsLayer { scaleX = scale; scaleY = scale; alpha = if (enabled) 1f else 0.45f }
-            .semantics { contentDescription = if (active) "Zatrzymaj" else "Wyzwól migawkę" }
+            .semantics { contentDescription = if (active) tr("Zatrzymaj", "Stop") else tr("Wyzwól migawkę", "Release shutter") }
             .pointerInput(enabled) {
                 if (!enabled) return@pointerInput
                 detectTapGestures(

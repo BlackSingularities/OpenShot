@@ -5,41 +5,56 @@ import android.util.Range
 import com.blacksingularities.registrer.data.ModeSettings
 import com.blacksingularities.registrer.data.PhotoFormat
 import com.blacksingularities.registrer.data.VideoResolution
+import com.blacksingularities.registrer.i18n.tr
 
 /**
  * Kolejność deklaracji = kolejność na karuzeli. Foto i Wideo sąsiadują w środku; w lewo rośnie
  * specjalizacja fotograficzna (aż do Pro), w prawo wideo i nagrania bez obrazu (Audio na końcu).
  * Zdjęcie ruchome stoi tuż przy zwykłym zdjęciu.
  */
-/** [label] – krótka nazwa na karuzeli, [title] – pełna nazwa w ustawieniach i komunikatach. */
-enum class CaptureMode(val label: String, val isPhoto: Boolean, val isVideo: Boolean, val title: String = label) {
+/** [label] – krótka nazwa na karuzeli, [title] – pełna nazwa w ustawieniach i komunikatach (w bieżącym języku). */
+enum class CaptureMode(
+    private val pl: String,
+    private val en: String,
+    val isPhoto: Boolean,
+    val isVideo: Boolean,
+    private val plTitle: String = pl,
+    private val enTitle: String = en,
+) {
     /** Ręczne ISO, czas, ostrość i balans bieli dla fotografii. */
-    PRO("Ręczny", true, false, "Tryb ręczny"),
+    PRO("Ręczny", "Manual", true, false, "Tryb ręczny", "Manual mode"),
     /** Seria klatek łączona w jedno zdjęcie: rozmyty ruch albo smugi świateł. */
-    LONG("Długi czas", true, false, "Długi czas naświetlania"),
-    NIGHT("Noc", true, false),
-    HDR("HDR", true, false),
-    PORTRAIT("Portret", true, false),
+    LONG("Długi czas", "Long exp.", true, false, "Długi czas naświetlania", "Long exposure"),
+    NIGHT("Noc", "Night", true, false),
+    HDR("HDR", "HDR", true, false),
+    PORTRAIT("Portret", "Portrait", true, false),
     /** Zdjęcie ruchome: zdjęcie + ~3 s ruchu wokół naciśnięcia migawki. */
-    MOTION("Ruchome", true, false, "Zdjęcie ruchome"),
-    PHOTO("Zdjęcie", true, false),
-    VIDEO("Wideo", false, true),
+    MOTION("Ruchome", "Motion", true, false, "Zdjęcie ruchome", "Motion photo"),
+    PHOTO("Zdjęcie", "Photo", true, false),
+    VIDEO("Wideo", "Video", false, true),
     /** Zdjęcia co kilka sekund składane na bieżąco w film 1080p / 4K / 8K. */
-    TIMELAPSE("Poklatkowy", false, false, "Film poklatkowy"),
-    SLOWMO("Zwolnione", false, true, "Zwolnione tempo"),
-    AUDIO("Dyktafon", false, false),
+    TIMELAPSE("Poklatkowy", "Time-lapse", false, false, "Film poklatkowy", "Time-lapse video"),
+    SLOWMO("Zwolnione", "Slow-mo", false, true, "Zwolnione tempo", "Slow motion"),
+    AUDIO("Dyktafon", "Recorder", false, false, "Dyktafon", "Voice recorder"),
+    ;
+
+    val label: String get() = tr(pl, en)
+    val title: String get() = tr(plTitle, enTitle)
 }
 
 enum class FlashSetting { OFF, AUTO, ON, TORCH }
 
-enum class WhiteBalance(val label: String, val awbMode: Int) {
-    AUTO("Auto", CameraMetadata.CONTROL_AWB_MODE_AUTO),
-    DAYLIGHT("Słońce", CameraMetadata.CONTROL_AWB_MODE_DAYLIGHT),
-    CLOUDY("Chmury", CameraMetadata.CONTROL_AWB_MODE_CLOUDY_DAYLIGHT),
-    SHADE("Cień", CameraMetadata.CONTROL_AWB_MODE_SHADE),
-    TWILIGHT("Zmierzch", CameraMetadata.CONTROL_AWB_MODE_TWILIGHT),
-    INCANDESCENT("Żarówka", CameraMetadata.CONTROL_AWB_MODE_INCANDESCENT),
-    FLUORESCENT("Świetlówka", CameraMetadata.CONTROL_AWB_MODE_FLUORESCENT),
+enum class WhiteBalance(private val pl: String, private val en: String, val awbMode: Int) {
+    AUTO("Auto", "Auto", CameraMetadata.CONTROL_AWB_MODE_AUTO),
+    DAYLIGHT("Słońce", "Daylight", CameraMetadata.CONTROL_AWB_MODE_DAYLIGHT),
+    CLOUDY("Chmury", "Cloudy", CameraMetadata.CONTROL_AWB_MODE_CLOUDY_DAYLIGHT),
+    SHADE("Cień", "Shade", CameraMetadata.CONTROL_AWB_MODE_SHADE),
+    TWILIGHT("Zmierzch", "Twilight", CameraMetadata.CONTROL_AWB_MODE_TWILIGHT),
+    INCANDESCENT("Żarówka", "Incandescent", CameraMetadata.CONTROL_AWB_MODE_INCANDESCENT),
+    FLUORESCENT("Świetlówka", "Fluorescent", CameraMetadata.CONTROL_AWB_MODE_FLUORESCENT),
+    ;
+
+    val label: String get() = tr(pl, en)
 }
 
 /** Ręczne parametry trybu Pro; `null` oznacza automat. */

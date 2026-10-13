@@ -1,5 +1,6 @@
 package com.blacksingularities.registrer.camera
 
+import com.blacksingularities.registrer.i18n.tr
 import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
@@ -48,7 +49,7 @@ object MomentMedia {
                 map[i] = muxer.addTrack(f)
                 ex.selectTrack(i)
             }
-            check(videoTrack >= 0) { "Brak ścieżki wideo" }
+            check(videoTrack >= 0) { tr("Brak ścieżki wideo", "No video track") }
             muxer.start()
             ex.seekTo(fromUs.coerceAtLeast(0), MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
             val buffer = ByteBuffer.allocate(8 * 1024 * 1024)
@@ -148,7 +149,7 @@ object MomentMedia {
 </x:xmpmeta>""".toByteArray(Charsets.UTF_8)
         val header = "http://ns.adobe.com/xap/1.0/".toByteArray(Charsets.US_ASCII) + byteArrayOf(0)
         val segLength = 2 + header.size + xmp.size
-        require(segLength <= 0xFFFF) { "XMP za duże" }
+        require(segLength <= 0xFFFF) { tr("XMP za duże", "XMP too large") }
         // XMP za segmentem EXIF (APP1), jeśli jest – inaczej tuż po SOI.
         var insertAt = 2
         if (jpeg.size > 6 && (jpeg[2].toInt() and 0xFF) == 0xFF && (jpeg[3].toInt() and 0xFF) == 0xE1) {

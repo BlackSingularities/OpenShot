@@ -1,5 +1,6 @@
 package com.blacksingularities.registrer.audio
 
+import com.blacksingularities.registrer.i18n.tr
 import android.app.PendingIntent
 import android.content.Intent
 import android.os.Build
@@ -32,8 +33,8 @@ class RecorderTileService : TileService() {
         val tile = qsTile ?: return
         val active = AudioEngine.get(this).isActive
         tile.state = if (active) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
-        tile.label = "Dyktafon"
-        tile.subtitle = if (active) "Nagrywa – dotknij, by zakończyć" else "Dotknij, by nagrywać"
+        tile.label = tr("Dyktafon", "Recorder")
+        tile.subtitle = if (active) tr("Nagrywa – dotknij, by zakończyć", "Recording – tap to stop") else tr("Dotknij, by nagrywać", "Tap to record")
         runCatching { tile.updateTile() }
     }
 

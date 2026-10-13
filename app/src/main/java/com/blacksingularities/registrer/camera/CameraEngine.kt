@@ -1,5 +1,6 @@
 package com.blacksingularities.registrer.camera
 
+import com.blacksingularities.registrer.i18n.tr
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
@@ -231,10 +232,10 @@ class CameraEngine(private val context: Context) {
             summary.append("#").append(id).append(": ")
             summary.append(focal?.let { "${it.roundToInt()} mm" } ?: "? mm")
             summary.append(" · ").append(mp.roundToInt()).append(" MP")
-            summary.append(" · od ").append(String.format(java.util.Locale.US, "%.2f", minZ)).append("×")
-            if (logical) summary.append(" · logiczny")
-            if (id == primaryId) summary.append(" · główny")
-            if (id != primaryId && id in physicalIds) summary.append(" · też fizyczny")
+            summary.append(tr(" · od ", " · from ")).append(String.format(java.util.Locale.US, "%.2f", minZ)).append("×")
+            if (logical) summary.append(tr(" · logiczny", " · logical"))
+            if (id == primaryId) summary.append(tr(" · główny", " · main"))
+            if (id != primaryId && id in physicalIds) summary.append(tr(" · też fizyczny", " · also physical"))
 
             // Sensor bywa jednocześnie osobnym aparatem i członkiem aparatu logicznego (Huawei Mate X7:
             // szeroki kąt #4 i fizyczny #4 aparatu #0). Osobny aparat wiąże się niezawodnie, a otwarcie
@@ -252,7 +253,7 @@ class CameraEngine(private val context: Context) {
             for (phys in runCatching { primary.physicalCameraInfos }.getOrDefault(emptySet())) {
                 val id = cameraIdOf(phys) ?: continue
                 val focal = equivalentFocal(phys) ?: continue
-                summary.append("\n  └ fizyczny #").append(id).append(": ").append(focal.roundToInt()).append(" mm")
+                summary.append(tr("\n  └ fizyczny #", "\n  └ physical #")).append(id).append(": ").append(focal.roundToInt()).append(" mm")
                 val factor = roundLens(focal / primaryFocal)
                 if (factor in 0.86f..1.3f) continue
                 // Rejestrujemy zawsze – nawet gdy opis aparatu deklaruje taki zoom, po związaniu
@@ -270,9 +271,9 @@ class CameraEngine(private val context: Context) {
             val hidden = (0..15).map { it.toString() }.filter { it !in listed }.filter { id ->
                 runCatching { cm.getCameraCharacteristics(id) }.isSuccess
             }
-            if (hidden.isNotEmpty()) summary.append(" · ukryte: ").append(hidden.joinToString(", ") { "#$it" })
+            if (hidden.isNotEmpty()) summary.append(tr(" · ukryte: ", " · hidden: ")).append(hidden.joinToString(", ") { "#$it" })
             val unusable = listed - known
-            if (unusable.isNotEmpty()) summary.append(" · niedostępne w CameraX: ").append(unusable.joinToString(", ") { "#$it" })
+            if (unusable.isNotEmpty()) summary.append(tr(" · niedostępne w CameraX: ", " · not in CameraX: ")).append(unusable.joinToString(", ") { "#$it" })
         }
         return aux.sortedBy { it.factor } to summary.toString()
     }
@@ -542,10 +543,10 @@ class CameraEngine(private val context: Context) {
                 val profiles = caps.slowMoProfiles
                 val resolution = s.slowMoResolution.takeIf { wanted -> profiles.any { it.resolution == wanted } }
                     ?: profiles.firstOrNull()?.resolution
-                    ?: error("Urządzenie nie obsługuje zwolnionego tempa")
+                    ?: error(tr("Urządzenie nie obsługuje zwolnionego tempa", "This device does not support slow motion"))
                 val profile = profiles.firstOrNull { it.resolution == resolution && it.fps == s.slowMoFps }
                     ?: profiles.filter { it.resolution == resolution }.minByOrNull { it.fps }
-                    ?: error("Brak klatkażu slow-motion dla ${resolution.label}")
+                    ?: error(tr("Brak klatkażu slow-motion dla ${resolution.label}", "No slow-motion frame rate for ${resolution.label}"))
                 val range = profile.frameRate
                 val info = p.getCameraInfo(base)
                 val recorder = Recorder.Builder()
@@ -621,7 +622,7 @@ class CameraEngine(private val context: Context) {
                         lastError = e
                     }
                 }
-                bound = result ?: throw (lastError ?: IllegalStateException("Nie udało się uruchomić wideo"))
+                bound = result ?: throw (lastError ?: IllegalStateException(tr("Nie udało się uruchomić wideo", "Could not start video")))
             }
 
             CaptureMode.MOTION -> {
@@ -656,7 +657,7 @@ class CameraEngine(private val context: Context) {
                         motionError = e
                     }
                 }
-                bound = motionBound ?: throw (motionError ?: IllegalStateException("Nie udało się uruchomić zdjęć ruchomych"))
+                bound = motionBound ?: throw (motionError ?: IllegalStateException(tr("Nie udało się uruchomić zdjęć ruchomych", "Could not start motion photos")))
                 videoCapture = vc
                 imageCapture = ic
                 active = ActiveSession(snapshotInVideo = ic != null)
@@ -878,7 +879,7 @@ class CameraEngine(private val context: Context) {
         onProgress: (Int) -> Unit = {},
         onPostview: (Bitmap) -> Unit = {},
     ): PhotoResult {
-        val ic = imageCapture ?: return PhotoResult(null, error = "Kamera nie jest gotowa")
+        val ic = imageCapture ?: return PhotoResult(null, error = tr("Kamera nie jest gotowa", "The camera is not ready"))
         ic.targetRotation = rotation
         val format = session.photoFormat
         return suspendCancellableCoroutine { cont ->
@@ -930,7 +931,7 @@ class CameraEngine(private val context: Context) {
     suspend fun captureFrame(): CapturedFrame = suspendCancellableCoroutine { cont ->
         val ic = imageCapture
         if (ic == null) {
-            cont.resumeWithException(IllegalStateException("Kamera nie jest gotowa"))
+            cont.resumeWithException(IllegalStateException(tr("Kamera nie jest gotowa", "The camera is not ready")))
             return@suspendCancellableCoroutine
         }
         ic.takePicture(
@@ -967,7 +968,7 @@ class CameraEngine(private val context: Context) {
 
     /** Seria zdjęć z różną kompensacją ekspozycji (EV) – wejście do fuzji HDR. */
     suspend fun captureBracket(evStops: List<Float>): List<CapturedFrame> {
-        val cam = camera ?: error("Kamera nie jest gotowa")
+        val cam = camera ?: error(tr("Kamera nie jest gotowa", "The camera is not ready"))
         val state = cam.cameraInfo.exposureState
         if (!state.isExposureCompensationSupported) return listOf(captureFrame())
         val step = state.exposureCompensationStep.toFloat().takeIf { it > 0f } ?: return listOf(captureFrame())

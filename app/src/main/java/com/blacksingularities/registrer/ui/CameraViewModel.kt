@@ -1,5 +1,6 @@
 package com.blacksingularities.registrer.ui
 
+import com.blacksingularities.registrer.i18n.tr
 import com.blacksingularities.registrer.data.withGroup
 import com.blacksingularities.registrer.data.SharedGroup
 import com.blacksingularities.registrer.camera.isMoment
@@ -178,6 +179,8 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     var videoPeakDb by mutableFloatStateOf(-90f); private set
     /** Mikrofon albo stan dźwięku (wyciszony, zajęty). */
     var videoAudioNote by mutableStateOf<String?>(null); private set
+    /** Dźwięk filmu ma problem (wyciszony, mikrofon zajęty, błąd). */
+    var videoAudioProblem by mutableStateOf(false); private set
 
     private fun shouldMonitorLevel(): Boolean =
         global.audioMeter && videoMode && mode != CaptureMode.SLOWMO && cfg.videoAudio && recState == RecState.IDLE && inForeground
@@ -382,9 +385,9 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
             if (cfg.photoFormat == PhotoFormat.RAW || cfg.photoFormat == PhotoFormat.RAW_JPEG) {
                 message = when {
                     session.photoFormat != cfg.photoFormat ->
-                        "${cfg.photoFormat.label} niedostępny dla wybranego obiektywu – użyto JPEG. Wybierz obiektyw 1× albo sprawdź diagnostykę RAW w ustawieniach."
+                        tr("${cfg.photoFormat.label} niedostępny dla wybranego obiektywu – użyto JPEG. Wybierz obiektyw 1× albo sprawdź diagnostykę RAW w ustawieniach.", "${cfg.photoFormat.label} is not available for the selected lens – JPEG was used. Pick the 1× lens or check RAW diagnostics in settings.")
                     c.rawCameraId != null && activeCameraId == null ->
-                        "${cfg.photoFormat.label} aktywny · sensor RAW #${c.rawCameraId}"
+                        tr("${cfg.photoFormat.label} aktywny · sensor RAW #${c.rawCameraId}", "${cfg.photoFormat.label} active · RAW sensor #${c.rawCameraId}")
                     else -> null
                 }
             }
@@ -411,9 +414,9 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
                 if (failedId != null) brokenLenses = brokenLenses + failedId
                 activeCameraId = null
                 zoomTarget = if ((failed?.factor ?: 1f) < 1f) zoomMin.coerceAtMost(1f) else 1f
-                message = "Nie udało się włączyć obiektywu ${failed?.factor?.let { formatRatio(it) + "×" } ?: "dodatkowego"}: $reason. Wracam do aparatu głównego."
+                message = tr("Nie udało się włączyć obiektywu ${failed?.factor?.let { formatRatio(it) + "×" } ?: "dodatkowego"}: $reason. Wracam do aparatu głównego.", "Could not start the ${failed?.factor?.let { formatRatio(it) + "×" } ?: "extra"} lens: $reason. Back to the main camera.")
             } else {
-                message = "Kamera niedostępna: $reason"
+                message = tr("Kamera niedostępna: $reason", "Camera unavailable: $reason")
             }
         }
     }
@@ -440,8 +443,10 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
 
     fun updateGlobal(transform: (GlobalSettings) -> GlobalSettings) {
         val before = global.geotag
+        val beforeLanguage = global.language
         global = transform(global)
         store.saveGlobal(global)
+        if (global.language != beforeLanguage) com.blacksingularities.registrer.i18n.Lang.apply(global.language, ctx)
         engine.assist = assistConfig()
         if (!global.peaking && !global.zebra) assistFrame = null
         if (global.geotag != before) refreshLocation()
@@ -633,10 +638,10 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
             mode == CaptureMode.SLOWMO -> {
                 val all = slowMoFpsOptions()
                 val fps = if (cfg.slowMoFps in all) cfg.slowMoFps else all.minOrNull() ?: 0
-                "$fps kl/s"
+                tr("$fps kl/s", "$fps fps")
             }
-            cfg.videoFps == VideoFps.AUTO -> if (session.fps > 0) "${session.fps} kl/s" else "Auto kl/s"
-            else -> "${cfg.videoFps.fps} kl/s"
+            cfg.videoFps == VideoFps.AUTO -> if (session.fps > 0) tr("${session.fps} kl/s", "${session.fps} fps") else tr("Auto kl/s", "Auto fps")
+            else -> tr("${cfg.videoFps.fps} kl/s", "${cfg.videoFps.fps} fps")
         }
 
     fun cyclePhotoFormat() {
@@ -742,13 +747,13 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
             else -> {
                 setZoomTarget(value, if (videoMode) 4f else 14f)
                 if (value < zoomMin - 0.01f) {
-                    message = "Szeroki kąt niedostępny: aparat pozwala od ${formatRatio(zoomMin)}×, a osobnego sensora system nie udostępnia"
+                    message = tr("Szeroki kąt niedostępny: aparat pozwala od ${formatRatio(zoomMin)}×, a osobnego sensora system nie udostępnia", "Ultra-wide unavailable: the camera starts at ${formatRatio(zoomMin)}× and the system exposes no separate sensor")
                 }
             }
         }
     }
 
-    private fun formatRatio(v: Float) = String.format(java.util.Locale.US, "%.1f", v).replace('.', ',')
+    private fun formatRatio(v: Float) = String.format(java.util.Locale.US, "%.1f", v).let { if (com.blacksingularities.registrer.i18n.Lang.polish) it.replace('.', ',') else it }
 
     /**
      * Osobny obiektyw związał się, ale nie przesyła obrazu (częste przy sensorach fizycznych,
@@ -760,7 +765,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         brokenLenses = brokenLenses + id
         activeCameraId = null
         zoomTarget = if ((lens?.factor ?: 1f) < 1f) primaryZoomMin else 1f
-        message = "Obiektyw ${lens?.factor?.let { formatRatio(it) + "×" } ?: "dodatkowy"} nie przesyła obrazu – używam zoomu aparatu głównego"
+        message = tr("Obiektyw ${lens?.factor?.let { formatRatio(it) + "×" } ?: "dodatkowy"} nie przesyła obrazu – używam zoomu aparatu głównego", "The ${lens?.factor?.let { formatRatio(it) + "×" } ?: "extra"} lens sends no image – using the main camera zoom")
     }
 
     private fun canSwitchCamera() = recState == RecState.IDLE && !bursting && processing == null && !intervalRunning
@@ -800,7 +805,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
                 }
                 belowMin && wide == null && zoomMin > 0.95f && underZoom < 0.97f -> {
                     if (message == null) {
-                        message = "Szeroki kąt niedostępny: aparat pozwala od ${formatRatio(zoomMin)}×, a osobnego sensora system nie udostępnia"
+                        message = tr("Szeroki kąt niedostępny: aparat pozwala od ${formatRatio(zoomMin)}×, a osobnego sensora system nie udostępnia", "Ultra-wide unavailable: the camera starts at ${formatRatio(zoomMin)}× and the system exposes no separate sensor")
                     }
                 }
             }
@@ -883,7 +888,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
             return
         }
         if (session.photoFormat != PhotoFormat.JPEG) {
-            message = "Seria działa tylko w formacie JPEG"
+            message = tr("Seria działa tylko w formacie JPEG", "Burst works only in JPEG")
             return
         }
         bursting = true
@@ -904,7 +909,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
             }
             bursting = false
             lastUri?.let { onSaved(it, false) }
-            if (burstCount > 0) message = "Seria: $burstCount zdjęć"
+            if (burstCount > 0) message = tr("Seria: $burstCount zdjęć", "Burst: $burstCount photos")
         }
     }
 
@@ -925,14 +930,14 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
                 if (wait > 0) delay(wait)
             }
             intervalRunning = false
-            message = "Interwałometr: $intervalShot zdjęć"
+            message = tr("Interwałometr: $intervalShot zdjęć", "Intervalometer: $intervalShot photos")
         }
     }
 
     private fun stopInterval() {
         intervalJob?.cancel()
         intervalRunning = false
-        message = "Interwałometr zatrzymany po $intervalShot zdjęciach"
+        message = tr("Interwałometr zatrzymany po $intervalShot zdjęciach", "Intervalometer stopped after $intervalShot photos")
     }
 
     fun onVolumeKey(up: Boolean, repeat: Int): Boolean = when (global.volumeAction) {
@@ -991,7 +996,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
             mode.isMoment -> momentCapture()
             else -> {
                 val hardware = session.extension != null
-                if (hardware) processing = Processing("Przetwarzanie sprzętowe", null)
+                if (hardware) processing = Processing(tr("Przetwarzanie sprzętowe", "Hardware processing"), null)
                 playShutter()
                 val tag = when (mode) {
                     CaptureMode.NIGHT -> "NIGHT"
@@ -1004,7 +1009,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
                     rotation,
                     mirror(),
                     tag,
-                    onProgress = { p -> processing = Processing("Przetwarzanie sprzętowe", p / 100f) },
+                    onProgress = { p -> processing = Processing(tr("Przetwarzanie sprzętowe", "Hardware processing"), p / 100f) },
                     onPostview = { bmp -> thumbnail = bmp },
                 )
                 processing = null
@@ -1012,13 +1017,13 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
                 if (uri != null) {
                     val crop = cropZoom
                     if (crop > 1.01f && session.photoFormat == PhotoFormat.JPEG) {
-                        processing = Processing("Zoom cyfrowy ×${crop.toInt()}", null)
+                        processing = Processing(tr("Zoom cyfrowy ×${crop.toInt()}", "Digital zoom ×${crop.toInt()}"), null)
                         withContext(Dispatchers.IO) { runCatching { cropSavedPhoto(uri, crop) } }
                         processing = null
                     }
                     onSaved(uri, false, result.secondary)
                 } else {
-                    message = "Nie zapisano zdjęcia: ${result.error}"
+                    message = tr("Nie zapisano zdjęcia: ${result.error}", "Photo not saved: ${result.error}")
                 }
             }
         }
@@ -1031,15 +1036,15 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun nightCapture() {
         val n = (if (cfg.nightFrames == 0) autoNightFrames() else cfg.nightFrames).coerceIn(2, 16)
         val frames = mutableListOf<CapturedFrame>()
-        processing = Processing("Nie ruszaj telefonem", 0f)
+        processing = Processing(tr("Nie ruszaj telefonem", "Hold the phone still"), 0f)
         playShutter()
         try {
             repeat(n) { i ->
                 frames += engine.captureFrame()
-                processing = Processing("Nie ruszaj telefonem · ${i + 1}/$n", 0.35f * (i + 1) / n)
+                processing = Processing(tr("Nie ruszaj telefonem · ${i + 1}/$n", "Hold the phone still · ${i + 1}/$n"), 0.35f * (i + 1) / n)
             }
-            val bitmap = NightStacker.stack(frames.map { it.bytes }) { p -> progress("Składanie $n klatek", 0.35f + 0.55f * p) }
-            processing = Processing("Zapisywanie", 0.95f)
+            val bitmap = NightStacker.stack(frames.map { it.bytes }) { p -> progress(tr("Składanie $n klatek", "Merging $n frames"), 0.35f + 0.55f * p) }
+            processing = Processing(tr("Zapisywanie", "Saving"), 0.95f)
             val q = cfg.jpegQuality
             val uri = withContext(Dispatchers.IO) {
                 try {
@@ -1052,14 +1057,14 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         } catch (oom: OutOfMemoryError) {
             saveFallback(frames, "NIGHT")
         } catch (e: Exception) {
-            if (frames.isNotEmpty()) saveFallback(frames, "NIGHT") else message = "Błąd trybu nocnego: ${e.message}"
+            if (frames.isNotEmpty()) saveFallback(frames, "NIGHT") else message = tr("Błąd trybu nocnego: ${e.message}", "Night mode error: ${e.message}")
         } finally {
             processing = null
         }
     }
 
     private suspend fun hdrCapture() {
-        processing = Processing("Seria ekspozycji", 0f)
+        processing = Processing(tr("Seria ekspozycji", "Exposure bracket"), 0f)
         playShutter()
         var frames: List<CapturedFrame> = emptyList()
         try {
@@ -1070,8 +1075,8 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
                 return
             }
             val refIndex = frames.size / 2
-            val bitmap = ExposureFusion.fuse(frames.map { it.bytes }, refIndex) { p -> progress("Fuzja HDR", 0.3f + 0.65f * p) }
-            processing = Processing("Zapisywanie", 0.96f)
+            val bitmap = ExposureFusion.fuse(frames.map { it.bytes }, refIndex) { p -> progress(tr("Fuzja HDR", "HDR fusion"), 0.3f + 0.65f * p) }
+            processing = Processing(tr("Zapisywanie", "Saving"), 0.96f)
             val q = cfg.jpegQuality
             val uri = withContext(Dispatchers.IO) {
                 try {
@@ -1084,7 +1089,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         } catch (oom: OutOfMemoryError) {
             saveFallback(frames, "HDR")
         } catch (e: Exception) {
-            if (frames.isNotEmpty()) saveFallback(frames, "HDR") else message = "Błąd HDR: ${e.message}"
+            if (frames.isNotEmpty()) saveFallback(frames, "HDR") else message = tr("Błąd HDR: ${e.message}", "HDR error: ${e.message}")
         } finally {
             processing = null
         }
@@ -1098,22 +1103,22 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         val seconds = cfg.longSeconds.coerceIn(1, 30)
         val trails = cfg.longBlend == com.blacksingularities.registrer.data.LongBlend.TRAILS
         val frames = mutableListOf<CapturedFrame>()
-        processing = Processing("Naświetlanie – nie ruszaj telefonem", 0f)
+        processing = Processing(tr("Naświetlanie – nie ruszaj telefonem", "Exposing – hold the phone still"), 0f)
         playShutter()
         val start = SystemClock.elapsedRealtime()
         try {
             while (frames.size < LONG_MAX_FRAMES) {
                 frames += engine.captureFrame()
                 val elapsed = SystemClock.elapsedRealtime() - start
-                processing = Processing("Naświetlanie · ${frames.size} kl.", 0.4f * (elapsed / (seconds * 1000f)).coerceAtMost(1f))
+                processing = Processing(tr("Naświetlanie · ${frames.size} kl.", "Exposing · ${frames.size} fr."), 0.4f * (elapsed / (seconds * 1000f)).coerceAtMost(1f))
                 if (elapsed >= seconds * 1000L && frames.size >= 3) break
             }
             if (global.shutterSound) sound.play(MediaActionSound.SHUTTER_CLICK)
             val n = frames.size
             val bitmap = com.blacksingularities.registrer.computational.LongExposure.blend(frames.map { it.bytes }, trails, cfg.longAlign) { p ->
-                progress("Składanie $n klatek", 0.4f + 0.55f * p)
+                progress(tr("Składanie $n klatek", "Merging $n frames"), 0.4f + 0.55f * p)
             }
-            processing = Processing("Zapisywanie", 0.96f)
+            processing = Processing(tr("Zapisywanie", "Saving"), 0.96f)
             val q = cfg.jpegQuality
             val label = if (trails) "smugi" else "rozmycie"
             val uri = withContext(Dispatchers.IO) {
@@ -1127,22 +1132,22 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         } catch (oom: OutOfMemoryError) {
             saveFallback(frames, "LONG")
         } catch (e: Exception) {
-            if (frames.isNotEmpty()) saveFallback(frames, "LONG") else message = "Błąd długiego czasu: ${e.message}"
+            if (frames.isNotEmpty()) saveFallback(frames, "LONG") else message = tr("Błąd długiego czasu: ${e.message}", "Long exposure error: ${e.message}")
         } finally {
             processing = null
         }
     }
 
     private suspend fun portraitCapture() {
-        processing = Processing("Portret", 0f)
+        processing = Processing(tr("Portret", "Portrait"), 0f)
         playShutter()
         var frame: CapturedFrame? = null
         try {
             frame = engine.captureFrame()
             val bitmap = PortraitBokeh.render(frame.bytes, frame.rotation, mirror(), cfg.portraitBlur / 100f) { p ->
-                progress("Rozmywanie tła", p)
+                progress(tr("Rozmywanie tła", "Blurring the background"), p)
             }
-            processing = Processing("Zapisywanie", 0.97f)
+            processing = Processing(tr("Zapisywanie", "Saving"), 0.97f)
             val q = cfg.jpegQuality
             val uri = withContext(Dispatchers.IO) {
                 try {
@@ -1155,7 +1160,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         } catch (oom: OutOfMemoryError) {
             frame?.let { saveFallback(listOf(it), "PORTRAIT") }
         } catch (e: Exception) {
-            if (frame != null) saveFallback(listOf(frame), "PORTRAIT") else message = "Błąd portretu: ${e.message}"
+            if (frame != null) saveFallback(listOf(frame), "PORTRAIT") else message = tr("Błąd portretu: ${e.message}", "Portrait error: ${e.message}")
         } finally {
             processing = null
         }
@@ -1185,7 +1190,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
                 zoomTarget = 1f
                 pro = ProSettings()
             }
-            message = "Autoportret głównym aparatem – złóż telefon lub dotknij ikony, by wrócić"
+            message = tr("Autoportret głównym aparatem – złóż telefon lub dotknij ikony, by wrócić", "Selfie with the main camera – fold the phone or tap the icon to go back")
         }
     }
 
@@ -1278,10 +1283,10 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
                             android.graphics.BitmapFactory.decodeByteArray(frame.bytes, 0, frame.bytes.size, bounds)
                             val fit = com.blacksingularities.registrer.camera.TimelapseWriter.fitSize(
                                 res.width, res.height, bounds.outWidth, bounds.outHeight,
-                            ) ?: error("Koder nie obsługuje żadnej rozdzielczości")
+                            ) ?: error(tr("Koder nie obsługuje żadnej rozdzielczości", "The encoder supports no resolution"))
                             writer = com.blacksingularities.registrer.camera.TimelapseWriter.create(
                                 out, fit.first, fit.second, fps, frame.rotation, c.tlDeflicker,
-                            ) ?: error("Nie udało się uruchomić kodera wideo")
+                            ) ?: error(tr("Nie udało się uruchomić kodera wideo", "Could not start the video encoder"))
                             withContext(Dispatchers.Main) {
                                 tlSize = when (fit.first) {
                                     7680 -> "8K"
@@ -1289,7 +1294,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
                                     1920 -> "1080p"
                                     else -> "${fit.second}p"
                                 }
-                                if (fit.first < res.width) message = "Film w ${tlSize} – aparat lub koder nie pozwala na ${res.label}"
+                                if (fit.first < res.width) message = tr("Film w ${tlSize} – aparat lub koder nie pozwala na ${res.label}", "Video in ${tlSize} – the camera or encoder does not allow ${res.label}")
                             }
                         }
                         writer?.addFrame(frame.bytes)
@@ -1316,10 +1321,10 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
             writer?.let { w -> withContext(Dispatchers.Default) { w.finish() } }
             out.delete()
             tlRunning = false
-            message = error?.let { "Film poklatkowy przerwany: $it" } ?: "Za mało klatek na film (potrzeba co najmniej 2)"
+            message = error?.let { tr("Film poklatkowy przerwany: $it", "Time-lapse interrupted: $it") } ?: tr("Za mało klatek na film (potrzeba co najmniej 2)", "Not enough frames for a video (at least 2 needed)")
             return
         }
-        processing = Processing("Zapisywanie filmu poklatkowego", null)
+        processing = Processing(tr("Zapisywanie filmu poklatkowego", "Saving the time-lapse"), null)
         val uri = withContext(Dispatchers.IO) {
             val ok = writer.finish()
             if (ok) runCatching { MediaSaver.saveVideoFile(ctx, out, "TL") }.getOrNull() else null
@@ -1330,10 +1335,10 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         if (uri != null) {
             onSaved(uri, true)
             val seconds = frames.toFloat() / cfg.tlFps
-            message = String.format(java.util.Locale("pl", "PL"), "Zapisano film poklatkowy: %d klatek · %.1f s", frames, seconds) +
-                (error?.let { " (przerwano: $it)" } ?: "")
+            message = String.format(com.blacksingularities.registrer.i18n.Lang.locale, tr("Zapisano film poklatkowy: %d klatek · %.1f s", "Time-lapse saved: %d frames · %.1f s"), frames, seconds) +
+                (error?.let { tr(" (przerwano: $it)", " (interrupted: $it)") } ?: "")
         } else {
-            message = "Nie udało się zapisać filmu poklatkowego"
+            message = tr("Nie udało się zapisać filmu poklatkowego", "Could not save the time-lapse")
         }
     }
 
@@ -1390,7 +1395,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun momentCapture() {
         val seg = segment
         if (seg == null) {
-            message = "Bufor nagrania jeszcze się uruchamia – spróbuj za chwilę"
+            message = tr("Bufor nagrania jeszcze się uruchamia – spróbuj za chwilę", "The recording buffer is still starting – try again in a moment")
             return
         }
         momentBusy = true
@@ -1398,7 +1403,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
             playShutter()
             val pressMs = SystemClock.elapsedRealtime() - seg.startedAt
             val photo = if (session.snapshotInVideo) runCatching { engine.captureFrame() }.getOrNull() else null
-            processing = Processing("Zdjęcie ruchome", null)
+            processing = Processing(tr("Zdjęcie ruchome", "Motion photo"), null)
             delay(1500)
             val ok = momentLock.withLock {
                 if (segment === seg) segment = null
@@ -1407,7 +1412,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
                 done
             }
             if (!ok) {
-                message = "Nie udało się zapisać fragmentu nagrania"
+                message = tr("Nie udało się zapisać fragmentu nagrania", "Could not save the recording clip")
                 seg.file.delete()
                 return
             }
@@ -1420,7 +1425,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
                     val presentationUs = (pressMs * 1000 - base).coerceAtLeast(0)
                     val still = photo?.let { MomentMedia.jpegWithOrientation(ctx, it.bytes, it.rotation) }
                         ?: MomentMedia.frameAt(seg.file, pressMs * 1000)
-                        ?: error("Brak klatki zdjęcia")
+                        ?: error(tr("Brak klatki zdjęcia", "No photo frame"))
                     val file = MomentMedia.buildMotionPhoto(still, clip.readBytes(), presentationUs)
                     MomentMedia.saveImage(ctx, file)
                 } catch (e: Exception) {
@@ -1432,9 +1437,9 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
             }
             if (saved != null) {
                 onSaved(saved, false)
-                message = "Zapisano zdjęcie ruchome"
+                message = tr("Zapisano zdjęcie ruchome", "Motion photo saved")
             } else {
-                message = "Nie udało się zapisać chwili"
+                message = tr("Nie udało się zapisać chwili", "Could not save the moment")
             }
         } finally {
             processing = null
@@ -1449,7 +1454,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         }
         if (uri != null) {
             onSaved(uri, false)
-            message = "Zapisano pojedynczą klatkę"
+            message = tr("Zapisano pojedynczą klatkę", "Saved a single frame")
         }
     }
 
@@ -1475,7 +1480,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         if (!cameraReady) return
         if (recState == RecState.IDLE) {
             val withAudio = cfg.videoAudio && mode != CaptureMode.SLOWMO
-            if (withAudio && !hasAudioPermission()) message = "Brak uprawnienia do mikrofonu – wideo bez dźwięku"
+            if (withAudio && !hasAudioPermission()) message = tr("Brak uprawnienia do mikrofonu – wideo bez dźwięku", "No microphone permission – video without sound")
             levelJob?.cancel()
             levelMonitor.stopAndWait()
             val started = engine.startRecording(surfaceRotation(), withAudio) { onVideoEvent(it) }
@@ -1517,7 +1522,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             playShutter(quiet = true)
             val r = engine.takePhoto(surfaceRotation(), false, "VIDSNAP")
-            if (r.uri != null) message = "Zapisano kadr z wideo"
+            if (r.uri != null) message = tr("Zapisano kadr z wideo", "Saved a still from the video")
         }
     }
 
@@ -1527,13 +1532,14 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
             val stats = event.recordingStats.audioStats
             setVideoLevel(stats.audioAmplitude.toFloat())
             when (stats.audioState) {
-                androidx.camera.video.AudioStats.AUDIO_STATE_MUTED -> videoAudioNote = "wyciszony"
-                androidx.camera.video.AudioStats.AUDIO_STATE_SOURCE_SILENCED -> videoAudioNote = "mikrofon zajęty przez inną aplikację"
-                androidx.camera.video.AudioStats.AUDIO_STATE_DISABLED -> videoAudioNote = "nagrywanie bez dźwięku"
+                androidx.camera.video.AudioStats.AUDIO_STATE_MUTED -> videoAudioNote = tr("wyciszony", "muted")
+                androidx.camera.video.AudioStats.AUDIO_STATE_SOURCE_SILENCED -> videoAudioNote = tr("mikrofon zajęty przez inną aplikację", "microphone in use by another app")
+                androidx.camera.video.AudioStats.AUDIO_STATE_DISABLED -> videoAudioNote = tr("nagrywanie bez dźwięku", "recording without sound")
                 androidx.camera.video.AudioStats.AUDIO_STATE_SOURCE_ERROR, androidx.camera.video.AudioStats.AUDIO_STATE_ENCODER_ERROR ->
-                    videoAudioNote = "błąd dźwięku"
-                else -> if (videoAudioNote?.startsWith("w") == true || videoAudioNote?.startsWith("b") == true) videoAudioNote = null
+                    videoAudioNote = tr("błąd dźwięku", "audio error")
+                else -> if (videoAudioProblem) videoAudioNote = null
             }
+            videoAudioProblem = stats.audioState != androidx.camera.video.AudioStats.AUDIO_STATE_ACTIVE
         }
         when (event) {
             is VideoRecordEvent.Pause -> recState = RecState.PAUSED
@@ -1546,10 +1552,10 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
                 if (uri != Uri.EMPTY) {
                     onSaved(uri, true)
                     if (event.hasError() && event.error != VideoRecordEvent.Finalize.ERROR_NONE) {
-                        message = "Nagranie zakończone z ostrzeżeniem (${event.error})"
+                        message = tr("Nagranie zakończone z ostrzeżeniem (${event.error})", "Recording finished with a warning (${event.error})")
                     }
                 } else {
-                    message = "Nie udało się zapisać wideo (${event.error})"
+                    message = tr("Nie udało się zapisać wideo (${event.error})", "Could not save the video (${event.error})")
                 }
             }
             else -> Unit
@@ -1564,7 +1570,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun startAudio() {
         if (!hasAudioPermission()) {
-            message = "Zezwól na dostęp do mikrofonu w ustawieniach systemu"
+            message = tr("Zezwól na dostęp do mikrofonu w ustawieniach systemu", "Allow microphone access in system settings")
             return
         }
         if (audio.isActive) return
@@ -1583,12 +1589,12 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
             ),
         )
         if (error != null) {
-            message = "Nie udało się uruchomić nagrywania: $error"
+            message = tr("Nie udało się uruchomić nagrywania: $error", "Could not start recording: $error")
             return
         }
         AudioRecordService.start(ctx)
         if (c.audioInput == com.blacksingularities.registrer.data.AudioInput.EXTERNAL && audio.externalInput() == null) {
-            message = "Brak mikrofonu zewnętrznego – nagrywam wbudowanym"
+            message = tr("Brak mikrofonu zewnętrznego – nagrywam wbudowanym", "No external microphone – recording with the built-in one")
         }
         amplitudes.clear()
         audioPeakDb = -90f
@@ -1646,10 +1652,10 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         if (global.shutterSound && inForeground) sound.play(MediaActionSound.STOP_VIDEO_RECORDING)
         val length = com.blacksingularities.registrer.ui.components.formatClock(result.durationMs, false)
         message = when {
-            result.uri == null && result.error != null -> "Nie zapisano nagrania: ${result.error}"
-            result.uri == null -> "Nagranie było zbyt krótkie"
-            result.autoStopped -> "Automatyczne zatrzymanie – zapisano $length"
-            else -> "Zapisano nagranie · $length"
+            result.uri == null && result.error != null -> tr("Nie zapisano nagrania: ${result.error}", "Recording not saved: ${result.error}")
+            result.uri == null -> tr("Nagranie było zbyt krótkie", "The recording was too short")
+            result.autoStopped -> tr("Automatyczne zatrzymanie – zapisano $length", "Auto stop – saved $length")
+            else -> tr("Zapisano nagranie · $length", "Recording saved · $length")
         }
         refreshRecordings()
     }
@@ -1696,7 +1702,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
             playPaused = false
             applySpeed()
         } catch (e: Exception) {
-            message = "Nie można odtworzyć: ${e.message}"
+            message = tr("Nie można odtworzyć: ${e.message}", "Cannot play: ${e.message}")
             stopPlayback()
         }
     }
@@ -1756,7 +1762,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         if (playingId == item.id) stopPlayback()
         viewModelScope.launch {
             val ok = withContext(Dispatchers.IO) { audio.delete(item) }
-            if (!ok) message = "Nie udało się usunąć nagrania"
+            if (!ok) message = tr("Nie udało się usunąć nagrania", "Could not delete the recording")
             refreshRecordings()
         }
     }
@@ -1765,7 +1771,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         if (title.trim() == item.title) return
         viewModelScope.launch {
             val ok = withContext(Dispatchers.IO) { audio.rename(item, title) }
-            if (!ok) message = "Nie udało się zmienić nazwy"
+            if (!ok) message = tr("Nie udało się zmienić nazwy", "Could not rename")
             refreshRecordings()
         }
     }
@@ -1784,10 +1790,10 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
                     if (!manual && global.autoDownloadUpdates) downloadUpdateInternal(info)
                 } else {
                     update = UpdateState.UpToDate
-                    if (manual) message = "Masz najnowszą wersję (${UpdateManager.currentVersion})"
+                    if (manual) message = tr("Masz najnowszą wersję (${UpdateManager.currentVersion})", "You have the latest version (${UpdateManager.currentVersion})")
                 }
             } catch (e: Exception) {
-                update = if (manual) UpdateState.Failed(e.message ?: "Brak połączenia") else UpdateState.Idle
+                update = if (manual) UpdateState.Failed(e.message ?: tr("Brak połączenia", "No connection")) else UpdateState.Idle
             }
         }
     }
@@ -1811,7 +1817,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
             }
             update = UpdateState.Ready(info, file)
         } catch (e: Exception) {
-            update = UpdateState.Failed("Pobieranie nieudane: ${e.message}")
+            update = UpdateState.Failed(tr("Pobieranie nieudane: ${e.message}", "Download failed: ${e.message}"))
         }
     }
 
@@ -1820,7 +1826,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         val ready = update as? UpdateState.Ready ?: return true
         if (!UpdateManager.canInstall(ctx)) {
             UpdateManager.openInstallPermissionSettings(ctx)
-            message = "Zezwól aplikacji OpenShot na instalowanie aktualizacji i spróbuj ponownie"
+            message = tr("Zezwól aplikacji OpenShot na instalowanie aktualizacji i spróbuj ponownie", "Allow OpenShot to install updates and try again")
             return false
         }
         update = UpdateState.Installing(ready.info)
@@ -1828,7 +1834,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
             try {
                 UpdateManager.install(ctx, ready.file)
             } catch (e: Exception) {
-                update = UpdateState.Failed("Instalacja nieudana: ${e.message}")
+                update = UpdateState.Failed(tr("Instalacja nieudana: ${e.message}", "Installation failed: ${e.message}"))
             }
         }
         return true

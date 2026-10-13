@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.SharedPreferences
 import com.blacksingularities.registrer.camera.CaptureMode
 import com.blacksingularities.registrer.camera.FlashSetting
+import com.blacksingularities.registrer.i18n.AppLanguage
+import com.blacksingularities.registrer.i18n.tr
 
 /** Proporcje kadru; [ratio] to szerokość / wysokość w orientacji pionowej. */
 enum class AspectRatioMode(val label: String, val ratio: Float) {
@@ -12,23 +14,32 @@ enum class AspectRatioMode(val label: String, val ratio: Float) {
 }
 
 /** Siatki kompozycyjne – można włączyć dowolny zestaw naraz. */
-enum class GridType(val label: String) {
-    THIRDS("3×3"),
-    GOLDEN("Złoty podział"),
-    SQUARE("Kwadrat"),
-    DIAGONAL("Przekątne"),
-    CENTER("Celownik"),
+enum class GridType(private val pl: String, private val en: String) {
+    THIRDS("3×3", "3×3"),
+    GOLDEN("Złoty podział", "Golden ratio"),
+    SQUARE("Kwadrat", "Square"),
+    DIAGONAL("Przekątne", "Diagonals"),
+    CENTER("Celownik", "Crosshair"),
+    ;
+
+    val label: String get() = tr(pl, en)
 }
 
-enum class HistogramMode(val label: String) {
-    LUMA("Jasność"),
-    RGB("RGB"),
+enum class HistogramMode(private val pl: String, private val en: String) {
+    LUMA("Jasność", "Luma"),
+    RGB("RGB", "RGB"),
+    ;
+
+    val label: String get() = tr(pl, en)
 }
 
-enum class HistogramSize(val label: String, val widthDp: Int, val heightDp: Int) {
-    SMALL("Mały", 92, 42),
-    MEDIUM("Średni", 120, 56),
-    LARGE("Duży", 164, 76),
+enum class HistogramSize(private val pl: String, private val en: String, val widthDp: Int, val heightDp: Int) {
+    SMALL("Mały", "Small", 92, 42),
+    MEDIUM("Średni", "Medium", 120, 56),
+    LARGE("Duży", "Large", 164, 76),
+    ;
+
+    val label: String get() = tr(pl, en)
 }
 
 enum class PhotoFormat(val label: String) {
@@ -38,10 +49,13 @@ enum class PhotoFormat(val label: String) {
     RAW("RAW"),
 }
 
-enum class CapturePriority(val label: String) {
-    SPEED("Szybkość"),
-    BALANCED("Balans"),
-    QUALITY("Jakość"),
+enum class CapturePriority(private val pl: String, private val en: String) {
+    SPEED("Szybkość", "Speed"),
+    BALANCED("Balans", "Balanced"),
+    QUALITY("Jakość", "Quality"),
+    ;
+
+    val label: String get() = tr(pl, en)
 }
 
 enum class VideoResolution(val label: String) {
@@ -50,17 +64,23 @@ enum class VideoResolution(val label: String) {
     HD("720p"),
 }
 
-enum class VideoFps(val label: String, val fps: Int) {
-    AUTO("Auto", 0),
-    F24("24", 24),
-    F30("30", 30),
-    F60("60", 60),
+enum class VideoFps(private val pl: String, private val en: String, val fps: Int) {
+    AUTO("Auto", "Auto", 0),
+    F24("24", "24", 24),
+    F30("30", "30", 30),
+    F60("60", "60", 60),
+    ;
+
+    val label: String get() = tr(pl, en)
 }
 
-enum class VideoBitrate(val label: String) {
-    AUTO("Auto"),
-    HIGH("Wysoki"),
-    MAX("Maks."),
+enum class VideoBitrate(private val pl: String, private val en: String) {
+    AUTO("Auto", "Auto"),
+    HIGH("Wysoki", "High"),
+    MAX("Maks.", "Max"),
+    ;
+
+    val label: String get() = tr(pl, en)
 }
 
 enum class TimelapseResolution(val label: String, val width: Int, val height: Int) {
@@ -69,73 +89,132 @@ enum class TimelapseResolution(val label: String, val width: Int, val height: In
     UHD8K("8K", 7680, 4320),
 }
 
-/** Gotowe przyspieszenia z podpowiedzią sceny. */
-val TIMELAPSE_SPEEDS = listOf(15 to "Tłum", 30 to "Ulica", 60 to "Ruch", 120 to "Chmury", 300 to "Zachód", 600 to "Gwiazdy", 1800 to "Budowa")
+/** Gotowe przyspieszenia z podpowiedzią sceny (nazwy w bieżącym języku). */
+val TIMELAPSE_SPEEDS: List<Pair<Int, String>>
+    get() = listOf(
+        15 to tr("Tłum", "Crowd"),
+        30 to tr("Ulica", "Street"),
+        60 to tr("Ruch", "Traffic"),
+        120 to tr("Chmury", "Clouds"),
+        300 to tr("Zachód", "Sunset"),
+        600 to tr("Gwiazdy", "Stars"),
+        1800 to tr("Budowa", "Building"),
+    )
 
-enum class LevelStyle(val label: String) {
-    HORIZON("Horyzont"),
-    AVIATION("Lotniczy"),
-    TUBES("Libelle"),
-    CROSS("Krzyż"),
+enum class LevelStyle(private val pl: String, private val en: String) {
+    HORIZON("Horyzont", "Horizon"),
+    AVIATION("Lotniczy", "Aviation"),
+    TUBES("Libelle", "Vials"),
+    CROSS("Krzyż", "Cross"),
+    ;
+
+    val label: String get() = tr(pl, en)
 }
 
-enum class LongBlend(val label: String, val description: String) {
-    MOTION("Rozmycie ruchu", "Średnia klatek: gładka woda, chmury, znikający przechodnie"),
-    TRAILS("Smugi światła", "Najjaśniejsze piksele: światła aut, gwiazdy, ogień"),
+enum class LongBlend(private val pl: String, private val en: String, private val plDesc: String, private val enDesc: String) {
+    MOTION(
+        "Rozmycie ruchu", "Motion blur",
+        "Średnia klatek: gładka woda, chmury, znikający przechodnie",
+        "Frame average: silky water, streaking clouds, vanishing passers-by",
+    ),
+    TRAILS(
+        "Smugi światła", "Light trails",
+        "Najjaśniejsze piksele: światła aut, gwiazdy, ogień",
+        "Brightest pixels: car lights, stars, fire",
+    ),
+    ;
+
+    val label: String get() = tr(pl, en)
+    val description: String get() = tr(plDesc, enDesc)
 }
 
-enum class PortraitEffect(val label: String) {
-    BOKEH("Rozmycie tła"),
-    RETOUCH("Retusz"),
+enum class PortraitEffect(private val pl: String, private val en: String) {
+    BOKEH("Rozmycie tła", "Background blur"),
+    RETOUCH("Retusz", "Retouch"),
+    ;
+
+    val label: String get() = tr(pl, en)
 }
 
-enum class VolumeAction(val label: String) {
-    SHUTTER("Migawka"),
-    ZOOM("Zoom"),
-    NONE("Głośność"),
+enum class VolumeAction(private val pl: String, private val en: String) {
+    SHUTTER("Migawka", "Shutter"),
+    ZOOM("Zoom", "Zoom"),
+    NONE("Głośność", "Volume"),
+    ;
+
+    val label: String get() = tr(pl, en)
 }
 
-enum class ScreenRotation(val label: String, val description: String) {
-    FIXED("Stały", "Ekran stoi, obracają się ikony i informacje"),
-    AUTO("Obracaj", "Cały interfejs obraca się z telefonem, także przy systemowej blokadzie obrotu"),
+enum class ScreenRotation(private val pl: String, private val en: String, private val plDesc: String, private val enDesc: String) {
+    FIXED("Stały", "Fixed", "Ekran stoi, obracają się ikony i informacje", "The screen stays put; icons and info rotate"),
+    AUTO(
+        "Obracaj", "Rotate",
+        "Cały interfejs obraca się z telefonem, także przy systemowej blokadzie obrotu",
+        "The whole interface rotates with the phone, even with system rotation lock on",
+    ),
+    ;
+
+    val label: String get() = tr(pl, en)
+    val description: String get() = tr(plDesc, enDesc)
 }
 
 enum class AudioPreset(
-    val label: String,
-    val description: String,
+    private val pl: String,
+    private val en: String,
+    private val plDesc: String,
+    private val enDesc: String,
     val sampleRate: Int,
     val bitRate: Int,
     val channels: Int,
     /** Bezstratny WAV zamiast AAC. */
     val lossless: Boolean = false,
 ) {
-    VOICE("Mowa", "AAC 96 kb/s · mono · 44,1 kHz", 44_100, 96_000, 1),
-    MUSIC("Muzyka", "AAC 256 kb/s · stereo · 48 kHz", 48_000, 256_000, 2),
-    STUDIO("Studyjny", "AAC 320 kb/s · stereo · 48 kHz", 48_000, 320_000, 2),
-    LOSSLESS("Bezstratny", "WAV 16-bit · stereo · 48 kHz · ok. 11 MB/min", 48_000, 0, 2, lossless = true),
+    VOICE("Mowa", "Speech", "AAC 96 kb/s · mono · 44,1 kHz", "AAC 96 kb/s · mono · 44.1 kHz", 44_100, 96_000, 1),
+    MUSIC("Muzyka", "Music", "AAC 256 kb/s · stereo · 48 kHz", "AAC 256 kb/s · stereo · 48 kHz", 48_000, 256_000, 2),
+    STUDIO("Studyjny", "Studio", "AAC 320 kb/s · stereo · 48 kHz", "AAC 320 kb/s · stereo · 48 kHz", 48_000, 320_000, 2),
+    LOSSLESS(
+        "Bezstratny", "Lossless",
+        "WAV 16-bit · stereo · 48 kHz · ok. 11 MB/min", "WAV 16-bit · stereo · 48 kHz · approx. 11 MB/min",
+        48_000, 0, 2, lossless = true,
+    ),
+    ;
+
+    val label: String get() = tr(pl, en)
+    val description: String get() = tr(plDesc, enDesc)
 }
 
-enum class AudioInput(val label: String, val description: String) {
-    AUTO("Auto", "System wybiera mikrofon"),
-    BUILTIN("Telefon", "Zawsze wbudowany mikrofon"),
-    EXTERNAL("Zewnętrzny", "Przewodowy, USB lub Bluetooth LE, gdy jest podłączony"),
+enum class AudioInput(private val pl: String, private val en: String, private val plDesc: String, private val enDesc: String) {
+    AUTO("Auto", "Auto", "System wybiera mikrofon", "The system picks the microphone"),
+    BUILTIN("Telefon", "Phone", "Zawsze wbudowany mikrofon", "Always the built-in microphone"),
+    EXTERNAL("Zewnętrzny", "External", "Przewodowy, USB lub Bluetooth LE, gdy jest podłączony", "Wired, USB or Bluetooth LE when connected"),
+    ;
+
+    val label: String get() = tr(pl, en)
+    val description: String get() = tr(plDesc, enDesc)
 }
 
-enum class AudioSourceType(val label: String, val description: String) {
-    STANDARD("Zwykłe", "Domyślne przetwarzanie mikrofonu"),
-    RAW("Surowy", "Bez filtrów – najwierniejszy dźwięk"),
-    VOICE("Głos", "Redukcja szumów i echa"),
-    CAMCORDER("Kierunkowy", "Mikrofon skierowany jak w kamerze"),
+enum class AudioSourceType(private val pl: String, private val en: String, private val plDesc: String, private val enDesc: String) {
+    STANDARD("Zwykłe", "Standard", "Domyślne przetwarzanie mikrofonu", "Default microphone processing"),
+    RAW("Surowy", "Raw", "Bez filtrów – najwierniejszy dźwięk", "No filters – the most faithful sound"),
+    VOICE("Głos", "Voice", "Redukcja szumów i echa", "Noise and echo reduction"),
+    CAMCORDER("Kierunkowy", "Directional", "Mikrofon skierowany jak w kamerze", "Microphone aimed like a camcorder's"),
+    ;
+
+    val label: String get() = tr(pl, en)
+    val description: String get() = tr(plDesc, enDesc)
 }
 
 /**
  * Grupy ustawień wspólne dla wszystkich trybów. Tryb może odłączyć grupę (pole [ModeSettings.custom])
  * i ustawiać ją tylko dla siebie.
  */
-enum class SharedGroup(val label: String) {
-    FRAMING("Kadr"),
-    PHOTO("Zdjęcia"),
-    VIDEO("Wideo"),
+enum class SharedGroup(private val pl: String, private val en: String) {
+    FRAMING("Kadr", "Framing"),
+    PHOTO("Zdjęcia", "Photos"),
+    VIDEO("Wideo", "Video"),
+    ;
+
+    val label: String get() = tr(pl, en)
 }
 
 /** Kopiuje wartości grupy [group] z [src]. */
@@ -296,6 +375,8 @@ data class GlobalSettings(
     /** Zapis współrzędnych GPS w zdjęciach i filmach. */
     val geotag: Boolean = true,
     val lastMode: CaptureMode = CaptureMode.PHOTO,
+    /** Język interfejsu. */
+    val language: AppLanguage = AppLanguage.SYSTEM,
 )
 
 class SettingsStore(context: Context) {
@@ -339,6 +420,7 @@ class SettingsStore(context: Context) {
             autoDownloadUpdates = prefs.getBoolean("g.autoDownload", d.autoDownloadUpdates),
             geotag = prefs.getBoolean("g.geotag", d.geotag),
             lastMode = enumOr(prefs.getString("g.lastMode", null), d.lastMode),
+            language = enumOr(prefs.getString("g.language", null), d.language),
         )
     }
 
@@ -379,6 +461,7 @@ class SettingsStore(context: Context) {
             .putBoolean("g.autoDownload", g.autoDownloadUpdates)
             .putBoolean("g.geotag", g.geotag)
             .putString("g.lastMode", g.lastMode.name)
+            .putString("g.language", g.language.name)
             .apply()
     }
 

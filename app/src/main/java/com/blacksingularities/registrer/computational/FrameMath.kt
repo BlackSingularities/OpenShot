@@ -1,5 +1,6 @@
 package com.blacksingularities.registrer.computational
 
+import com.blacksingularities.registrer.i18n.tr
 import android.graphics.BitmapFactory
 import android.graphics.BitmapRegionDecoder
 import android.graphics.Rect
@@ -30,7 +31,7 @@ object FrameMath {
 
     fun smallLuma(bytes: ByteArray, sample: Int): Luma {
         val opts = BitmapFactory.Options().apply { inSampleSize = sample }
-        val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts) ?: error("Nie można zdekodować klatki")
+        val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts) ?: error(tr("Nie można zdekodować klatki", "Cannot decode the frame"))
         val w = bmp.width
         val h = bmp.height
         val px = IntArray(w * h)
@@ -105,11 +106,11 @@ object FrameMath {
             BitmapRegionDecoder.newInstance(bytes, 0, bytes.size)
         } else {
             BitmapRegionDecoder.newInstance(bytes, 0, bytes.size, false)
-        } ?: error("Nie można otworzyć klatki")
+        } ?: error(tr("Nie można otworzyć klatki", "Cannot open the frame"))
 
     /** Dekoduje wiersze [y0, y1) pełnej szerokości do [out]. */
     fun readRows(decoder: BitmapRegionDecoder, w: Int, y0: Int, y1: Int, opts: BitmapFactory.Options, out: IntArray) {
-        val bmp = decoder.decodeRegion(Rect(0, y0, w, y1), opts) ?: error("Błąd dekodowania pasa")
+        val bmp = decoder.decodeRegion(Rect(0, y0, w, y1), opts) ?: error(tr("Błąd dekodowania pasa", "Strip decoding error"))
         bmp.getPixels(out, 0, w, 0, 0, w, y1 - y0)
         bmp.recycle()
     }

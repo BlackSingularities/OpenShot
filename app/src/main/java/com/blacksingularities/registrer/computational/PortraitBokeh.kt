@@ -1,5 +1,6 @@
 package com.blacksingularities.registrer.computational
 
+import com.blacksingularities.registrer.i18n.tr
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Color
@@ -42,7 +43,7 @@ object PortraitBokeh {
                 inMutable = true
                 inPreferredConfig = Bitmap.Config.ARGB_8888
             },
-        ) ?: error("Nie można zdekodować klatki")
+        ) ?: error(tr("Nie można zdekodować klatki", "Cannot decode the frame"))
         val photo = if (rotation != 0 || mirror) {
             val m = Matrix().apply {
                 postRotate(rotation.toFloat())

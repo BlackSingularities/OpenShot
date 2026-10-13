@@ -1,5 +1,6 @@
 package com.blacksingularities.registrer.audio
 
+import com.blacksingularities.registrer.i18n.tr
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -80,7 +81,7 @@ class AudioRecordService : Service() {
     private fun build(): Notification {
         val nm = getSystemService(NotificationManager::class.java)
         nm?.createNotificationChannel(
-            NotificationChannel(CHANNEL, "Nagrywanie dźwięku", NotificationManager.IMPORTANCE_LOW).apply {
+            NotificationChannel(CHANNEL, tr("Nagrywanie dźwięku", "Recording audio"), NotificationManager.IMPORTANCE_LOW).apply {
                 setShowBadge(false)
             },
         )
@@ -95,16 +96,16 @@ class AudioRecordService : Service() {
         val details = buildList {
             add(engine.formatLabel)
             engine.deviceName?.let { add(it) }
-            engine.markerCount.takeIf { it > 0 }?.let { add("znaczniki: $it") }
-            if (engine.silent) add("cisza – pomijana")
+            engine.markerCount.takeIf { it > 0 }?.let { add(tr("znaczniki: $it", "markers: $it")) }
+            if (engine.silent) add(tr("cisza – pomijana", "silence – skipped"))
         }.filter { it.isNotBlank() }.joinToString(" · ")
         val b = Notification.Builder(this, CHANNEL)
             .setSmallIcon(android.R.drawable.ic_btn_speak_now)
             .setContentTitle(
                 when {
-                    finishing -> "Zapisywanie nagrania…"
-                    paused -> "Nagrywanie wstrzymane · ${formatDuration(engine.recordedMs)}"
-                    else -> "Nagrywanie dźwięku"
+                    finishing -> tr("Zapisywanie nagrania…", "Saving the recording…")
+                    paused -> tr("Nagrywanie wstrzymane · ${formatDuration(engine.recordedMs)}", "Recording paused · ${formatDuration(engine.recordedMs)}")
+                    else -> tr("Nagrywanie dźwięku", "Recording audio")
                 },
             )
             .setContentText(details)
@@ -118,12 +119,12 @@ class AudioRecordService : Service() {
         open?.let { b.setContentIntent(it) }
         if (!finishing) {
             if (paused) {
-                b.addAction(Notification.Action.Builder(Icon.createWithResource(this, android.R.drawable.ic_media_play), "Wznów", action(ACTION_RESUME, 1)).build())
+                b.addAction(Notification.Action.Builder(Icon.createWithResource(this, android.R.drawable.ic_media_play), tr("Wznów", "Resume"), action(ACTION_RESUME, 1)).build())
             } else {
-                b.addAction(Notification.Action.Builder(Icon.createWithResource(this, android.R.drawable.ic_media_pause), "Pauza", action(ACTION_PAUSE, 2)).build())
+                b.addAction(Notification.Action.Builder(Icon.createWithResource(this, android.R.drawable.ic_media_pause), tr("Pauza", "Pause"), action(ACTION_PAUSE, 2)).build())
             }
-            b.addAction(Notification.Action.Builder(Icon.createWithResource(this, android.R.drawable.star_on), "Znacznik", action(ACTION_MARK, 3)).build())
-            b.addAction(Notification.Action.Builder(Icon.createWithResource(this, android.R.drawable.ic_menu_save), "Zakończ", action(ACTION_STOP, 4)).build())
+            b.addAction(Notification.Action.Builder(Icon.createWithResource(this, android.R.drawable.star_on), tr("Znacznik", "Marker"), action(ACTION_MARK, 3)).build())
+            b.addAction(Notification.Action.Builder(Icon.createWithResource(this, android.R.drawable.ic_menu_save), tr("Zakończ", "Stop"), action(ACTION_STOP, 4)).build())
         }
         if (Build.VERSION.SDK_INT >= 31) b.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
         return b.build()

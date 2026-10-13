@@ -1,5 +1,6 @@
 package com.blacksingularities.registrer.ui.components
 
+import com.blacksingularities.registrer.i18n.tr
 import com.blacksingularities.registrer.ui.theme.BlockShape
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -112,6 +113,7 @@ import androidx.compose.material.icons.rounded.Link
 import com.blacksingularities.registrer.data.SharedGroup
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.material.icons.rounded.Translate
 import androidx.compose.material.icons.rounded.CropFree
 import androidx.compose.material.icons.rounded.PresentToAll
 import androidx.compose.material.icons.rounded.Lock
@@ -180,9 +182,9 @@ val LONG_SECONDS = listOf(1, 2, 4, 8, 15)
 fun timelapseHint(speed: Int, fps: Int): String {
     val interval = speed.toFloat() / fps
     val perMinute = 60f / speed
-    val pl = Locale("pl", "PL")
-    return "Zdjęcie co " + String.format(pl, "%.1f", interval).removeSuffix(",0") + " s · 1 min nagrania = " +
-        String.format(pl, "%.1f", perMinute).removeSuffix(",0") + " s filmu"
+    val pl = com.blacksingularities.registrer.i18n.Lang.locale
+    return tr("Zdjęcie co ", "Photo every ") + String.format(pl, "%.1f", interval).removeSuffix(",0").removeSuffix(".0") + tr(" s · 1 min nagrania = ", " s · 1 min of shooting = ") +
+        String.format(pl, "%.1f", perMinute).removeSuffix(",0").removeSuffix(".0") + tr(" s filmu", " s of video")
 }
 
 fun modeIcon(mode: CaptureMode): ImageVector = when (mode) {
@@ -239,7 +241,7 @@ fun SettingsSheet(
             items(options, key = { it?.name ?: "GENERAL" }) { mode ->
                 TabChip(
                     if (mode == null) Icons.Rounded.Settings else modeIcon(mode),
-                    mode?.title ?: "Ogólne",
+                    mode?.title ?: tr("Ogólne", "General"),
                     tab == mode,
                 ) { tab = mode }
             }
@@ -258,7 +260,7 @@ fun SettingsSheet(
                 Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 14.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                if (locked) Text("Część opcji jest zablokowana podczas nagrywania lub przetwarzania.", color = Palette.Amber, fontSize = 12.sp)
+                if (locked) Text(tr("Część opcji jest zablokowana podczas nagrywania lub przetwarzania.", "Some options are locked while recording or processing."), color = Palette.Amber, fontSize = 12.sp)
                 if (current == null) {
                     GeneralTab(global, caps, update, onGlobal, onCheckUpdate, onDownloadUpdate, onInstallUpdate, displaysInfo)
                 } else {
@@ -270,7 +272,7 @@ fun SettingsSheet(
                     ) {
                         Icon(Icons.Rounded.RestartAlt, null, tint = Palette.TextDim, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("Przywróć domyślne: ${current.title}", color = Palette.TextDim, fontSize = 13.sp)
+                        Text(tr("Przywróć domyślne: ${current.title}", "Restore defaults: ${current.title}"), color = Palette.TextDim, fontSize = 13.sp)
                     }
                 }
                 Spacer(Modifier.height(20.dp))
@@ -301,8 +303,8 @@ fun SettingsSheet(
     ) {
         Column(Modifier.fillMaxSize().padding(insets)) {
             Row(Modifier.padding(start = 20.dp, end = 12.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("Ustawienia", fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
-                GlassIconButton(Icons.Rounded.Close, "Zamknij", 0f, size = 38.dp, onClick = onDismiss)
+                Text(tr("Ustawienia", "Settings"), fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                GlassIconButton(Icons.Rounded.Close, tr("Zamknij", "Close"), 0f, size = 38.dp, onClick = onDismiss)
             }
             Spacer(Modifier.height(if (landscape) 6.dp else 12.dp))
             Tabs()
@@ -318,8 +320,8 @@ private fun ModeTab(mode: CaptureMode, s: ModeSettings, caps: CameraCaps, enable
     @Composable
     fun shared(group: SharedGroup) = SharedSwitch(group, s, change)
     if (mode == CaptureMode.PRO) {
-        Group("Tryb ręczny") {
-            Chips(Icons.Rounded.Tune, "Nagrywanie", listOf(false, true), s.proVideo, { if (it) "Wideo" else "Zdjęcia" }, enabled, hint = "Ręczne ISO, czas, ostrość i balans bieli działają w obu wariantach") { v ->
+        Group(tr("Tryb ręczny", "Manual mode")) {
+            Chips(Icons.Rounded.Tune, tr("Nagrywanie", "Capture"), listOf(false, true), s.proVideo, { if (it) tr("Wideo", "Video") else tr("Zdjęcia", "Photos") }, enabled, hint = tr("Ręczne ISO, czas, ostrość i balans bieli działają w obu wariantach", "Manual ISO, shutter, focus and white balance work in both")) { v ->
                 change { it.copy(proVideo = v) }
             }
         }
@@ -331,8 +333,8 @@ private fun ModeTab(mode: CaptureMode, s: ModeSettings, caps: CameraCaps, enable
     }
     when (mode) {
         CaptureMode.VIDEO -> {
-            Group("Obraz") {
-                Chips(Icons.Rounded.HighQuality, "Rozdzielczość", caps.videoResolutions, s.videoResolution, { it.label }, enabled) { v -> change { it.copy(videoResolution = v) } }
+            Group(tr("Obraz", "Image")) {
+                Chips(Icons.Rounded.HighQuality, tr("Rozdzielczość", "Resolution"), caps.videoResolutions, s.videoResolution, { it.label }, enabled) { v -> change { it.copy(videoResolution = v) } }
                 val fpsOptions = VideoFps.entries.filter {
                     when (it) {
                         VideoFps.F60 -> caps.fps60
@@ -340,79 +342,79 @@ private fun ModeTab(mode: CaptureMode, s: ModeSettings, caps: CameraCaps, enable
                         else -> true
                     }
                 }
-                Chips(Icons.Rounded.Speed, "Klatki na sekundę", fpsOptions, s.videoFps, { it.label }, enabled) { v -> change { it.copy(videoFps = v) } }
-                Chips(Icons.Rounded.DataUsage, "Przepływność", VideoBitrate.entries, s.bitrate, { it.label }, enabled) { v -> change { it.copy(bitrate = v) } }
+                Chips(Icons.Rounded.Speed, tr("Klatki na sekundę", "Frames per second"), fpsOptions, s.videoFps, { it.label }, enabled) { v -> change { it.copy(videoFps = v) } }
+                Chips(Icons.Rounded.DataUsage, tr("Przepływność", "Bitrate"), VideoBitrate.entries, s.bitrate, { it.label }, enabled) { v -> change { it.copy(bitrate = v) } }
                 if (caps.videoHlg) {
-                    SwitchRow(Icons.Rounded.HdrOn, "HDR 10-bit (HLG)", "Szerszy zakres tonalny, większe pliki", s.videoHdr, enabled) { v -> change { it.copy(videoHdr = v) } }
+                    SwitchRow(Icons.Rounded.HdrOn, "HDR 10-bit (HLG)", tr("Szerszy zakres tonalny, większe pliki", "Wider tonal range, larger files"), s.videoHdr, enabled) { v -> change { it.copy(videoHdr = v) } }
                 }
                 if (caps.videoStabilization) {
-                    SwitchRow(Icons.Rounded.CenterFocusStrong, "Stabilizacja", "Mniej drgań, lekko węższy kadr", s.stabilization, enabled) { v -> change { it.copy(stabilization = v) } }
+                    SwitchRow(Icons.Rounded.CenterFocusStrong, tr("Stabilizacja", "Stabilization"), tr("Mniej drgań, lekko węższy kadr", "Less shake, slightly tighter frame"), s.stabilization, enabled) { v -> change { it.copy(stabilization = v) } }
                 }
                 if (caps.lowLightBoost) {
-                    SwitchRow(Icons.Rounded.Brightness4, "Wzmocnienie w ciemności", "Jaśniejszy obraz przy słabym świetle", s.lowLightBoost, enabled) { v -> change { it.copy(lowLightBoost = v) } }
+                    SwitchRow(Icons.Rounded.Brightness4, tr("Wzmocnienie w ciemności", "Low-light boost"), tr("Jaśniejszy obraz przy słabym świetle", "Brighter image in dim light"), s.lowLightBoost, enabled) { v -> change { it.copy(lowLightBoost = v) } }
                 }
             }
-            Group("Dźwięk i zbliżanie") {
+            Group(tr("Dźwięk i zbliżanie", "Sound and zoom")) {
                 shared(SharedGroup.VIDEO)
-                SwitchRow(Icons.Rounded.Mic, "Nagrywaj dźwięk", null, s.videoAudio, enabled) { v -> change { it.copy(videoAudio = v) } }
-                SwitchRow(Icons.Rounded.ZoomIn, "Płynne zbliżanie", "Wolny, równy najazd podczas nagrywania", s.cinematicZoom) { v -> change { it.copy(cinematicZoom = v) } }
+                SwitchRow(Icons.Rounded.Mic, tr("Nagrywaj dźwięk", "Record sound"), null, s.videoAudio, enabled) { v -> change { it.copy(videoAudio = v) } }
+                SwitchRow(Icons.Rounded.ZoomIn, tr("Płynne zbliżanie", "Smooth zoom"), tr("Wolny, równy najazd podczas nagrywania", "Slow, even zoom while recording"), s.cinematicZoom) { v -> change { it.copy(cinematicZoom = v) } }
             }
             FramingGroup(s, change, showAspect = false, showHistogram = false, showTimer = false)
         }
 
         CaptureMode.SLOWMO -> {
-            Group("Zwolnione tempo") {
+            Group(tr("Zwolnione tempo", "Slow motion")) {
                 if (caps.slowMoProfiles.isEmpty()) {
-                    InfoRow(Icons.Rounded.Info, "Ten obiektyw nie obsługuje nagrywania szybkoklatkowego")
+                    InfoRow(Icons.Rounded.Info, tr("Ten obiektyw nie obsługuje nagrywania szybkoklatkowego", "This lens does not support high-frame-rate recording"))
                 } else {
-                    InfoRow(Icons.Rounded.CameraAlt, "Tylko tylny aparat główny · 1×")
+                    InfoRow(Icons.Rounded.CameraAlt, tr("Tylko tylny aparat główny · 1×", "Main rear camera only · 1×"))
                     val resolutions = caps.slowMoProfiles.map { it.resolution }.distinct().sortedBy { it.ordinal }
                     val resolution = s.slowMoResolution.takeIf { it in resolutions } ?: resolutions.first()
-                    Chips(Icons.Rounded.HighQuality, "Rozdzielczość", resolutions, resolution, { it.label }, enabled) { selectedResolution ->
+                    Chips(Icons.Rounded.HighQuality, tr("Rozdzielczość", "Resolution"), resolutions, resolution, { it.label }, enabled) { selectedResolution ->
                         val fps = caps.slowMoProfiles.filter { it.resolution == selectedResolution }.map { it.fps }
                         change { current -> current.copy(slowMoResolution = selectedResolution, slowMoFps = current.slowMoFps.takeIf { it in fps } ?: fps.min()) }
                     }
                     val options = caps.slowMoProfiles.filter { it.resolution == resolution }.map { it.fps }.distinct().sorted()
                     val selected = s.slowMoFps.takeIf { it in options } ?: options.first()
-                    Chips(Icons.Rounded.SlowMotionVideo, "Prędkość nagrywania", options, selected, { "$it kl/s · 1/${it / 30}×" }, enabled) { selectedFps ->
+                    Chips(Icons.Rounded.SlowMotionVideo, tr("Prędkość nagrywania", "Capture rate"), options, selected, { tr("$it kl/s · 1/${it / 30}×", "$it fps · 1/${it / 30}×") }, enabled) { selectedFps ->
                         change { it.copy(slowMoFps = selectedFps) }
                     }
                 }
-                SwitchRow(Icons.Rounded.ZoomIn, "Płynne zbliżanie", null, s.cinematicZoom) { v -> change { it.copy(cinematicZoom = v) } }
+                SwitchRow(Icons.Rounded.ZoomIn, tr("Płynne zbliżanie", "Smooth zoom"), null, s.cinematicZoom) { v -> change { it.copy(cinematicZoom = v) } }
             }
             FramingGroup(s, change, showAspect = false, showHistogram = false, showTimer = false)
         }
 
         CaptureMode.TIMELAPSE -> {
-            Group("Film poklatkowy") {
+            Group(tr("Film poklatkowy", "Time-lapse")) {
                 val intervalS = s.tlSpeed.toFloat() / s.tlFps
                 Chips(
                     Icons.Rounded.Speed,
-                    "Przyspieszenie",
+                    tr("Przyspieszenie", "Speed-up"),
                     com.blacksingularities.registrer.data.TIMELAPSE_SPEEDS.map { it.first },
                     s.tlSpeed,
                     { sp -> "×$sp " + (com.blacksingularities.registrer.data.TIMELAPSE_SPEEDS.firstOrNull { it.first == sp }?.second ?: "") },
                     enabled,
                     hint = timelapseHint(s.tlSpeed, s.tlFps),
                 ) { v -> change { it.copy(tlSpeed = v) } }
-                Chips(Icons.Rounded.SlowMotionVideo, "Klatkaż filmu", listOf(24, 30, 60), s.tlFps, { "$it kl/s" }, enabled,
-                    hint = "Zdjęcie co " + String.format(Locale("pl", "PL"), "%.1f", intervalS).removeSuffix(",0") + " s") { v ->
+                Chips(Icons.Rounded.SlowMotionVideo, tr("Klatkaż filmu", "Video frame rate"), listOf(24, 30, 60), s.tlFps, { tr("$it kl/s", "$it fps") }, enabled,
+                    hint = tr("Zdjęcie co ", "Photo every ") + String.format(com.blacksingularities.registrer.i18n.Lang.locale, "%.1f", intervalS).removeSuffix(",0").removeSuffix(".0") + " s") { v ->
                     change { it.copy(tlFps = v) }
                 }
                 val resolutions = com.blacksingularities.registrer.data.TimelapseResolution.entries.filter {
                     com.blacksingularities.registrer.camera.TimelapseWriter.pickMime(it.width, it.height) != null
                 }
-                Chips(Icons.Rounded.HighQuality, "Rozdzielczość", resolutions, s.tlResolution, { it.label }, enabled,
-                    hint = "8K wymaga aparatu 33 MP+ i kodera 8K; gdy brak – film powstanie w 4K") { v ->
+                Chips(Icons.Rounded.HighQuality, tr("Rozdzielczość", "Resolution"), resolutions, s.tlResolution, { it.label }, enabled,
+                    hint = tr("8K wymaga aparatu 33 MP+ i kodera 8K; gdy brak – film powstanie w 4K", "8K needs a 33 MP+ camera and an 8K encoder; otherwise the video is made in 4K")) { v ->
                     change { it.copy(tlResolution = v) }
                 }
-                Chips(Icons.Rounded.Timer, "Zakończ po", listOf(0, 5, 15, 30, 60, 120), s.tlStopMin, { if (it == 0) "Ręcznie" else autoStopLabel(it) }, enabled) { v ->
+                Chips(Icons.Rounded.Timer, tr("Zakończ po", "Stop after"), listOf(0, 5, 15, 30, 60, 120), s.tlStopMin, { if (it == 0) tr("Ręcznie", "Manually") else autoStopLabel(it) }, enabled) { v ->
                     change { it.copy(tlStopMin = v) }
                 }
-                SwitchRow(Icons.Rounded.Exposure, "Wyrównywanie jasności", "Tłumi migotanie między klatkami", s.tlDeflicker, enabled) { v ->
+                SwitchRow(Icons.Rounded.Exposure, tr("Wyrównywanie jasności", "Deflicker"), tr("Tłumi migotanie między klatkami", "Smooths brightness flicker between frames"), s.tlDeflicker, enabled) { v ->
                     change { it.copy(tlDeflicker = v) }
                 }
-                SwitchRow(Icons.Rounded.Lock, "Blokada ekspozycji", "Stała jasność i barwa – wyłącz przy zachodzie słońca", s.tlLock, enabled) { v ->
+                SwitchRow(Icons.Rounded.Lock, tr("Blokada ekspozycji", "Exposure lock"), tr("Stała jasność i barwa – wyłącz przy zachodzie słońca", "Constant brightness and colour – turn off for sunsets"), s.tlLock, enabled) { v ->
                     change { it.copy(tlLock = v) }
                 }
             }
@@ -420,88 +422,88 @@ private fun ModeTab(mode: CaptureMode, s: ModeSettings, caps: CameraCaps, enable
         }
 
         CaptureMode.AUDIO -> {
-            Group("Jakość") {
+            Group(tr("Jakość", "Quality")) {
                 Chips(Icons.Rounded.GraphicEq, "Format", AudioPreset.entries, s.audioPreset, { it.label }, enabled, hint = s.audioPreset.description) { v ->
                     change { it.copy(audioPreset = v) }
                 }
             }
-            Group("Mikrofon") {
-                Chips(Icons.Rounded.Headset, "Wejście", AudioInput.entries, s.audioInput, { it.label }, enabled, hint = s.audioInput.description) { v ->
+            Group(tr("Mikrofon", "Microphone")) {
+                Chips(Icons.Rounded.Headset, tr("Wejście", "Input"), AudioInput.entries, s.audioInput, { it.label }, enabled, hint = s.audioInput.description) { v ->
                     change { it.copy(audioInput = v) }
                 }
-                Chips(Icons.Rounded.Mic, "Przetwarzanie", AudioSourceType.entries, s.audioSource, { it.label }, enabled, hint = s.audioSource.description) { v ->
+                Chips(Icons.Rounded.Mic, tr("Przetwarzanie", "Processing"), AudioSourceType.entries, s.audioSource, { it.label }, enabled, hint = s.audioSource.description) { v ->
                     change { it.copy(audioSource = v) }
                 }
-                Chips(Icons.Rounded.Equalizer, "Wzmocnienie", listOf(0, 6, 12, 18, 24), s.audioGainDb, { if (it == 0) "0 dB" else "+$it dB" }, enabled, hint = "Cyfrowe, z miękkim ogranicznikiem – dla cichych źródeł i wykładów") { v ->
+                Chips(Icons.Rounded.Equalizer, tr("Wzmocnienie", "Gain"), listOf(0, 6, 12, 18, 24), s.audioGainDb, { if (it == 0) "0 dB" else "+$it dB" }, enabled, hint = tr("Cyfrowe, z miękkim ogranicznikiem – dla cichych źródeł i wykładów", "Digital, with a soft limiter – for quiet sources and lectures")) { v ->
                     change { it.copy(audioGainDb = v) }
                 }
                 if (AudioEngine.noiseSuppressionAvailable) {
-                    SwitchRow(Icons.Rounded.NoiseAware, "Redukcja szumów", "Filtr systemowy: czystsza mowa, gorzej dla muzyki", s.audioNoiseSuppression, enabled) { v ->
+                    SwitchRow(Icons.Rounded.NoiseAware, tr("Redukcja szumów", "Noise reduction"), tr("Filtr systemowy: czystsza mowa, gorzej dla muzyki", "System filter: cleaner speech, worse for music"), s.audioNoiseSuppression, enabled) { v ->
                         change { it.copy(audioNoiseSuppression = v) }
                     }
                 }
                 if (AudioEngine.agcAvailable) {
-                    SwitchRow(Icons.Rounded.GraphicEq, "Samoczynna głośność", "Wyrównuje cichych i głośnych mówców", s.audioAgc, enabled) { v ->
+                    SwitchRow(Icons.Rounded.GraphicEq, tr("Samoczynna głośność", "Auto gain"), tr("Wyrównuje cichych i głośnych mówców", "Evens out quiet and loud speakers"), s.audioAgc, enabled) { v ->
                         change { it.copy(audioAgc = v) }
                     }
                 }
             }
-            Group("Nagrywanie") {
-                SwitchRow(Icons.Rounded.FastForward, "Pomijaj ciszę", "Przerwy dłuższe niż 1,5 s nie trafiają do pliku", s.audioSkipSilence, enabled) { v ->
+            Group(tr("Nagrywanie", "Capture")) {
+                SwitchRow(Icons.Rounded.FastForward, tr("Pomijaj ciszę", "Skip silence"), tr("Przerwy dłuższe niż 1,5 s nie trafiają do pliku", "Pauses longer than 1.5 s are left out of the file"), s.audioSkipSilence, enabled) { v ->
                     change { it.copy(audioSkipSilence = v) }
                 }
-                Chips(Icons.Rounded.Timer, "Automatyczne zatrzymanie", listOf(0, 15, 30, 60, 120), s.audioAutoStopMin, { if (it == 0) "Wył." else autoStopLabel(it) }, enabled) { v ->
+                Chips(Icons.Rounded.Timer, tr("Automatyczne zatrzymanie", "Auto stop"), listOf(0, 15, 30, 60, 120), s.audioAutoStopMin, { if (it == 0) tr("Wył.", "Off") else autoStopLabel(it) }, enabled) { v ->
                     change { it.copy(audioAutoStopMin = v) }
                 }
-                InfoRow(Icons.Rounded.Info, "Nagrywanie trwa w tle i przy zgaszonym ekranie – pauza, znacznik i stop są w powiadomieniu")
+                InfoRow(Icons.Rounded.Info, tr("Nagrywanie trwa w tle i przy zgaszonym ekranie – pauza, znacznik i stop są w powiadomieniu", "Recording continues in the background and with the screen off – pause, marker and stop are in the notification"))
             }
         }
 
         else -> {
             when (mode) {
-                CaptureMode.NIGHT -> Group("Tryb nocny") {
+                CaptureMode.NIGHT -> Group(tr("Tryb nocny", "Night mode")) {
                     if (caps.nightExtension) {
-                        InfoRow(Icons.Rounded.NightsStay, "Aktywny sprzętowy tryb nocny producenta – liczbę klatek dobiera telefon")
+                        InfoRow(Icons.Rounded.NightsStay, tr("Aktywny sprzętowy tryb nocny producenta – liczbę klatek dobiera telefon", "Manufacturer hardware night mode active – the phone picks the frame count"))
                     } else {
-                        Chips(Icons.Rounded.Layers, "Liczba klatek", listOf(0, 4, 6, 8, 12), s.nightFrames, { if (it == 0) "Auto" else "×$it" }, enabled, hint = "Auto dobiera 4–12 klatek do jasności sceny") { v ->
+                        Chips(Icons.Rounded.Layers, tr("Liczba klatek", "Frame count"), listOf(0, 4, 6, 8, 12), s.nightFrames, { if (it == 0) "Auto" else "×$it" }, enabled, hint = tr("Auto dobiera 4–12 klatek do jasności sceny", "Auto picks 4–12 frames for the scene brightness")) { v ->
                             change { it.copy(nightFrames = v) }
                         }
                     }
                     if (caps.lowLightBoost && !caps.nightExtension) {
-                        SwitchRow(Icons.Rounded.Brightness4, "Jaśniejszy podgląd", "Wzmocnienie przy słabym świetle", s.lowLightBoost, enabled) { v -> change { it.copy(lowLightBoost = v) } }
+                        SwitchRow(Icons.Rounded.Brightness4, tr("Jaśniejszy podgląd", "Brighter preview"), tr("Wzmocnienie przy słabym świetle", "Boost in dim light"), s.lowLightBoost, enabled) { v -> change { it.copy(lowLightBoost = v) } }
                     }
                 }
-                CaptureMode.PORTRAIT -> Group("Portret") {
+                CaptureMode.PORTRAIT -> Group(tr("Portret", "Portrait")) {
                     val effects = PortraitEffect.entries.filter {
                         (it == PortraitEffect.BOKEH && caps.bokehExtension) || (it == PortraitEffect.RETOUCH && caps.retouchExtension)
                     }
                     if (effects.size > 1) {
-                        Chips(Icons.Rounded.Face, "Efekt", effects, s.portraitEffect, { it.label }, enabled) { v -> change { it.copy(portraitEffect = v) } }
+                        Chips(Icons.Rounded.Face, tr("Efekt", "Effect"), effects, s.portraitEffect, { it.label }, enabled) { v -> change { it.copy(portraitEffect = v) } }
                     } else if (effects.isNotEmpty()) {
-                        InfoRow(Icons.Rounded.Face, "Sprzętowy efekt producenta: ${effects.first().label}")
+                        InfoRow(Icons.Rounded.Face, tr("Sprzętowy efekt producenta: ${effects.first().label}", "Manufacturer hardware effect: ${effects.first().label}"))
                     } else {
-                        InfoRow(Icons.Rounded.Face, "Programowe rozmycie tła – wykrywanie osoby (tylny i przedni aparat)")
+                        InfoRow(Icons.Rounded.Face, tr("Programowe rozmycie tła – wykrywanie osoby (tylny i przedni aparat)", "Software background blur – person detection (rear and front camera)"))
                     }
                     if (!caps.bokehExtension) {
-                        Slider(Icons.Rounded.Face, "Siła rozmycia tła", s.portraitBlur, 0..100, true) { v -> change { it.copy(portraitBlur = v) } }
+                        Slider(Icons.Rounded.Face, tr("Siła rozmycia tła", "Background blur strength"), s.portraitBlur, 0..100, true) { v -> change { it.copy(portraitBlur = v) } }
                     }
                 }
-                CaptureMode.LONG -> Group("Długi czas") {
-                    Chips(Icons.Rounded.ShutterSpeed, "Czas naświetlania", LONG_SECONDS, s.longSeconds, { "$it s" }, enabled, hint = "Dłużej = mocniejsze rozmycie; najwyżej 32 klatki") { v ->
+                CaptureMode.LONG -> Group(tr("Długi czas", "Long exposure")) {
+                    Chips(Icons.Rounded.ShutterSpeed, tr("Czas naświetlania", "Exposure time"), LONG_SECONDS, s.longSeconds, { "$it s" }, enabled, hint = tr("Dłużej = mocniejsze rozmycie; najwyżej 32 klatki", "Longer = stronger blur; at most 32 frames")) { v ->
                         change { it.copy(longSeconds = v) }
                     }
-                    Chips(Icons.Rounded.Layers, "Łączenie klatek", com.blacksingularities.registrer.data.LongBlend.entries, s.longBlend, { it.label }, enabled, hint = s.longBlend.description) { v ->
+                    Chips(Icons.Rounded.Layers, tr("Łączenie klatek", "Frame blending"), com.blacksingularities.registrer.data.LongBlend.entries, s.longBlend, { it.label }, enabled, hint = s.longBlend.description) { v ->
                         change { it.copy(longBlend = v) }
                     }
-                    SwitchRow(Icons.Rounded.CenterFocusStrong, "Wyrównuj klatki", "Do zdjęć z ręki; na statywie wyłącz – tło będzie ostrzejsze", s.longAlign, enabled) { v ->
+                    SwitchRow(Icons.Rounded.CenterFocusStrong, tr("Wyrównuj klatki", "Align frames"), tr("Do zdjęć z ręki; na statywie wyłącz – tło będzie ostrzejsze", "For handheld shots; turn off on a tripod for a sharper background"), s.longAlign, enabled) { v ->
                         change { it.copy(longAlign = v) }
                     }
                 }
                 CaptureMode.HDR -> Group("HDR") {
                     if (caps.hdrExtension) {
-                        InfoRow(Icons.Rounded.HdrOn, "Aktywny sprzętowy HDR producenta")
+                        InfoRow(Icons.Rounded.HdrOn, tr("Aktywny sprzętowy HDR producenta", "Manufacturer hardware HDR active"))
                     } else {
-                        Chips(Icons.Rounded.Tune, "Rozpiętość ekspozycji", listOf(1f, 1.7f, 2.3f), s.hdrStops, { "±" + String.format(Locale.US, "%.1f", it).replace('.', ',') + " EV" }, enabled) { v ->
+                        Chips(Icons.Rounded.Tune, tr("Rozpiętość ekspozycji", "Exposure spread"), listOf(1f, 1.7f, 2.3f), s.hdrStops, { "±" + String.format(Locale.US, "%.1f", it).let { if (com.blacksingularities.registrer.i18n.Lang.polish) it.replace('.', ',') else it } + " EV" }, enabled) { v ->
                             change { it.copy(hdrStops = v) }
                         }
                     }
@@ -509,41 +511,41 @@ private fun ModeTab(mode: CaptureMode, s: ModeSettings, caps: CameraCaps, enable
                 else -> Unit
             }
             if (mode == CaptureMode.PHOTO || mode == CaptureMode.PRO) {
-                Group("Seria i interwał") {
+                Group(tr("Seria i interwał", "Burst and interval")) {
                     if (mode == CaptureMode.PHOTO) {
-                        SwitchRow(Icons.Rounded.BurstMode, "Seria po przytrzymaniu", "Zdjęcia seryjne, dopóki trzymasz migawkę", s.burst) { v -> change { it.copy(burst = v) } }
+                        SwitchRow(Icons.Rounded.BurstMode, tr("Seria po przytrzymaniu", "Burst on hold"), tr("Zdjęcia seryjne, dopóki trzymasz migawkę", "Burst shots while you hold the shutter"), s.burst) { v -> change { it.copy(burst = v) } }
                     }
-                    Chips(Icons.Rounded.AvTimer, "Interwałometr", listOf(0, 2, 5, 10, 30, 60), s.intervalSeconds, { if (it == 0) "Wył." else "${it}s" }) { v ->
+                    Chips(Icons.Rounded.AvTimer, tr("Interwałometr", "Intervalometer"), listOf(0, 2, 5, 10, 30, 60), s.intervalSeconds, { if (it == 0) tr("Wył.", "Off") else "${it}s" }) { v ->
                         change { it.copy(intervalSeconds = v) }
                     }
                     if (s.intervalSeconds > 0) {
-                        Chips(Icons.Rounded.Layers, "Liczba zdjęć", listOf(0, 10, 30, 100, 300), s.intervalCount, { if (it == 0) "∞" else "$it" }) { v ->
+                        Chips(Icons.Rounded.Layers, tr("Liczba zdjęć", "Number of photos"), listOf(0, 10, 30, 100, 300), s.intervalCount, { if (it == 0) "∞" else "$it" }) { v ->
                             change { it.copy(intervalCount = v) }
                         }
                     }
                 }
             }
-            Group("Zdjęcie", collapsible = true, initiallyExpanded = false) {
+            Group(tr("Zdjęcie", "Photo"), collapsible = true, initiallyExpanded = false) {
                 shared(SharedGroup.PHOTO)
                 if (mode == CaptureMode.PHOTO || mode == CaptureMode.PRO) {
                     val formats = PhotoFormat.entries.filter { it in caps.photoFormats }
                     if (formats.size > 1) {
-                        Chips(Icons.Rounded.Image, "Format", formats, s.photoFormat, { it.label }, enabled, hint = "RAW zapisuje plik DNG prosto z sensora") { v ->
+                        Chips(Icons.Rounded.Image, "Format", formats, s.photoFormat, { it.label }, enabled, hint = tr("RAW zapisuje plik DNG prosto z sensora", "RAW saves a DNG file straight from the sensor")) { v ->
                             change { it.copy(photoFormat = v) }
                         }
                     } else {
-                        InfoRow(Icons.Rounded.Image, "RAW i Ultra HDR nie są dostępne dla tego obiektywu")
+                        InfoRow(Icons.Rounded.Image, tr("RAW i Ultra HDR nie są dostępne dla tego obiektywu", "RAW and Ultra HDR are not available for this lens"))
                     }
                 }
-                Slider(Icons.Rounded.HighQuality, "Jakość JPEG", s.jpegQuality, 70..100, enabled) { v -> change { it.copy(jpegQuality = v) } }
+                Slider(Icons.Rounded.HighQuality, tr("Jakość JPEG", "JPEG quality"), s.jpegQuality, 70..100, enabled) { v -> change { it.copy(jpegQuality = v) } }
                 if (mode != CaptureMode.NIGHT && mode != CaptureMode.HDR && mode != CaptureMode.LONG) {
                     val priorities = CapturePriority.entries
-                    Chips(Icons.Rounded.Bolt, "Priorytet migawki", priorities, s.priority, { if (it == CapturePriority.SPEED && caps.zsl) "Szybkość (bez opóźnienia)" else it.label }, enabled) { v ->
+                    Chips(Icons.Rounded.Bolt, tr("Priorytet migawki", "Shutter priority"), priorities, s.priority, { if (it == CapturePriority.SPEED && caps.zsl) tr("Szybkość (bez opóźnienia)", "Speed (zero lag)") else it.label }, enabled) { v ->
                         change { it.copy(priority = v) }
                     }
                 }
                 if (caps.hasFront) {
-                    SwitchRow(Icons.Rounded.Flip, "Lustrzane odbicie autoportretu", "Zapis jak w podglądzie przedniego aparatu", s.mirrorFront) { v -> change { it.copy(mirrorFront = v) } }
+                    SwitchRow(Icons.Rounded.Flip, tr("Lustrzane odbicie autoportretu", "Mirror selfies"), tr("Zapis jak w podglądzie przedniego aparatu", "Save as seen in the front camera preview"), s.mirrorFront) { v -> change { it.copy(mirrorFront = v) } }
                 }
             }
             FramingGroup(s, change, showAspect = true, showHistogram = true, showTimer = true, enabled = enabled)
@@ -561,15 +563,15 @@ private fun FramingGroup(
     showTimer: Boolean,
     enabled: Boolean = true,
 ) {
-    Group("Kadr", collapsible = true, initiallyExpanded = false) {
+    Group(tr("Kadr", "Framing"), collapsible = true, initiallyExpanded = false) {
         SharedSwitch(SharedGroup.FRAMING, s, change)
-        if (showAspect) Chips(Icons.Rounded.AspectRatio, "Proporcje", AspectRatioMode.entries, s.aspect, { it.label }, enabled) { v -> change { it.copy(aspect = v) } }
-        MultiChips(Icons.Rounded.GridOn, "Siatki", GridType.entries, s.grids, { it.label }) { v ->
+        if (showAspect) Chips(Icons.Rounded.AspectRatio, tr("Proporcje", "Aspect ratio"), AspectRatioMode.entries, s.aspect, { it.label }, enabled) { v -> change { it.copy(aspect = v) } }
+        MultiChips(Icons.Rounded.GridOn, tr("Siatki", "Grids"), GridType.entries, s.grids, { it.label }) { v ->
             change { it.copy(grids = if (v in it.grids) it.grids - v else it.grids + v) }
         }
-        if (showTimer) Chips(Icons.Rounded.Timer, "Samowyzwalacz", listOf(0, 3, 5, 10), s.timerSeconds, { if (it == 0) "Wył." else "$it s" }) { v -> change { it.copy(timerSeconds = v) } }
-        SwitchRow(Icons.Rounded.Straighten, "Poziomica", null, s.level) { v -> change { it.copy(level = v) } }
-        if (showHistogram) SwitchRow(Icons.Rounded.BarChart, "Histogram na żywo", null, s.histogram, enabled) { v -> change { it.copy(histogram = v) } }
+        if (showTimer) Chips(Icons.Rounded.Timer, tr("Samowyzwalacz", "Self-timer"), listOf(0, 3, 5, 10), s.timerSeconds, { if (it == 0) tr("Wył.", "Off") else "$it s" }) { v -> change { it.copy(timerSeconds = v) } }
+        SwitchRow(Icons.Rounded.Straighten, tr("Poziomica", "Level"), null, s.level) { v -> change { it.copy(level = v) } }
+        if (showHistogram) SwitchRow(Icons.Rounded.BarChart, tr("Histogram na żywo", "Live histogram"), null, s.histogram, enabled) { v -> change { it.copy(histogram = v) } }
     }
 }
 
@@ -588,32 +590,32 @@ private fun GeneralTab(
     Group(null) {
         TileGrid(
             listOf(
-                Tile(Icons.Rounded.Vibration, "Wibracje", g.haptics) { v -> onGlobal { it.copy(haptics = v) } },
-                Tile(Icons.Rounded.CameraAlt, "Migawka", g.shutterSound) { v -> onGlobal { it.copy(shutterSound = v) } },
-                Tile(Icons.Rounded.Alarm, "Odliczanie", g.timerBeep) { v -> onGlobal { it.copy(timerBeep = v) } },
-                Tile(Icons.Rounded.LocationOn, "Lokalizacja", g.geotag) { v -> onGlobal { it.copy(geotag = v) } },
+                Tile(Icons.Rounded.Vibration, tr("Wibracje", "Vibration"), g.haptics) { v -> onGlobal { it.copy(haptics = v) } },
+                Tile(Icons.Rounded.CameraAlt, tr("Migawka", "Shutter"), g.shutterSound) { v -> onGlobal { it.copy(shutterSound = v) } },
+                Tile(Icons.Rounded.Alarm, tr("Odliczanie", "Countdown"), g.timerBeep) { v -> onGlobal { it.copy(timerBeep = v) } },
+                Tile(Icons.Rounded.LocationOn, tr("Lokalizacja", "Location"), g.geotag) { v -> onGlobal { it.copy(geotag = v) } },
             ),
         )
-        Hint("Dźwięk migawki, sygnał samowyzwalacza i zapis miejsca w zdjęciach oraz filmach.")
+        Hint(tr("Dźwięk migawki, sygnał samowyzwalacza i zapis miejsca w zdjęciach oraz filmach.", "Shutter sound, self-timer beep and saving the location in photos and videos."))
     }
 
-    Group("Na ekranie") {
+    Group(tr("Na ekranie", "On screen")) {
         TileGrid(
             listOf(
-                Tile(Icons.Rounded.Speed, "Parametry", g.exposureInfo) { v -> onGlobal { it.copy(exposureInfo = v) } },
-                Tile(Icons.Rounded.Explore, "Kompas", g.compass) { v -> onGlobal { it.copy(compass = v) } },
-                Tile(Icons.Rounded.CenterFocusWeak, "Ostrość", g.peaking) { v -> onGlobal { it.copy(peaking = v) } },
+                Tile(Icons.Rounded.Speed, tr("Parametry", "Exposure"), g.exposureInfo) { v -> onGlobal { it.copy(exposureInfo = v) } },
+                Tile(Icons.Rounded.Explore, tr("Kompas", "Compass"), g.compass) { v -> onGlobal { it.copy(compass = v) } },
+                Tile(Icons.Rounded.CenterFocusWeak, tr("Ostrość", "Focus"), g.peaking) { v -> onGlobal { it.copy(peaking = v) } },
                 Tile(Icons.Rounded.Gradient, "Zebra", g.zebra) { v -> onGlobal { it.copy(zebra = v) } },
-                Tile(Icons.Rounded.GraphicEq, "Dźwięk", g.audioMeter) { v -> onGlobal { it.copy(audioMeter = v) } },
+                Tile(Icons.Rounded.GraphicEq, tr("Dźwięk", "Audio"), g.audioMeter) { v -> onGlobal { it.copy(audioMeter = v) } },
             ),
         )
         if (g.zebra) {
             CompactChoice(
                 Icons.Rounded.Gradient,
-                "Próg zebry",
+                tr("Próg zebry", "Zebra threshold"),
                 listOf(85, 90, 95, 98),
                 g.zebraPercent,
-                label = { "$it% jasności" },
+                label = { tr("$it% jasności", "$it% brightness") },
                 short = { "$it" },
             ) { v -> onGlobal { it.copy(zebraPercent = v) } }
         }
@@ -623,26 +625,26 @@ private fun GeneralTab(
             com.blacksingularities.registrer.data.HistogramMode.entries,
             g.histogramMode,
             label = { it.label },
-            hint = "włączasz go w ustawieniach trybu",
+            hint = tr("włączasz go w ustawieniach trybu", "turn it on in the mode settings"),
         ) { v -> onGlobal { it.copy(histogramMode = v) } }
         CompactChoice(
             Icons.Rounded.AspectRatio,
-            "Wielkość histogramu",
+            tr("Wielkość histogramu", "Histogram size"),
             com.blacksingularities.registrer.data.HistogramSize.entries,
             g.histogramSize,
             label = { it.label },
             short = { it.label.take(1) },
         ) { v -> onGlobal { it.copy(histogramSize = v) } }
         Hint(
-            "Ostrość – czerwony obrys najostrzejszych krawędzi; Zebra – paski na prześwietleniach; " +
-                "Dźwięk – poziom w trybie Wideo. Nakładki przeciągasz po kadrze, upuszczone na koszu znikają.",
+            tr("Ostrość – czerwony obrys najostrzejszych krawędzi; Zebra – paski na prześwietleniach; ", "Focus – red outline on the sharpest edges; Zebra – stripes on overexposed areas; ") +
+                tr("Dźwięk – poziom w trybie Wideo. Nakładki przeciągasz po kadrze, upuszczone na koszu znikają.", "Audio – level in Video mode. Drag overlays around the frame; drop them on the bin to hide them."),
         )
     }
 
-    Group("Sterowanie") {
+    Group(tr("Sterowanie", "Controls")) {
         CompactChoice(
             Icons.Rounded.ScreenRotation,
-            "Obrót ekranu",
+            tr("Obrót ekranu", "Screen rotation"),
             ScreenRotation.entries,
             g.screenRotation,
             label = { it.label },
@@ -651,7 +653,7 @@ private fun GeneralTab(
         ) { v -> onGlobal { it.copy(screenRotation = v) } }
         CompactChoice(
             Icons.Rounded.VolumeUp,
-            "Klawisze głośności",
+            tr("Klawisze głośności", "Volume keys"),
             VolumeAction.entries,
             g.volumeAction,
             label = { it.label },
@@ -665,18 +667,35 @@ private fun GeneralTab(
         ) { v -> onGlobal { it.copy(volumeAction = v) } }
         CompactChoice(
             Icons.Rounded.PresentToAll,
-            "Podgląd na drugim ekranie",
+            tr("Podgląd na drugim ekranie", "Preview on second screen"),
             listOf(true, false),
             g.subjectMirror,
-            label = { if (it) "Jak w lustrze" else "Bez odbicia" },
+            label = { if (it) tr("Jak w lustrze", "Mirrored") else tr("Bez odbicia", "Not mirrored") },
             icon = { if (it) Icons.Rounded.Flip else Icons.Rounded.CropFree },
         ) { v -> onGlobal { it.copy(subjectMirror = v) } }
     }
 
-    Group("Poziomica", collapsible = true, initiallyExpanded = false) {
+    Group(tr("Język", "Language")) {
+        CompactChoice(
+            Icons.Rounded.Translate,
+            tr("Język aplikacji", "App language"),
+            com.blacksingularities.registrer.i18n.AppLanguage.entries,
+            g.language,
+            label = { it.label },
+            short = {
+                when (it) {
+                    com.blacksingularities.registrer.i18n.AppLanguage.SYSTEM -> "Auto"
+                    com.blacksingularities.registrer.i18n.AppLanguage.PL -> "PL"
+                    com.blacksingularities.registrer.i18n.AppLanguage.EN -> "EN"
+                }
+            },
+            hint = tr("Auto – zgodnie z językiem systemu", "Auto – follows the system language"),
+        ) { v -> onGlobal { it.copy(language = v) } }
+    }
+    Group(tr("Poziomica", "Level"), collapsible = true, initiallyExpanded = false) {
         CompactChoice(
             Icons.Rounded.Straighten,
-            "Wygląd",
+            tr("Wygląd", "Style"),
             LevelStyle.entries,
             g.levelStyle,
             label = { it.label },
@@ -688,11 +707,11 @@ private fun GeneralTab(
                     LevelStyle.CROSS -> Icons.Rounded.CenterFocusStrong
                 }
             },
-            hint = "włączasz ją w ustawieniach trybu",
+            hint = tr("włączasz ją w ustawieniach trybu", "turn it on in the mode settings"),
         ) { v -> onGlobal { it.copy(levelStyle = v) } }
         CompactChoice(
             Icons.Rounded.Tune,
-            "Dokładność",
+            tr("Dokładność", "Precision"),
             listOf(0.5f, 1f, 2f),
             g.levelTolerance,
             label = { "±" + (if (it < 1f) "0,5" else it.toInt().toString()) + "°" },
@@ -702,8 +721,8 @@ private fun GeneralTab(
             Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 2.dp, bottom = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            PillToggle(Icons.Rounded.SwapVert, "Pochylenie", g.levelPitch, Modifier.weight(1f)) { v -> onGlobal { it.copy(levelPitch = v) } }
-            PillToggle(Icons.Rounded.Opacity, "Przygaszaj", g.levelFade, Modifier.weight(1f)) { v -> onGlobal { it.copy(levelFade = v) } }
+            PillToggle(Icons.Rounded.SwapVert, tr("Pochylenie", "Pitch"), g.levelPitch, Modifier.weight(1f)) { v -> onGlobal { it.copy(levelPitch = v) } }
+            PillToggle(Icons.Rounded.Opacity, tr("Przygaszaj", "Dim when level"), g.levelFade, Modifier.weight(1f)) { v -> onGlobal { it.copy(levelFade = v) } }
         }
         LevelCalibrationRow(
             calibrated = g.levelCalX != 0f || g.levelCalY != 0f || g.levelCalZ != 0f,
@@ -712,29 +731,29 @@ private fun GeneralTab(
         )
     }
 
-    Group("Informacje o sprzęcie", collapsible = true, initiallyExpanded = false) {
+    Group(tr("Informacje o sprzęcie", "Hardware info"), collapsible = true, initiallyExpanded = false) {
         val lenses = (caps.lensZooms + caps.auxLenses.map { it.factor }).distinct().sorted()
             .joinToString(" · ") { formatZoom(it) + "×" }.ifEmpty { "1×" }
-        InfoRow(Icons.Rounded.ZoomIn, "Obiektywy: $lenses")
-        if (caps.cameraSummary.isNotEmpty()) ExpandableInfoRow(Icons.Rounded.CameraAlt, "Wykryte aparaty", caps.cameraSummary)
-        if (displaysInfo.isNotEmpty()) ExpandableInfoRow(Icons.Rounded.PresentToAll, "Wykryte ekrany", displaysInfo)
-        InfoRow(Icons.Rounded.Image, "Formaty: " + caps.photoFormats.sortedBy { it.ordinal }.joinToString { it.label })
-        InfoRow(Icons.Rounded.Movie, "Wideo: " + caps.videoResolutions.joinToString { it.label } + (if (caps.fps60) " · 60 kl/s" else "") + (if (caps.videoHlg) " · HLG" else ""))
-        if (caps.slowMo) InfoRow(Icons.Rounded.SlowMotionVideo, "Zwolnione tempo: " + caps.slowMoProfiles.joinToString { "${it.resolution.label} ${it.fps} kl/s" })
-        InfoRow(Icons.Rounded.Tune, if (caps.manualSensor) "Pełne sterowanie ręczne sensora" else "Ograniczone sterowanie ręczne")
-        InfoRow(Icons.Rounded.Info, "Pliki: DCIM/OpenShot · Recordings/OpenShot")
+        InfoRow(Icons.Rounded.ZoomIn, tr("Obiektywy: $lenses", "Lenses: $lenses"))
+        if (caps.cameraSummary.isNotEmpty()) ExpandableInfoRow(Icons.Rounded.CameraAlt, tr("Wykryte aparaty", "Detected cameras"), caps.cameraSummary)
+        if (displaysInfo.isNotEmpty()) ExpandableInfoRow(Icons.Rounded.PresentToAll, tr("Wykryte ekrany", "Detected displays"), displaysInfo)
+        InfoRow(Icons.Rounded.Image, tr("Formaty: ", "Formats: ") + caps.photoFormats.sortedBy { it.ordinal }.joinToString { it.label })
+        InfoRow(Icons.Rounded.Movie, tr("Wideo: ", "Video: ") + caps.videoResolutions.joinToString { it.label } + (if (caps.fps60) tr(" · 60 kl/s", " · 60 fps") else "") + (if (caps.videoHlg) " · HLG" else ""))
+        if (caps.slowMo) InfoRow(Icons.Rounded.SlowMotionVideo, tr("Zwolnione tempo: ", "Slow motion: ") + caps.slowMoProfiles.joinToString { tr("${it.resolution.label} ${it.fps} kl/s", "${it.resolution.label} ${it.fps} fps") })
+        InfoRow(Icons.Rounded.Tune, if (caps.manualSensor) tr("Pełne sterowanie ręczne sensora", "Full manual sensor control") else tr("Ograniczone sterowanie ręczne", "Limited manual control"))
+        InfoRow(Icons.Rounded.Info, tr("Pliki: DCIM/OpenShot · Recordings/OpenShot", "Files: DCIM/OpenShot · Recordings/OpenShot"))
     }
 
-    Group("Aplikacja") {
+    Group(tr("Aplikacja", "App")) {
         UpdateRow(update, onCheck, onDownload, onInstall)
         Row(
             Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            PillToggle(Icons.Rounded.Autorenew, "Sprawdzaj sam", g.autoCheckUpdates, Modifier.weight(1f)) { v ->
+            PillToggle(Icons.Rounded.Autorenew, tr("Sprawdzaj sam", "Auto check"), g.autoCheckUpdates, Modifier.weight(1f)) { v ->
                 onGlobal { it.copy(autoCheckUpdates = v) }
             }
-            PillToggle(Icons.Rounded.Download, "Instaluj sam", g.autoDownloadUpdates, Modifier.weight(1f)) { v ->
+            PillToggle(Icons.Rounded.Download, tr("Instaluj sam", "Auto install"), g.autoDownloadUpdates, Modifier.weight(1f)) { v ->
                 onGlobal { it.copy(autoDownloadUpdates = v) }
             }
         }
@@ -788,9 +807,9 @@ private fun LevelCalibrationRow(calibrated: Boolean, onCalibrate: (Float, Float,
     ) {
         Icon(Icons.Rounded.Straighten, null, tint = Palette.TextDim, modifier = Modifier.size(18.dp))
         Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
-            Text("Kalibracja", fontSize = 13.sp)
+            Text(tr("Kalibracja", "Calibration"), fontSize = 13.sp)
             Text(
-                note ?: String.format(Locale("pl", "PL"), "%s · teraz %.1f° / %.1f°", if (calibrated) "skalibrowana" else "połóż telefon płasko ekranem do góry", tiltX, tiltY),
+                note ?: String.format(com.blacksingularities.registrer.i18n.Lang.locale, tr("%s · teraz %.1f° / %.1f°", "%s · now %.1f° / %.1f°"), if (calibrated) tr("skalibrowana", "calibrated") else tr("połóż telefon płasko ekranem do góry", "lay the phone flat, screen up"), tiltX, tiltY),
                 fontSize = 10.sp,
                 lineHeight = 12.sp,
                 color = Palette.TextDim,
@@ -799,17 +818,17 @@ private fun LevelCalibrationRow(calibrated: Boolean, onCalibrate: (Float, Float,
         }
         if (calibrated) {
             Text(
-                "Zeruj",
+                tr("Zeruj", "Reset"),
                 fontSize = 12.sp,
                 color = Palette.TextDim,
                 modifier = Modifier
                     .clip(RoundedCornerShape(50))
-                    .clickable { onReset(); note = "Kalibracja usunięta" }
+                    .clickable { onReset(); note = tr("Kalibracja usunięta", "Calibration removed") }
                     .padding(horizontal = 10.dp, vertical = 6.dp),
             )
         }
         Text(
-            "Kalibruj",
+            tr("Kalibruj", "Calibrate"),
             fontSize = 12.sp,
             fontWeight = FontWeight.Bold,
             color = Palette.Ink,
@@ -820,9 +839,9 @@ private fun LevelCalibrationRow(calibrated: Boolean, onCalibrate: (Float, Float,
                     val ok = gravity.z > 8.5f && kotlin.math.abs(gravity.x) < 1.6f && kotlin.math.abs(gravity.y) < 1.6f
                     note = if (ok) {
                         onCalibrate(gravity.x, gravity.y, gravity.z - 9.80665f)
-                        "Zapisano – teraz telefon na tej powierzchni pokazuje 0°"
+                        tr("Zapisano – teraz telefon na tej powierzchni pokazuje 0°", "Saved – the phone now reads 0° on this surface")
                     } else {
-                        "Połóż telefon ekranem do góry na płaskim stole i spróbuj ponownie"
+                        tr("Połóż telefon ekranem do góry na płaskim stole i spróbuj ponownie", "Lay the phone screen up on a flat table and try again")
                     }
                 }
                 .padding(horizontal = 12.dp, vertical = 6.dp),
@@ -947,7 +966,7 @@ private fun Credits() {
         Text("OpenShot ${UpdateManager.currentVersion}", fontSize = 11.sp, color = Palette.TextDim)
         Text(
             buildAnnotatedString {
-                append("Pomysł i wykonanie: ")
+                append(tr("Pomysł i wykonanie: ", "Idea and development: "))
                 withStyle(SpanStyle(color = Color.White, fontWeight = FontWeight.SemiBold, textDecoration = TextDecoration.Underline)) {
                     append("redzikowski.com")
                 }
@@ -965,14 +984,14 @@ private fun Credits() {
 @Composable
 private fun UpdateRow(update: UpdateState, onCheck: () -> Unit, onDownload: () -> Unit, onInstall: () -> Unit) {
     val (status, action, handler) = when (update) {
-        UpdateState.Idle -> Triple("Wersja ${UpdateManager.currentVersion}", "Sprawdź", onCheck)
-        UpdateState.Checking -> Triple("Sprawdzanie…", null, onCheck)
-        UpdateState.UpToDate -> Triple("Wersja ${UpdateManager.currentVersion} jest najnowsza", "Sprawdź", onCheck)
-        is UpdateState.Available -> Triple("Dostępna wersja ${update.info.version}", "Pobierz", onDownload)
-        is UpdateState.Downloading -> Triple("Pobieranie ${update.info.version} · ${(update.progress * 100).roundToInt()}%", null, onCheck)
-        is UpdateState.Ready -> Triple("Wersja ${update.info.version} gotowa", "Zainstaluj", onInstall)
-        is UpdateState.Installing -> Triple("Instalowanie ${update.info.version}…", null, onCheck)
-        is UpdateState.Failed -> Triple(update.message, "Ponów", onCheck)
+        UpdateState.Idle -> Triple(tr("Wersja ${UpdateManager.currentVersion}", "Version ${UpdateManager.currentVersion}"), tr("Sprawdź", "Check"), onCheck)
+        UpdateState.Checking -> Triple(tr("Sprawdzanie…", "Checking…"), null, onCheck)
+        UpdateState.UpToDate -> Triple(tr("Wersja ${UpdateManager.currentVersion} jest najnowsza", "Version ${UpdateManager.currentVersion} is the latest"), tr("Sprawdź", "Check"), onCheck)
+        is UpdateState.Available -> Triple(tr("Dostępna wersja ${update.info.version}", "Version ${update.info.version} available"), tr("Pobierz", "Download"), onDownload)
+        is UpdateState.Downloading -> Triple(tr("Pobieranie ${update.info.version} · ${(update.progress * 100).roundToInt()}%", "Downloading ${update.info.version} · ${(update.progress * 100).roundToInt()}%"), null, onCheck)
+        is UpdateState.Ready -> Triple(tr("Wersja ${update.info.version} gotowa", "Version ${update.info.version} ready"), tr("Zainstaluj", "Install"), onInstall)
+        is UpdateState.Installing -> Triple(tr("Instalowanie ${update.info.version}…", "Installing ${update.info.version}…"), null, onCheck)
+        is UpdateState.Failed -> Triple(update.message, tr("Ponów", "Retry"), onCheck)
     }
     Column(Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1063,7 +1082,7 @@ private fun Group(
             if (collapsible) {
                 Icon(
                     Icons.Rounded.ExpandMore,
-                    if (expanded) "Zwiń sekcję $title" else "Rozwiń sekcję $title",
+                    if (expanded) tr("Zwiń sekcję $title", "Collapse section $title") else tr("Rozwiń sekcję $title", "Expand section $title"),
                     tint = Palette.Amber,
                     modifier = Modifier.size(18.dp).rotate(if (expanded) 0f else -90f),
                 )
@@ -1128,8 +1147,8 @@ private fun SharedSwitch(group: SharedGroup, s: ModeSettings, change: ((ModeSett
     val isShared = group !in s.custom
     SwitchRow(
         Icons.Rounded.Link,
-        "Wspólne dla wszystkich trybów",
-        if (isShared) "${group.label}: zmiany obowiązują we wszystkich trybach" else "${group.label}: ustawienia tylko dla tego trybu",
+        tr("Wspólne dla wszystkich trybów", "Shared by all modes"),
+        if (isShared) tr("${group.label}: zmiany obowiązują we wszystkich trybach", "${group.label}: changes apply to all modes") else tr("${group.label}: ustawienia tylko dla tego trybu", "${group.label}: settings for this mode only"),
         isShared,
     ) { v -> change { it.copy(custom = if (v) it.custom - group else it.custom + group) } }
 }
@@ -1263,7 +1282,7 @@ private fun ExpandableInfoRow(icon: ImageVector, title: String, body: String) {
             Text(title, fontSize = 13.sp, modifier = Modifier.weight(1f).padding(horizontal = 12.dp))
             Icon(
                 Icons.Rounded.ExpandMore,
-                if (expanded) "Zwiń" else "Rozwiń",
+                if (expanded) tr("Zwiń", "Collapse") else tr("Rozwiń", "Expand"),
                 tint = Palette.TextDim,
                 modifier = Modifier.size(20.dp).rotate(if (expanded) 180f else 0f),
             )
