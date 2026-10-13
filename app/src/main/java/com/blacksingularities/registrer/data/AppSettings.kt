@@ -63,6 +63,11 @@ enum class VideoBitrate(val label: String) {
     MAX("Maks."),
 }
 
+enum class LongBlend(val label: String, val description: String) {
+    MOTION("Rozmycie ruchu", "Średnia klatek: gładka woda, chmury, znikający przechodnie"),
+    TRAILS("Smugi światła", "Najjaśniejsze piksele: światła aut, gwiazdy, ogień"),
+}
+
 enum class PortraitEffect(val label: String) {
     BOKEH("Rozmycie tła"),
     RETOUCH("Retusz"),
@@ -150,6 +155,11 @@ data class ModeSettings(
     val portraitEffect: PortraitEffect = PortraitEffect.BOKEH,
     val portraitBlur: Int = 60, // siła rozmycia programowego bokeh, 0–100
     val hdrStops: Float = 1.7f,
+    /** Długi czas naświetlania: czas zbierania klatek w sekundach. */
+    val longSeconds: Int = 2,
+    val longBlend: LongBlend = LongBlend.MOTION,
+    /** Wyrównywanie klatek (z ręki); na statywie można wyłączyć. */
+    val longAlign: Boolean = true,
     // wideo
     val videoResolution: VideoResolution = VideoResolution.FHD,
     val videoFps: VideoFps = VideoFps.AUTO,
@@ -202,6 +212,7 @@ data class ModeSettings(
             CaptureMode.VIDEO -> ModeSettings(aspect = AspectRatioMode.R16_9, histogram = false)
             CaptureMode.SLOWMO -> ModeSettings(aspect = AspectRatioMode.R16_9, histogram = false, level = false)
             CaptureMode.AUDIO -> ModeSettings(histogram = false, level = false, grids = emptySet())
+            CaptureMode.LONG -> ModeSettings(histogram = false)
             CaptureMode.PHOTO -> ModeSettings()
             CaptureMode.MOTION -> ModeSettings()
         }
@@ -324,6 +335,9 @@ class SettingsStore(context: Context) {
             portraitEffect = enumOr(prefs.getString(k + "portrait", null), d.portraitEffect),
             portraitBlur = prefs.getInt(k + "portraitBlur", d.portraitBlur),
             hdrStops = prefs.getFloat(k + "hdrStops", d.hdrStops),
+            longSeconds = prefs.getInt(k + "longSec", d.longSeconds),
+            longBlend = enumOr(prefs.getString(k + "longBlend", null), d.longBlend),
+            longAlign = prefs.getBoolean(k + "longAlign", d.longAlign),
             videoResolution = enumOr(prefs.getString(k + "videoRes", null), d.videoResolution),
             videoFps = enumOr(prefs.getString(k + "fps", null), d.videoFps),
             videoHdr = prefs.getBoolean(k + "videoHdr", d.videoHdr),
@@ -367,6 +381,9 @@ class SettingsStore(context: Context) {
             .putString(k + "portrait", s.portraitEffect.name)
             .putInt(k + "portraitBlur", s.portraitBlur)
             .putFloat(k + "hdrStops", s.hdrStops)
+            .putInt(k + "longSec", s.longSeconds)
+            .putString(k + "longBlend", s.longBlend.name)
+            .putBoolean(k + "longAlign", s.longAlign)
             .putString(k + "videoRes", s.videoResolution.name)
             .putString(k + "fps", s.videoFps.name)
             .putBoolean(k + "videoHdr", s.videoHdr)

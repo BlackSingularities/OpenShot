@@ -15,6 +15,8 @@ import com.blacksingularities.registrer.data.VideoResolution
 enum class CaptureMode(val label: String, val isPhoto: Boolean, val isVideo: Boolean, val title: String = label) {
     /** Ręczne ISO, czas, ostrość i balans bieli dla fotografii. */
     PRO("Ręczny", true, false, "Tryb ręczny"),
+    /** Seria klatek łączona w jedno zdjęcie: rozmyty ruch albo smugi świateł. */
+    LONG("Długi czas", true, false, "Długi czas naświetlania"),
     NIGHT("Noc", true, false),
     HDR("HDR", true, false),
     PORTRAIT("Portret", true, false),

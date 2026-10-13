@@ -22,6 +22,7 @@ Najnowszy plik APK jest zawsze w **[Releases → Latest](../../releases/latest)*
 | **Zdjęcie** | Szybka migawka lub priorytet jakości, lampa auto/wł./latarka, samowyzwalacz 3/10 s. |
 | **Zdjęcie ruchome** | Zdjęcie oraz około 3 s ruchu przed i po naciśnięciu migawki. |
 | **HDR** | Sprzętowy HDR albo fuzja 3 ekspozycji (−1,7 / 0 / +1,7 EV) z lokalnym mapowaniem tonów. |
+| **Długi czas** | Seria klatek z 1–15 s łączona w jedno zdjęcie: rozmycie ruchu (średnia) albo smugi światła (maksimum), z wyrównaniem do zdjęć z ręki. |
 | **Tryb ręczny** | Fotograficzny tryb ręczny: ISO, czas naświetlania (do 30″, jeśli sensor pozwala), ostrość z odległością, balans bieli i EV. |
 
 - **RAW (DNG) i RAW+JPEG** z automatycznym wyborem sensora RAW, także gdy telefon udostępnia go jako osobny aparat fizyczny.

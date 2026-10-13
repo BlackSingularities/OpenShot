@@ -112,6 +112,8 @@ import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.Waves
+import androidx.compose.material.icons.rounded.Flare
 import androidx.compose.material.icons.rounded.FastForward
 import androidx.compose.material.icons.rounded.NoiseControlOff
 import androidx.compose.material.icons.rounded.NoiseAware
@@ -1242,6 +1244,18 @@ private fun ModeQuickControl(ui: Ui, modifier: Modifier = Modifier) {
                 modifier = modifier,
             ) { i -> vm.updateProfile { it.copy(nightFrames = values[i]) } }
         }
+        CaptureMode.LONG -> {
+            val values = com.blacksingularities.registrer.ui.components.LONG_SECONDS
+            QuickControl(
+                icon = Icons.Rounded.ShutterSpeed,
+                label = "Czas naświetlania · ${cfg.longBlend.label}",
+                options = values.map { "$it s" },
+                selected = values.indexOf(cfg.longSeconds).coerceAtLeast(0),
+                defaultIndex = values.indexOf(2),
+                rotation = rot,
+                modifier = modifier,
+            ) { i -> vm.updateProfile { it.copy(longSeconds = values[i]) } }
+        }
         CaptureMode.HDR -> if (ext == ExtensionMode.HDR) {
             ev()
         } else {
@@ -1398,6 +1412,22 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
                 onPick = { i -> vm.setFlash(vm.flashOptions()[i]) },
                 onClick = vm::cycleFlash,
             )
+            if (vm.mode == CaptureMode.LONG) {
+                val blends = com.blacksingularities.registrer.data.LongBlend.entries
+                fun blendIcon(b: com.blacksingularities.registrer.data.LongBlend) =
+                    if (b == com.blacksingularities.registrer.data.LongBlend.TRAILS) Icons.Rounded.Flare else Icons.Rounded.Waves
+                RoundIcon(
+                    blendIcon(cfg.longBlend),
+                    cfg.longBlend.label,
+                    rot,
+                    active = cfg.longBlend == com.blacksingularities.registrer.data.LongBlend.TRAILS,
+                    enabled = !vm.busy,
+                    options = blends.map { PickerOption(it.label, blendIcon(it), caption = if (it == com.blacksingularities.registrer.data.LongBlend.TRAILS) "Smugi" else "Ruch") },
+                    selected = blends.indexOf(cfg.longBlend),
+                    onPick = { i -> vm.updateProfile { it.copy(longBlend = blends[i]) } },
+                    onClick = { vm.updateProfile { it.copy(longBlend = blends[(blends.indexOf(it.longBlend) + 1) % blends.size]) } },
+                )
+            }
             if (vm.mode.isPhoto) {
                 RoundIcon(
                     Icons.Rounded.Timer,

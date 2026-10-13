@@ -435,7 +435,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
 
     fun flashOptions(): List<FlashSetting> = when {
         !caps.hasFlash -> listOf(FlashSetting.OFF)
-        mode.isVideo || mode == CaptureMode.NIGHT -> listOf(FlashSetting.OFF, FlashSetting.TORCH)
+        mode.isVideo || mode == CaptureMode.NIGHT || mode == CaptureMode.LONG -> listOf(FlashSetting.OFF, FlashSetting.TORCH)
         else -> FlashSetting.entries
     }
 
@@ -890,6 +890,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
             mode == CaptureMode.NIGHT && session.extension == null -> nightCapture()
             mode == CaptureMode.HDR && session.extension == null -> hdrCapture()
             mode == CaptureMode.PORTRAIT && session.extension == null -> portraitCapture()
+            mode == CaptureMode.LONG -> longCapture()
             mode.isMoment -> momentCapture()
             else -> {
                 val hardware = session.extension != null
@@ -987,6 +988,49 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
             saveFallback(frames, "HDR")
         } catch (e: Exception) {
             if (frames.isNotEmpty()) saveFallback(frames, "HDR") else message = "Błąd HDR: ${e.message}"
+        } finally {
+            processing = null
+        }
+    }
+
+    /**
+     * Długi czas: zbiera klatki przez zadany czas (najwyżej [LONG_MAX_FRAMES]) i łączy je
+     * uśrednianiem (rozmyty ruch) albo maksimum jasności (smugi świateł).
+     */
+    private suspend fun longCapture() {
+        val seconds = cfg.longSeconds.coerceIn(1, 30)
+        val trails = cfg.longBlend == com.blacksingularities.registrer.data.LongBlend.TRAILS
+        val frames = mutableListOf<CapturedFrame>()
+        processing = Processing("Naświetlanie – nie ruszaj telefonem", 0f)
+        playShutter()
+        val start = SystemClock.elapsedRealtime()
+        try {
+            while (frames.size < LONG_MAX_FRAMES) {
+                frames += engine.captureFrame()
+                val elapsed = SystemClock.elapsedRealtime() - start
+                processing = Processing("Naświetlanie · ${frames.size} kl.", 0.4f * (elapsed / (seconds * 1000f)).coerceAtMost(1f))
+                if (elapsed >= seconds * 1000L && frames.size >= 3) break
+            }
+            if (global.shutterSound) sound.play(MediaActionSound.SHUTTER_CLICK)
+            val n = frames.size
+            val bitmap = com.blacksingularities.registrer.computational.LongExposure.blend(frames.map { it.bytes }, trails, cfg.longAlign) { p ->
+                progress("Składanie $n klatek", 0.4f + 0.55f * p)
+            }
+            processing = Processing("Zapisywanie", 0.96f)
+            val q = cfg.jpegQuality
+            val label = if (trails) "smugi" else "rozmycie"
+            val uri = withContext(Dispatchers.IO) {
+                try {
+                    MediaSaver.saveBitmap(ctx, bitmap, frames[0].rotation, q, "OpenShot Długi czas $seconds s ×$n ($label)", "LONG")
+                } finally {
+                    bitmap.recycle()
+                }
+            }
+            if (uri != null) onSaved(uri, false)
+        } catch (oom: OutOfMemoryError) {
+            saveFallback(frames, "LONG")
+        } catch (e: Exception) {
+            if (frames.isNotEmpty()) saveFallback(frames, "LONG") else message = "Błąd długiego czasu: ${e.message}"
         } finally {
             processing = null
         }
@@ -1622,3 +1666,4 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
 /** Maksymalny zoom cyfrowy (z przycięciem zdjęcia) w trybach Foto i Pro. */
 const val MAX_DIGITAL_ZOOM = 100f
 const val ZOOM_NAVIGATOR_THRESHOLD = 10f
+const val LONG_MAX_FRAMES = 32

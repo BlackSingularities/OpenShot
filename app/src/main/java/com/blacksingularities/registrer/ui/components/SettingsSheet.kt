@@ -112,6 +112,7 @@ import androidx.compose.material.icons.rounded.Link
 import com.blacksingularities.registrer.data.SharedGroup
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.material.icons.rounded.ShutterSpeed
 import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.ScreenLockRotation
 import androidx.compose.ui.semantics.Role
@@ -160,6 +161,8 @@ import com.blacksingularities.registrer.update.UpdateState
 import java.util.Locale
 import kotlin.math.roundToInt
 
+val LONG_SECONDS = listOf(1, 2, 4, 8, 15)
+
 fun modeIcon(mode: CaptureMode): ImageVector = when (mode) {
     CaptureMode.NIGHT -> Icons.Rounded.NightsStay
     CaptureMode.PORTRAIT -> Icons.Rounded.Portrait
@@ -170,6 +173,7 @@ fun modeIcon(mode: CaptureMode): ImageVector = when (mode) {
     CaptureMode.VIDEO -> Icons.Rounded.Videocam
     CaptureMode.SLOWMO -> Icons.Rounded.SlowMotionVideo
     CaptureMode.AUDIO -> Icons.Rounded.Mic
+    CaptureMode.LONG -> Icons.Rounded.ShutterSpeed
 }
 
 /** Zakładka ustawień: profil trybu albo ustawienia ogólne (null). */
@@ -410,6 +414,17 @@ private fun ModeTab(mode: CaptureMode, s: ModeSettings, caps: CameraCaps, enable
                         Slider(Icons.Rounded.Face, "Siła rozmycia tła", s.portraitBlur, 0..100, true) { v -> change { it.copy(portraitBlur = v) } }
                     }
                 }
+                CaptureMode.LONG -> Group("Długi czas") {
+                    Chips(Icons.Rounded.ShutterSpeed, "Czas naświetlania", LONG_SECONDS, s.longSeconds, { "$it s" }, enabled, hint = "Dłużej = mocniejsze rozmycie; najwyżej 32 klatki") { v ->
+                        change { it.copy(longSeconds = v) }
+                    }
+                    Chips(Icons.Rounded.Layers, "Łączenie klatek", com.blacksingularities.registrer.data.LongBlend.entries, s.longBlend, { it.label }, enabled, hint = s.longBlend.description) { v ->
+                        change { it.copy(longBlend = v) }
+                    }
+                    SwitchRow(Icons.Rounded.CenterFocusStrong, "Wyrównuj klatki", "Do zdjęć z ręki; na statywie wyłącz – tło będzie ostrzejsze", s.longAlign, enabled) { v ->
+                        change { it.copy(longAlign = v) }
+                    }
+                }
                 CaptureMode.HDR -> Group("HDR") {
                     if (caps.hdrExtension) {
                         InfoRow(Icons.Rounded.HdrOn, "Aktywny sprzętowy HDR producenta")
@@ -449,7 +464,7 @@ private fun ModeTab(mode: CaptureMode, s: ModeSettings, caps: CameraCaps, enable
                     }
                 }
                 Slider(Icons.Rounded.HighQuality, "Jakość JPEG", s.jpegQuality, 70..100, enabled) { v -> change { it.copy(jpegQuality = v) } }
-                if (mode != CaptureMode.NIGHT && mode != CaptureMode.HDR) {
+                if (mode != CaptureMode.NIGHT && mode != CaptureMode.HDR && mode != CaptureMode.LONG) {
                     val priorities = CapturePriority.entries
                     Chips(Icons.Rounded.Bolt, "Priorytet migawki", priorities, s.priority, { if (it == CapturePriority.SPEED && caps.zsl) "Szybkość (bez opóźnienia)" else it.label }, enabled) { v ->
                         change { it.copy(priority = v) }

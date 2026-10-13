@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.6.0
+
+- Nowy tryb **Długi czas** (na karuzeli między Ręcznym a Nocą): seria klatek przez 1–15 s łączona w jedno zdjęcie, jak z filtrem ND lub statywem.
+  - *Rozmycie ruchu* – średnia klatek: gładka woda, smugi chmur, znikający przechodnie.
+  - *Smugi światła* – najjaśniejsze piksele: światła samochodów, gwiazdy, ogień.
+- Czas wybierasz na pokrętle nad migawką, sposób łączenia – przyciskiem na górnym pasku; w ustawieniach trybu można wyłączyć wyrównywanie klatek (na statywie tło jest wtedy ostrzejsze).
+- Seria robiona jest w ok. 12 MP dla szybkości (najwyżej 32 klatki); lampa w tym trybie działa tylko jako latarka.
+
 ## 2.5.0
 
 - **Lokalizacja w zdjęciach i filmach** (domyślnie włączona): współrzędne GPS trafiają do EXIF zdjęć – także nocnych, HDR, portretów, ruchomych i przyciętych zoomem cyfrowym – oraz do metadanych filmów. Pozycja pochodzi z systemowej usługi lokalizacji (działa bez usług Google, np. na Huawei) i jest odświeżana tylko przy otwartej aplikacji. Przełącznik „Lokalizacja” w ustawieniach ogólnych; przy włączeniu aplikacja prosi o zgodę.

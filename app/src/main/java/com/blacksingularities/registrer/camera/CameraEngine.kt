@@ -620,6 +620,8 @@ class CameraEngine(private val context: Context) {
                     else -> PhotoFormat.JPEG
                 }
                 val captureMode = when {
+                    // Długi czas: jak najszybsza seria – liczy się liczba klatek, nie pojedyncza jakość.
+                    req.mode == CaptureMode.LONG -> ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY
                     req.mode == CaptureMode.NIGHT || req.mode == CaptureMode.HDR -> ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY
                     s.priority == CapturePriority.QUALITY -> ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY
                     s.priority == CapturePriority.SPEED && caps.zsl && wantedExtension == null && format == PhotoFormat.JPEG ->
@@ -633,7 +635,14 @@ class CameraEngine(private val context: Context) {
                     .setResolutionSelector(
                         ResolutionSelector.Builder()
                             .setAspectRatioStrategy(aspectStrategy)
-                            .setResolutionStrategy(ResolutionStrategy.HIGHEST_AVAILABLE_STRATEGY)
+                            .setResolutionStrategy(
+                                // Seria długiego czasu w ok. 12 MP: szybsze klatki i mniej pamięci.
+                                if (req.mode == CaptureMode.LONG) {
+                                    ResolutionStrategy(Size(4032, 3024), ResolutionStrategy.FALLBACK_RULE_CLOSEST_LOWER_THEN_HIGHER)
+                                } else {
+                                    ResolutionStrategy.HIGHEST_AVAILABLE_STRATEGY
+                                },
+                            )
                             .build(),
                     )
                     .setCaptureMode(captureMode)
