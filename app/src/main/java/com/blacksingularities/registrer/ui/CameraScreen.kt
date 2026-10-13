@@ -557,9 +557,17 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
         // Obszar nie zależy od proporcji kadru, więc zmiana 4:3 ↔ 16:9 nie przesuwa nakładek.
         val overlayArea = Rect(
             Offset.Zero,
-            Size(containerSize.width, (settledControlsTop - areaTop).coerceIn(containerSize.height * 0.3f, containerSize.height)),
+            // Nakładki mogą zejść tuż do dolnego sterowania (lekko na jego przezroczysty margines).
+            Size(containerSize.width, (settledControlsTop - areaTop + with(density) { 14.dp.toPx() }).coerceIn(containerSize.height * 0.3f, containerSize.height)),
         )
         val rect = imageRect(containerSize, ratio, centered)
+        // Klucz ekranu niezależny od obrotu (krótszy × dłuższy bok, co 40 dp) – fold złożony i rozłożony
+        // mają osobne pozycje nakładek.
+        val screenKey = remember(maxWidth, maxHeight) {
+            val shortSide = minOf(maxWidth.value, maxHeight.value)
+            val longSide = maxOf(maxWidth.value, maxHeight.value)
+            "${(shortSide / 40f).roundToInt()}x${(longSide / 40f).roundToInt()}"
+        }
 
         // Widok kamery zajmuje dokładnie prostokąt kadru – obraz jest wyśrodkowany.
         // Zoom cyfrowy ponad maksimum aparatu: podgląd powiększany w obrębie kadru.
@@ -663,6 +671,13 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
 
         // Przytrzymanie pozwala przeciągnąć nakładkę; kosz usuwa ją z kadru.
         var overlayDragging by remember { mutableStateOf(false) }
+        // Linie pomocnicze przyciągania (środek i krawędzie zdjęcia) podczas przeciągania nakładki.
+        var guideX by remember { mutableStateOf<Float?>(null) }
+        var guideY by remember { mutableStateOf<Float?>(null) }
+        val guides: (Float?, Float?) -> Unit = { gx, gy ->
+            guideX = gx
+            guideY = gy
+        }
         var overlayOverTrash by remember { mutableStateOf(false) }
         val dragState: (Boolean, Boolean) -> Unit = { dragging, overTrash ->
             overlayDragging = dragging
@@ -687,12 +702,14 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
         zoomOverview?.takeIf { showZoomNavigator }?.let { overview ->
             DraggableOverlay(
                 rect = overlayArea,
-                start = Offset(vm.global.zoomNavigatorX, vm.global.zoomNavigatorY),
+                photo = rect,
+                onGuides = guides,
+                start = vm.overlayPos("navigator", screenKey, Offset(vm.global.zoomNavigatorX, vm.global.zoomNavigatorY)),
                 turn = ui.uprightTurn,
                 rotation = ui.iconRotation,
                 haptics = ui.haptics,
                 deletable = false,
-                onCommit = { p -> vm.updateGlobal { it.copy(zoomNavigatorX = p.x, zoomNavigatorY = p.y) } },
+                onCommit = { p -> vm.saveOverlayPos("navigator", screenKey, p) },
                 onDragState = { _, _ -> },
                 onDelete = {},
             ) {
@@ -703,11 +720,13 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
         if (bins != null && vm.cfg.histogram && vm.mode.isPhoto && !vm.videoMode) {
             DraggableOverlay(
                 rect = overlayArea,
-                start = Offset(vm.global.histogramX, vm.global.histogramY),
+                photo = rect,
+                onGuides = guides,
+                start = vm.overlayPos("histogram", screenKey, Offset(vm.global.histogramX, vm.global.histogramY)),
                 turn = ui.uprightTurn,
                 rotation = ui.iconRotation,
                 haptics = ui.haptics,
-                onCommit = { p -> vm.updateGlobal { it.copy(histogramX = p.x, histogramY = p.y) } },
+                onCommit = { p -> vm.saveOverlayPos("histogram", screenKey, p) },
                 onDragState = dragState,
                 onDelete = { vm.updateProfile { it.copy(histogram = false) } },
             ) {
@@ -730,11 +749,13 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
         if (vm.global.exposureInfo && vm.mode != CaptureMode.AUDIO) {
             DraggableOverlay(
                 rect = overlayArea,
-                start = Offset(vm.global.stripX, vm.global.stripY),
+                photo = rect,
+                onGuides = guides,
+                start = vm.overlayPos("strip", screenKey, Offset(vm.global.stripX, vm.global.stripY)),
                 turn = ui.uprightTurn,
                 rotation = ui.iconRotation,
                 haptics = ui.haptics,
-                onCommit = { p -> vm.updateGlobal { it.copy(stripX = p.x, stripY = p.y) } },
+                onCommit = { p -> vm.saveOverlayPos("strip", screenKey, p) },
                 onDragState = dragState,
                 onDelete = { vm.updateGlobal { it.copy(exposureInfo = false) } },
             ) { ExposureStrip(vm) }
@@ -742,11 +763,13 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
         if (vm.global.audioMeter && vm.videoMode && vm.mode != CaptureMode.SLOWMO && vm.cfg.videoAudio) {
             DraggableOverlay(
                 rect = overlayArea,
-                start = Offset(vm.global.audioMeterX, vm.global.audioMeterY),
+                photo = rect,
+                onGuides = guides,
+                start = vm.overlayPos("audioMeter", screenKey, Offset(vm.global.audioMeterX, vm.global.audioMeterY)),
                 turn = ui.uprightTurn,
                 rotation = ui.iconRotation,
                 haptics = ui.haptics,
-                onCommit = { p -> vm.updateGlobal { it.copy(audioMeterX = p.x, audioMeterY = p.y) } },
+                onCommit = { p -> vm.saveOverlayPos("audioMeter", screenKey, p) },
                 onDragState = dragState,
                 onDelete = { vm.updateGlobal { it.copy(audioMeter = false) } },
             ) {
@@ -762,14 +785,25 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
         if (vm.global.compass && vm.mode != CaptureMode.AUDIO) {
             DraggableOverlay(
                 rect = overlayArea,
-                start = Offset(vm.global.compassX, vm.global.compassY),
+                photo = rect,
+                onGuides = guides,
+                start = vm.overlayPos("compass", screenKey, Offset(vm.global.compassX, vm.global.compassY)),
                 turn = ui.uprightTurn,
                 rotation = ui.iconRotation,
                 haptics = ui.haptics,
-                onCommit = { p -> vm.updateGlobal { it.copy(compassX = p.x, compassY = p.y) } },
+                onCommit = { p -> vm.saveOverlayPos("compass", screenKey, p) },
                 onDragState = dragState,
                 onDelete = { vm.updateGlobal { it.copy(compass = false) } },
             ) { CompassTape() }
+        }
+
+        if (overlayDragging && (guideX != null || guideY != null)) {
+            Canvas(Modifier.fillMaxSize()) {
+                val line = Color.White.copy(alpha = 0.55f)
+                val w = 1.dp.toPx()
+                guideX?.let { x -> drawLine(line, Offset(x, rect.top), Offset(x, rect.bottom), w) }
+                guideY?.let { y -> drawLine(line, Offset(rect.left, y), Offset(rect.right, y), w) }
+            }
         }
 
         AnimatedVisibility(
@@ -847,8 +881,9 @@ private fun AssistOverlay(frame: () -> com.blacksingularities.registrer.camera.A
 /**
  * Nakładka do przeciągnięcia. Pozycja zapisywana jest tak, jak widzi ją trzymający telefon
  * (0–1 w poziomie i pionie „do góry”), więc po obróceniu telefonu element zostaje np. na górze.
- * Przesuwanie zaczyna się od ruchu palcem albo krótkiego przytrzymania; po upuszczeniu nakładka
- * przyciąga się do krawędzi, rogów lub środka. Gest działa przed obrotem treści.
+ * Przesuwanie zaczyna się od ruchu palcem albo krótkiego przytrzymania. W trakcie przeciągania
+ * nakładka „przykleja się” do środka zdjęcia (w poziomie i pionie), jego krawędzi i krawędzi
+ * obszaru – z wibracją i linią pomocniczą. Gest działa przed obrotem treści.
  */
 @Composable
 private fun DraggableOverlay(
@@ -858,6 +893,9 @@ private fun DraggableOverlay(
     rotation: Float,
     haptics: Boolean,
     deletable: Boolean = true,
+    /** Prostokąt zdjęcia – nakładka przyciąga się do jego środka i krawędzi. */
+    photo: Rect = rect,
+    onGuides: (Float?, Float?) -> Unit = { _, _ -> },
     onCommit: (Offset) -> Unit,
     onDragState: (Boolean, Boolean) -> Unit,
     onDelete: () -> Unit,
@@ -870,7 +908,11 @@ private fun DraggableOverlay(
     val swap = quarter % 2 == 1
     val boxW = (if (swap) contentSize.height else contentSize.width).toFloat()
     val boxH = (if (swap) contentSize.width else contentSize.height).toFloat()
-    val margin = with(density) { 8.dp.toPx() }
+    val margin = with(density) { 4.dp.toPx() }
+    val snapRange = with(density) { 18.dp.toPx() }
+    val snapGap = with(density) { 6.dp.toPx() }
+    val photoNow by rememberUpdatedState(photo)
+    val guidesNow by rememberUpdatedState(onGuides)
     val availW by rememberUpdatedState((rect.width - boxW - 2 * margin).coerceAtLeast(1f))
     val availH by rememberUpdatedState((rect.height - boxH - 2 * margin).coerceAtLeast(1f))
     val commit by rememberUpdatedState(onCommit)
@@ -883,7 +925,8 @@ private fun DraggableOverlay(
     val boxHNow by rememberUpdatedState(boxH)
     val deletableNow by rememberUpdatedState(deletable)
     val hapticsNow by rememberUpdatedState(haptics)
-    var upright by remember { mutableStateOf(start) }
+    // Nowy tryb lub ekran = inna zapamiętana pozycja.
+    var upright by remember(start) { mutableStateOf(start) }
     var dragPos by remember { mutableStateOf<Offset?>(null) }
     val target = dragPos ?: uprightToScreen(upright, turn)
     val shown by androidx.compose.animation.core.animateOffsetAsState(
@@ -906,20 +949,62 @@ private fun DraggableOverlay(
                     val down = awaitFirstDown(requireUnconsumed = false)
                     val id = down.id
                     var started = false
+                    // Pozycja palca bez przyciągania; wyświetlana pozycja „przykleja się” do celów.
+                    var raw = Offset.Zero
+                    var snappedX = false
+                    var snappedY = false
+
+                    /** Przyciąganie środka nakładki do środka / krawędzi zdjęcia i krawędzi obszaru. */
+                    fun magnet(p: Offset): Offset {
+                        val area = rectNow
+                        val ph = photoNow
+                        val bw = boxWNow
+                        val bh = boxHNow
+                        val cx = area.left + margin + p.x * availW + bw / 2f
+                        val cy = area.top + margin + p.y * availH + bh / 2f
+                        val xs = listOf(
+                            ph.center.x, ph.left + bw / 2f + snapGap, ph.right - bw / 2f - snapGap,
+                            area.left + margin + bw / 2f, area.left + margin + availW + bw / 2f,
+                        )
+                        val ys = listOf(
+                            ph.center.y, ph.top + bh / 2f + snapGap, ph.bottom - bh / 2f - snapGap,
+                            area.top + margin + bh / 2f, area.top + margin + availH + bh / 2f,
+                        )
+                        val tx = xs.minByOrNull { abs(it - cx) }?.takeIf { abs(it - cx) <= snapRange }
+                        val ty = ys.minByOrNull { abs(it - cy) }?.takeIf { abs(it - cy) <= snapRange }
+                        val nowX = tx != null
+                        val nowY = ty != null
+                        if (hapticsNow && ((nowX && !snappedX) || (nowY && !snappedY))) {
+                            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                        }
+                        snappedX = nowX
+                        snappedY = nowY
+                        // Linie tylko dla celów związanych ze zdjęciem (środek i krawędzie kadru).
+                        guidesNow(
+                            tx?.takeIf { it == xs[0] || it == xs[1] || it == xs[2] }?.let { if (it == xs[0]) it else if (it == xs[1]) ph.left else ph.right },
+                            ty?.takeIf { it == ys[0] || it == ys[1] || it == ys[2] }?.let { if (it == ys[0]) it else if (it == ys[1]) ph.top else ph.bottom },
+                        )
+                        return Offset(
+                            if (tx != null) ((tx - bw / 2f - area.left - margin) / availW).coerceIn(0f, 1f) else p.x,
+                            if (ty != null) ((ty - bh / 2f - area.top - margin) / availH).coerceIn(0f, 1f) else p.y,
+                        )
+                    }
 
                     fun move(delta: Offset) {
-                        val p = dragPos ?: return
-                        val next = Offset(
-                            (p.x + delta.x / availW).coerceIn(0f, 1f),
-                            (p.y + delta.y / availH).coerceIn(0f, 1f),
+                        if (dragPos == null) return
+                        raw = Offset(
+                            (raw.x + delta.x / availW).coerceIn(0f, 1f),
+                            (raw.y + delta.y / availH).coerceIn(0f, 1f),
                         )
+                        val next = magnet(raw)
                         dragPos = next
                         dragState(deletableNow, deletableNow && isOverOverlayTrash(next, rectNow, margin, availW, availH, boxWNow, boxHNow, density))
                     }
 
                     fun begin() {
                         started = true
-                        dragPos = uprightToScreen(upright, turnNow)
+                        raw = uprightToScreen(upright, turnNow)
+                        dragPos = raw
                         dragState(deletableNow, false)
                         if (hapticsNow) haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                     }
@@ -965,6 +1050,7 @@ private fun DraggableOverlay(
                     val p = dragPos
                     dragPos = null
                     dragState(false, false)
+                    guidesNow(null, null)
                     if (p == null) return@awaitEachGesture
                     if (cancelled) return@awaitEachGesture
                     if (deletableNow && isOverOverlayTrash(p, rectNow, margin, availW, availH, boxWNow, boxHNow, density)) {
@@ -972,7 +1058,8 @@ private fun DraggableOverlay(
                         delete()
                         return@awaitEachGesture
                     }
-                    val snapped = snapUpright(screenToUpright(p, turnNow))
+                    // Pozycja już przyciągnięta w trakcie przeciągania – bez dodatkowego zaokrąglania.
+                    val snapped = screenToUpright(p, turnNow)
                     upright = snapped
                     if (hapticsNow) haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
                     commit(snapped)

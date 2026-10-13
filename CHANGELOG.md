@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.21.0
+
+- **Przyciąganie nakładek do zdjęcia**: parametry, kompas, histogram, wskaźnik dźwięku i nawigator zoomu podczas przeciągania „przyklejają się” do środka kadru (w poziomie i pionie) oraz do górnej, dolnej i bocznych krawędzi zdjęcia – z wibracją i linią pomocniczą.
+- Nakładki można przeciągać bliżej dolnego sterowania aparatu (mniejszy margines).
+- **Pozycje nakładek zapamiętywane osobno dla każdego trybu i każdego ekranu** – na składanym telefonie inne na ekranie zewnętrznym, inne na rozłożonym. Dotychczasowe położenia są punktem wyjścia.
+
 ## 2.20.0
 
 - **Interfejs pod ekrany AMOLED**: tła w czystej czerni (zgaszone piksele) – ustawienia, dyktafon, panele, przyciski i plakietki. Zamiast szarych wypełnień elementy mają cienką obwódkę, a wybrane pozostają białe; dyktafon nie ma już fioletowego gradientu.

@@ -29,6 +29,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.geometry.Offset
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LifecycleOwner
@@ -235,6 +236,29 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     private var intervalJob: Job? = null
 
     val bindKey: BindKey get() = BindKey(mode, lensFacing, activeCameraId.takeIf { mode != CaptureMode.SLOWMO }, displayRotation, cfg.bindKey(), global.peaking || global.zebra)
+
+    // ---------------------------------------------------------------- pozycje nakładek
+    private val overlayPrefs = app.getSharedPreferences("overlay_positions", android.content.Context.MODE_PRIVATE)
+    private val overlayCache = androidx.compose.runtime.mutableStateMapOf<String, Offset>()
+
+    /**
+     * Pozycja nakładki (0–1, „do góry”) zapamiętana osobno dla trybu i ekranu; gdy brak –
+     * wspólna pozycja z ustawień ogólnych.
+     */
+    fun overlayPos(overlay: String, screen: String, default: Offset): Offset {
+        val key = "$overlay|${mode.name}|$screen"
+        overlayCache[key]?.let { return it }
+        val raw = overlayPrefs.getString(key, null) ?: return default
+        val parts = raw.split(',')
+        // Bez zapisu do stanu w trakcie kompozycji – odczyt z pamięci ustawień jest szybki.
+        return runCatching { Offset(parts[0].toFloat(), parts[1].toFloat()) }.getOrNull() ?: default
+    }
+
+    fun saveOverlayPos(overlay: String, screen: String, pos: Offset) {
+        val key = "$overlay|${mode.name}|$screen"
+        overlayCache[key] = pos
+        overlayPrefs.edit().putString(key, "${pos.x},${pos.y}").apply()
+    }
 
     /** Maska obrysu ostrości / zebry dla bieżącej klatki podglądu. */
     var assistFrame by mutableStateOf<com.blacksingularities.registrer.camera.AssistFrame?>(null); private set
