@@ -261,7 +261,10 @@ fun CameraScreen(vm: CameraViewModel, onToggleRearDisplay: () -> Unit = {}) {
     LaunchedEffect(displaySurfaceRotation, vm.holdOrientation) {
         if (vm.displayRotation != displaySurfaceRotation && !vm.holdOrientation) vm.displayRotation = displaySurfaceRotation
     }
-    val relativeRotation = (vm.deviceRotation - (360 - displayDegrees) % 360 + 360) % 360
+    // W trybie „Obracaj ekran” obraca się cały ekran – elementy nie obracają się dodatkowo
+    // (inaczej obracałyby się dwa razy, a nakładki przeskakiwały). Wyjątek: blokada podczas nagrywania.
+    val screenFollows = vm.global.screenRotation == com.blacksingularities.registrer.data.ScreenRotation.AUTO && !vm.holdOrientation
+    val relativeRotation = if (screenFollows) 0 else (vm.deviceRotation - (360 - displayDegrees) % 360 + 360) % 360
 
     var rotationAccum by remember { mutableFloatStateOf(0f) }
     LaunchedEffect(relativeRotation) {
@@ -537,7 +540,7 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
         val bins = vm.histogram
         if (bins != null && vm.cfg.histogram && vm.mode.isPhoto) {
             DraggableOverlay(
-                rect = rect,
+                rect = Rect(Offset.Zero, containerSize),
                 start = Offset(vm.global.histogramX, vm.global.histogramY),
                 rotation = ui.iconRotation,
                 haptics = ui.haptics,
@@ -546,7 +549,7 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
         }
         if (vm.global.exposureInfo && vm.mode != CaptureMode.AUDIO) {
             DraggableOverlay(
-                rect = rect,
+                rect = Rect(Offset.Zero, containerSize),
                 start = Offset(vm.global.stripX, vm.global.stripY),
                 rotation = ui.iconRotation,
                 haptics = ui.haptics,
@@ -555,7 +558,7 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
         }
         if (vm.global.compass && vm.mode != CaptureMode.AUDIO) {
             DraggableOverlay(
-                rect = rect,
+                rect = Rect(Offset.Zero, containerSize),
                 start = Offset(vm.global.compassX, vm.global.compassY),
                 rotation = ui.iconRotation,
                 haptics = ui.haptics,
@@ -1176,8 +1179,13 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-                GlassToolbar(vertical = false, modifier = Modifier.horizontalScroll(rememberScrollState())) {
+            BoxWithConstraints(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                GlassToolbar(
+                    vertical = false,
+                    modifier = Modifier
+                        .horizontalScroll(rememberScrollState())
+                        .widthIn(min = maxWidth),
+                ) {
                     CompositionLocalProvider(LocalHintOnTap provides true) { items() }
                 }
             }

@@ -54,6 +54,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
@@ -140,6 +142,52 @@ fun Modifier.glass(
     }
     // Surowe bloki – bez obwódek i podświetleń krawędzi.
     return blurred
+}
+
+/**
+ * Obrót treści razem z układem: przy obrocie o 90°/270° szerokość i wysokość się zamieniają,
+ * więc tekst (np. „+0,0 EV”) biegnie pionowo w całości, a pole dopasowuje się do niego.
+ */
+fun Modifier.rotatedLayout(degrees: Float): Modifier = this
+    .layout { measurable, constraints ->
+        val quarter = (((degrees / 90f).roundToInt() % 4) + 4) % 4
+        val swap = quarter % 2 == 1
+        val c = if (swap) {
+            androidx.compose.ui.unit.Constraints(
+                minWidth = constraints.minHeight,
+                maxWidth = constraints.maxHeight,
+                minHeight = constraints.minWidth,
+                maxHeight = constraints.maxWidth,
+            )
+        } else {
+            constraints
+        }
+        val p = measurable.measure(c)
+        val w = if (swap) p.height else p.width
+        val h = if (swap) p.width else p.height
+        layout(w, h) { p.place((w - p.width) / 2, (h - p.height) / 2) }
+    }
+    .graphicsLayer { rotationZ = degrees }
+
+/** Rozkłada elementy równo na całą szerokość; gdy się nie mieszczą – ciasno, odstęp 2 dp. */
+object SpreadOrPack : androidx.compose.foundation.layout.Arrangement.Horizontal {
+    override val spacing = 2.dp
+
+    override fun androidx.compose.ui.unit.Density.arrange(
+        totalSize: Int,
+        sizes: IntArray,
+        layoutDirection: androidx.compose.ui.unit.LayoutDirection,
+        outPositions: IntArray,
+    ) {
+        val minGap = spacing.roundToPx()
+        val content = sizes.sum()
+        val gap = if (sizes.size > 1) maxOf(minGap, (totalSize - content) / (sizes.size - 1)) else 0
+        var x = if (sizes.size == 1) (totalSize - content) / 2 else 0
+        sizes.forEachIndexed { i, w ->
+            outPositions[i] = x
+            x += w + gap
+        }
+    }
 }
 
 /** Stan dymków: tekst i prostokąt elementu (w układzie okna), przy którym dymek się pojawia. */
@@ -630,7 +678,7 @@ fun GlassToolbar(
                 modifier
                     .glass(RoundedCornerShape(6.dp), GlassLevel.Regular)
                     .padding(4.dp),
-                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(2.dp),
+                horizontalArrangement = SpreadOrPack,
                 verticalAlignment = Alignment.CenterVertically,
             ) { content() }
         }
@@ -653,12 +701,12 @@ fun GlassChip(
     Box(
         modifier
             .reactive(label, enabled, null, onClick)
-            .height(44.dp)
+            .heightIn(min = 44.dp)
             .glass(BlockShape, active = active)
             .padding(horizontal = 12.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Row(Modifier.graphicsLayer { rotationZ = rotation }, verticalAlignment = Alignment.CenterVertically) {
+        Row(Modifier.rotatedLayout(rotation), verticalAlignment = Alignment.CenterVertically) {
             if (icon != null) {
                 Icon(icon, null, tint = color, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(4.dp))

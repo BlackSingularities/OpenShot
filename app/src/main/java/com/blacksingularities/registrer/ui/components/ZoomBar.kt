@@ -60,6 +60,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.blacksingularities.registrer.ui.theme.Palette
+import androidx.compose.foundation.layout.heightIn
+import com.blacksingularities.registrer.ui.theme.rotatedLayout
 import com.blacksingularities.registrer.ui.theme.glass
 import com.blacksingularities.registrer.ui.theme.GlassLevel
 import kotlinx.coroutines.launch
@@ -279,7 +281,7 @@ fun ZoomControls(
             if (f) {
                 Row(
                     Modifier
-                        .height(48.dp)
+                        .heightIn(min = 48.dp)
                         .glass(BlockShape, active = true)
                         .padding(horizontal = 16.dp),
                     verticalAlignment = Alignment.CenterVertically,
@@ -290,7 +292,7 @@ fun ZoomControls(
                         color = Palette.Ink,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
-                        modifier = Modifier.graphicsLayer { rotationZ = iconRotation },
+                        modifier = Modifier.rotatedLayout(iconRotation),
                     )
                 }
             } else {

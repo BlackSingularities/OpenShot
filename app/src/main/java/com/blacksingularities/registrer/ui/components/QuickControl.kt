@@ -49,6 +49,7 @@ import com.blacksingularities.registrer.ui.theme.MonoDigits
 import com.blacksingularities.registrer.ui.theme.Palette
 import com.blacksingularities.registrer.ui.theme.glass
 import com.blacksingularities.registrer.ui.theme.reactive
+import com.blacksingularities.registrer.ui.theme.rotatedLayout
 import kotlin.math.roundToInt
 
 /**
@@ -112,9 +113,9 @@ fun QuickControl(
             },
             label = "quickValue",
             modifier = Modifier
-                .widthIn(min = 64.dp)
                 .padding(horizontal = 8.dp)
-                .graphicsLayer { rotationZ = rotation },
+                .rotatedLayout(rotation)
+                .widthIn(min = 56.dp),
             contentAlignment = Alignment.Center,
         ) { i ->
             Text(options[i.coerceIn(0, options.lastIndex)], style = MonoDigits, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = if (isDefault) Color.White else Palette.Amber, maxLines = 1)
