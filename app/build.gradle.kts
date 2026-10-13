@@ -21,7 +21,7 @@ android {
         versionCode = appVersionCode
         versionName = appVersionName
         vectorDrawables.useSupportLibrary = true
-        buildConfigField("String", "UPDATE_REPO", "\"BlackSingularities/Registrer\"")
+        buildConfigField("String", "UPDATE_REPO", "\"BlackSingularities/OpenShot\"")
     }
 
     signingConfigs {

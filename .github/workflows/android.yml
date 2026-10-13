@@ -53,12 +53,12 @@ jobs:
         run: gradle assembleRelease -PversionCode=${{ steps.ver.outputs.code }} -PversionName=${{ steps.ver.outputs.name }} --stacktrace
 
       - name: Przygotowanie pliku
-        run: cp app/build/outputs/apk/release/app-release.apk "Registrer-${{ steps.ver.outputs.name }}.apk"
+        run: cp app/build/outputs/apk/release/app-release.apk "OpenShot-${{ steps.ver.outputs.name }}.apk"
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Registrer-${{ steps.ver.outputs.name }}
-          path: Registrer-${{ steps.ver.outputs.name }}.apk
+          name: OpenShot-${{ steps.ver.outputs.name }}
+          path: OpenShot-${{ steps.ver.outputs.name }}.apk
 
       - name: Publikacja wydania
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
@@ -67,8 +67,8 @@ jobs:
         run: |
           TAG="v${{ steps.ver.outputs.name }}"
           NOTES=$(git log -1 --pretty=format:'%s%n%n%b')
-          gh release create "$TAG" "Registrer-${{ steps.ver.outputs.name }}.apk" \
+          gh release create "$TAG" "OpenShot-${{ steps.ver.outputs.name }}.apk" \
             --target "$GITHUB_SHA" \
-            --title "Registrer ${{ steps.ver.outputs.name }}" \
-            --notes "$(printf '%s\n\n---\nPobierz plik **Registrer-%s.apk** poniżej i zainstaluj go na telefonie (Android 10+).' "$NOTES" "${{ steps.ver.outputs.name }}")" \
+            --title "OpenShot ${{ steps.ver.outputs.name }}" \
+            --notes "$(printf '%s\n\n---\nPobierz plik **OpenShot-%s.apk** poniżej i zainstaluj go na telefonie (Android 10+).' "$NOTES" "${{ steps.ver.outputs.name }}")" \
             --latest

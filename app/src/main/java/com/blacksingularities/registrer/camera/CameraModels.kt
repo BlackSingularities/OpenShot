@@ -78,6 +78,10 @@ data class CameraCaps(
     val cameraSummary: String = "",
     /** Co o formatach RAW / Ultra HDR mówi Camera2, a co udostępnia CameraX – diagnostyka. */
     val formatSummary: String = "",
+    /** Alternatywny sensor, który CameraX udostępnia w RAW, gdy aparat logiczny pokazuje tylko JPEG. */
+    val rawCameraId: String? = null,
+    val rawCameraPhysical: Boolean = false,
+    val rawCameraFactor: Float = 1f,
 ) {
     val slowMo get() = slowMoRanges.isNotEmpty()
     val portrait get() = bokehExtension || retouchExtension

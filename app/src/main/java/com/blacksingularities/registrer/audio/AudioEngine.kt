@@ -36,9 +36,9 @@ class AudioEngine(private val context: Context) {
 
     private val relativeDir: String
         get() = if (Build.VERSION.SDK_INT >= 31) {
-            Environment.DIRECTORY_RECORDINGS + "/Registrer"
+            Environment.DIRECTORY_RECORDINGS + "/OpenShot"
         } else {
-            Environment.DIRECTORY_MUSIC + "/Registrer"
+            Environment.DIRECTORY_MUSIC + "/OpenShot"
         }
 
     private fun sourceFor(type: AudioSourceType): Int = when (type) {
@@ -61,7 +61,7 @@ class AudioEngine(private val context: Context) {
         val resolver = context.contentResolver
         val stamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
         val values = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, "REG_AUD_$stamp.m4a")
+            put(MediaStore.MediaColumns.DISPLAY_NAME, "OPENSHOT_AUD_$stamp.m4a")
             put(MediaStore.MediaColumns.MIME_TYPE, "audio/mp4")
             put(MediaStore.MediaColumns.RELATIVE_PATH, relativeDir)
             put(MediaStore.MediaColumns.IS_PENDING, 1)
@@ -153,8 +153,9 @@ class AudioEngine(private val context: Context) {
             context.contentResolver.query(
                 collection,
                 projection,
-                "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?",
-                arrayOf("%Registrer%"),
+                "${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ? OR ${MediaStore.MediaColumns.RELATIVE_PATH} LIKE ?",
+                // Zachowaj widoczność nagrań wykonanych przed zmianą nazwy aplikacji.
+                arrayOf("%OpenShot%", "%Registrer%"),
                 "${MediaStore.Audio.Media.DATE_ADDED} DESC",
             )?.use { c ->
                 val idCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)

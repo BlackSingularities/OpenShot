@@ -213,7 +213,10 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
             if (lenses.none { it > 1.4f } && max >= 2f) lenses += 2f
             if (lenses.none { it >= 4.5f } && max >= 10f) lenses += 10f
             if (cropAllowed) lenses += MAX_DIGITAL_ZOOM
-            return lenses.distinct().sorted()
+            // Scalenie bliskich wartości (np. 0,6 z opisu aparatu i 0,55 z sensora fizycznego).
+            val merged = mutableListOf<Float>()
+            for (z in lenses.sorted()) if (merged.none { abs(it - z) / z < 0.08f }) merged += z
+            return merged
         }
 
     val busy
@@ -258,6 +261,15 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
             engine.setDisplayRotation(displayRotation)
             session = engine.bind(owner, surfaceProvider, BindRequest(lensFacing, mode, cfg, pro, activeCameraId), c)
             if (mode == CaptureMode.AUDIO) return
+            if (cfg.photoFormat == PhotoFormat.RAW || cfg.photoFormat == PhotoFormat.RAW_JPEG) {
+                message = when {
+                    session.photoFormat != cfg.photoFormat ->
+                        "${cfg.photoFormat.label} niedostępny dla wybranego obiektywu – użyto JPEG. Wybierz obiektyw 1× albo sprawdź diagnostykę RAW w ustawieniach."
+                    c.rawCameraId != null && activeCameraId == null ->
+                        "${cfg.photoFormat.label} aktywny · sensor RAW #${c.rawCameraId}"
+                    else -> null
+                }
+            }
             val cam = engine.camera ?: return
             val zs = cam.cameraInfo.zoomState.value
             zoomMin = zs?.minZoomRatio ?: 1f
@@ -274,7 +286,15 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
             cameraReady = true
             if (mode.isMoment) startMomentBuffer()
         } catch (e: Exception) {
-            message = "Kamera niedostępna: ${e.message ?: e.javaClass.simpleName}"
+            val reason = e.message ?: e.javaClass.simpleName
+            if (activeCameraId != null) {
+                val failed = caps.auxLenses.firstOrNull { it.cameraId == activeCameraId }
+                activeCameraId = null
+                zoomTarget = 1f
+                message = "Nie udało się włączyć obiektywu ${failed?.factor?.let { formatRatio(it) + "×" } ?: "dodatkowego"}: $reason. Wracam do aparatu głównego."
+            } else {
+                message = "Kamera niedostępna: $reason"
+            }
         }
     }
 
@@ -482,14 +502,24 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Przycisk obiektywu: osobny aparat albo krotność aparatu głównego. */
     fun selectZoomPreset(value: Float) {
-        val aux = caps.auxLenses.firstOrNull { abs(it.factor - value) < 0.01f }
+        val aux = caps.auxLenses.firstOrNull { abs(it.factor - value) / value < 0.1f }
+        // Aparat główny osiąga tę krotność zoomem – najpłynniej, bez przełączania kamery.
+        val primaryReaches = activeCameraId == null && value >= zoomMin - 0.01f
         when {
             !canSwitchCamera() -> if (activeCameraId == null) setZoomTarget(value, if (mode.isVideo) 4f else 14f)
+            primaryReaches -> setZoomTarget(value, if (mode.isVideo) 4f else 14f)
             aux != null && mode != CaptureMode.SLOWMO -> switchCamera(aux.cameraId, 1f)
             activeCameraId != null -> switchCamera(null, value)
-            else -> setZoomTarget(value, if (mode.isVideo) 4f else 14f)
+            else -> {
+                setZoomTarget(value, if (mode.isVideo) 4f else 14f)
+                if (value < zoomMin - 0.01f) {
+                    message = "Szeroki kąt niedostępny: aparat pozwala od ${formatRatio(zoomMin)}×, a osobnego sensora system nie udostępnia"
+                }
+            }
         }
     }
+
+    private fun formatRatio(v: Float) = String.format(java.util.Locale.US, "%.1f", v).replace('.', ',')
 
     private fun canSwitchCamera() = recState == RecState.IDLE && !bursting && processing == null && !intervalRunning
 
@@ -515,6 +545,11 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
                 activeCameraId != null && scale < 1f && display >= 1f -> return switchCamera(null, display)
                 activeCameraId != null && scale > 1f && display < scale * 0.98f -> return switchCamera(null, display)
                 activeCameraId == null && wide != null && display < zoomMin * 0.97f -> return switchCamera(wide.cameraId, 1f)
+                activeCameraId == null && wide == null && display < zoomMin * 0.97f -> {
+                    if (message == null) {
+                        message = "Szeroki kąt niedostępny: aparat pozwala od ${formatRatio(zoomMin)}×, a osobnego sensora system nie udostępnia"
+                    }
+                }
             }
         }
         val hw = display / scale
@@ -752,7 +787,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
             val q = cfg.jpegQuality
             val uri = withContext(Dispatchers.IO) {
                 try {
-                    MediaSaver.saveBitmap(ctx, bitmap, frames[0].rotation, q, "Registrer Noc ×$n", "NIGHT")
+                    MediaSaver.saveBitmap(ctx, bitmap, frames[0].rotation, q, "OpenShot Noc ×$n", "NIGHT")
                 } finally {
                     bitmap.recycle()
                 }
@@ -784,7 +819,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
             val q = cfg.jpegQuality
             val uri = withContext(Dispatchers.IO) {
                 try {
-                    MediaSaver.saveBitmap(ctx, bitmap, frames[refIndex].rotation, q, "Registrer HDR fusion", "HDR")
+                    MediaSaver.saveBitmap(ctx, bitmap, frames[refIndex].rotation, q, "OpenShot HDR fusion", "HDR")
                 } finally {
                     bitmap.recycle()
                 }
@@ -812,7 +847,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
             val q = cfg.jpegQuality
             val uri = withContext(Dispatchers.IO) {
                 try {
-                    MediaSaver.saveBitmap(ctx, bitmap, 0, q, "Registrer Portret", "PORTRAIT")
+                    MediaSaver.saveBitmap(ctx, bitmap, 0, q, "OpenShot Portret", "PORTRAIT")
                 } finally {
                     bitmap.recycle()
                 }
@@ -868,7 +903,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
             runCatching {
                 val exif = androidx.exifinterface.media.ExifInterface(tmp.absolutePath)
                 if (orientation != null) exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_ORIENTATION, orientation)
-                exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_SOFTWARE, "Registrer zoom cyfrowy ×${crop.toInt()}")
+                exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_SOFTWARE, "OpenShot zoom cyfrowy ×${crop.toInt()}")
                 exif.saveAttributes()
             }
             resolver.openOutputStream(uri, "wt")?.use { os -> tmp.inputStream().use { it.copyTo(os) } }
@@ -997,7 +1032,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     private suspend fun saveFallback(frames: List<CapturedFrame>, tag: String) {
         val frame = frames.getOrNull(frames.size / 2) ?: return
         val uri = withContext(Dispatchers.IO) {
-            runCatching { MediaSaver.saveJpeg(ctx, frame.bytes, frame.rotation, "Registrer", tag) }.getOrNull()
+            runCatching { MediaSaver.saveJpeg(ctx, frame.bytes, frame.rotation, "OpenShot", tag) }.getOrNull()
         }
         if (uri != null) {
             onSaved(uri, false)
@@ -1239,7 +1274,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         val ready = update as? UpdateState.Ready ?: return true
         if (!UpdateManager.canInstall(ctx)) {
             UpdateManager.openInstallPermissionSettings(ctx)
-            message = "Zezwól aplikacji Registrer na instalowanie aktualizacji i spróbuj ponownie"
+            message = "Zezwól aplikacji OpenShot na instalowanie aktualizacji i spróbuj ponownie"
             return false
         }
         update = UpdateState.Installing(ready.info)
@@ -1281,7 +1316,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         val installing = update
         if (installing is UpdateState.Installing) {
             // Instalacja przerwana albo odrzucona – plik nadal czeka w pamięci podręcznej.
-            val file = java.io.File(ctx.cacheDir, "updates/Registrer-${installing.info.version}.apk")
+            val file = java.io.File(ctx.cacheDir, "updates/OpenShot-${installing.info.version}.apk")
             update = if (file.exists()) UpdateState.Ready(installing.info, file) else UpdateState.Idle
         }
         if (global.autoCheckUpdates && update is UpdateState.Idle) {

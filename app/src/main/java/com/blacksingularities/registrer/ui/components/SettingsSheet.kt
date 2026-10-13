@@ -2,6 +2,7 @@ package com.blacksingularities.registrer.ui.components
 
 import com.blacksingularities.registrer.ui.theme.BlockShape
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
@@ -90,6 +91,7 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.ExpandMore
 import androidx.compose.ui.input.pointer.pointerInput
 import com.blacksingularities.registrer.ui.theme.GlassIconButton
 import com.blacksingularities.registrer.ui.theme.GlassLevel
@@ -101,6 +103,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -384,7 +387,7 @@ private fun FramingGroup(
     showTimer: Boolean,
     enabled: Boolean = true,
 ) {
-    Group("Kadr") {
+    Group("Kadr", collapsible = true) {
         SharedSwitch(SharedGroup.FRAMING, s, change)
         if (showAspect) Chips(Icons.Rounded.AspectRatio, "Proporcje", AspectRatioMode.entries, s.aspect, { it.label }, enabled) { v -> change { it.copy(aspect = v) } }
         MultiChips(Icons.Rounded.GridOn, "Siatki", GridType.entries, s.grids, { it.label }) { v ->
@@ -451,7 +454,7 @@ private fun GeneralTab(
         InfoRow(Icons.Rounded.Movie, "Wideo: " + caps.videoResolutions.joinToString { it.label } + (if (caps.fps60) " · 60 kl/s" else "") + (if (caps.videoHlg) " · HLG" else ""))
         if (caps.slowMo) InfoRow(Icons.Rounded.SlowMotionVideo, "Slow-mo: " + caps.slowMoRanges.joinToString { "${it.upper} kl/s" })
         InfoRow(Icons.Rounded.Tune, if (caps.manualSensor) "Pełne sterowanie ręczne sensora" else "Ograniczone sterowanie ręczne")
-        InfoRow(Icons.Rounded.Info, "Pliki: DCIM/Registrer · Recordings/Registrer")
+        InfoRow(Icons.Rounded.Info, "Pliki: DCIM/OpenShot · Recordings/OpenShot")
     }
 }
 
@@ -471,7 +474,7 @@ private fun UpdateRow(update: UpdateState, onCheck: () -> Unit, onDownload: () -
         Row(verticalAlignment = Alignment.CenterVertically) {
             RowIcon(Icons.Rounded.SystemUpdate)
             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-                Text("Registrer ${UpdateManager.currentVersion}", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                Text("OpenShot ${UpdateManager.currentVersion}", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                 Text(status, fontSize = 12.sp, color = if (update is UpdateState.Available || update is UpdateState.Ready) Palette.Amber else Palette.TextDim, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
             if (action != null) {
@@ -498,7 +501,12 @@ private fun UpdateRow(update: UpdateState, onCheck: () -> Unit, onDownload: () -
         }
         val notes = (update as? UpdateState.Available)?.info?.notes ?: (update as? UpdateState.Ready)?.info?.notes
         if (!notes.isNullOrBlank()) {
-            Text(notes, fontSize = 12.sp, color = Palette.TextDim, maxLines = 4, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(top = 6.dp))
+            Text(
+                notes,
+                fontSize = 12.sp,
+                color = Palette.TextDim,
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp, start = 44.dp, end = 4.dp),
+            )
         }
     }
 }
@@ -522,24 +530,43 @@ private fun TabChip(icon: ImageVector, label: String, selected: Boolean, onClick
 }
 
 @Composable
-private fun Group(title: String, content: @Composable ColumnScope.() -> Unit) {
+private fun Group(title: String, collapsible: Boolean = false, content: @Composable ColumnScope.() -> Unit) {
+    var expanded by remember(title) { mutableStateOf(true) }
     Column {
-        Text(
-            title.uppercase(),
-            color = Palette.Amber,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.Bold,
-            letterSpacing = 1.4.sp,
-            modifier = Modifier.padding(start = 4.dp, bottom = 3.dp),
-        )
-        Column(
+        Row(
             Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(16.dp))
-                .background(Color.White.copy(alpha = 0.06f))
-                .padding(vertical = 2.dp),
-            content = content,
-        )
+                .then(if (collapsible) Modifier.clickable { expanded = !expanded } else Modifier)
+                .padding(start = 4.dp, end = 4.dp, bottom = 3.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                title.uppercase(),
+                color = Palette.Amber,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.4.sp,
+                modifier = Modifier.weight(1f),
+            )
+            if (collapsible) {
+                Icon(
+                    Icons.Rounded.ExpandMore,
+                    if (expanded) "Zwiń sekcję $title" else "Rozwiń sekcję $title",
+                    tint = Palette.Amber,
+                    modifier = Modifier.size(18.dp).rotate(if (expanded) 0f else -90f),
+                )
+            }
+        }
+        AnimatedVisibility(visible = !collapsible || expanded) {
+            Column(
+                Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(Color.White.copy(alpha = 0.06f))
+                    .padding(vertical = 2.dp),
+                content = content,
+            )
+        }
     }
 }
 

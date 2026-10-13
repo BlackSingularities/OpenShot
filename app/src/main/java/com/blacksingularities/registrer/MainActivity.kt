@@ -26,7 +26,7 @@ import com.blacksingularities.registrer.fold.RearDisplay
 import com.blacksingularities.registrer.ui.CameraScreen
 import com.blacksingularities.registrer.ui.CameraViewModel
 import com.blacksingularities.registrer.ui.components.PermissionScreen
-import com.blacksingularities.registrer.ui.theme.RegistrerTheme
+import com.blacksingularities.registrer.ui.theme.OpenShotTheme
 
 class MainActivity : ComponentActivity() {
     private val vm: CameraViewModel by viewModels()
@@ -50,7 +50,7 @@ class MainActivity : ComponentActivity() {
         rearDisplay.observe(this)
 
         setContent {
-            RegistrerTheme {
+            OpenShotTheme {
                 var cameraGranted by remember { mutableStateOf(isGranted(Manifest.permission.CAMERA)) }
                 val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
                     cameraGranted = result[Manifest.permission.CAMERA] == true || isGranted(Manifest.permission.CAMERA)
