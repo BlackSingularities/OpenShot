@@ -92,6 +92,7 @@ object MomentMedia {
                 }
                 exif.setAttribute(ExifInterface.TAG_ORIENTATION, orientation.toString())
                 exif.setAttribute(ExifInterface.TAG_SOFTWARE, "OpenShot Motion Photo")
+                MediaSaver.tagGps(exif)
                 exif.saveAttributes()
             }
             return tmp.readBytes()

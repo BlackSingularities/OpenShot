@@ -112,6 +112,7 @@ import androidx.compose.material.icons.rounded.Link
 import com.blacksingularities.registrer.data.SharedGroup
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.ScreenLockRotation
 import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.selection.selectable
@@ -496,18 +497,23 @@ private fun GeneralTab(
     onInstall: () -> Unit,
 ) {
     Group(null) {
-        Row(
+        Column(
             Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            IconToggle(Icons.Rounded.Vibration, "Wibracje", g.haptics, Modifier.weight(1f)) { v -> onGlobal { it.copy(haptics = v) } }
-            IconToggle(Icons.Rounded.CameraAlt, "Migawka", g.shutterSound, Modifier.weight(1f)) { v -> onGlobal { it.copy(shutterSound = v) } }
-            IconToggle(Icons.Rounded.Alarm, "Odliczanie", g.timerBeep, Modifier.weight(1f)) { v -> onGlobal { it.copy(timerBeep = v) } }
-            IconToggle(Icons.Rounded.Speed, "Parametry", g.exposureInfo, Modifier.weight(1f)) { v -> onGlobal { it.copy(exposureInfo = v) } }
-            IconToggle(Icons.Rounded.Explore, "Kompas", g.compass, Modifier.weight(1f)) { v -> onGlobal { it.copy(compass = v) } }
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                IconToggle(Icons.Rounded.Vibration, "Wibracje", g.haptics, Modifier.weight(1f)) { v -> onGlobal { it.copy(haptics = v) } }
+                IconToggle(Icons.Rounded.CameraAlt, "Migawka", g.shutterSound, Modifier.weight(1f)) { v -> onGlobal { it.copy(shutterSound = v) } }
+                IconToggle(Icons.Rounded.Alarm, "Odliczanie", g.timerBeep, Modifier.weight(1f)) { v -> onGlobal { it.copy(timerBeep = v) } }
+            }
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                IconToggle(Icons.Rounded.LocationOn, "Lokalizacja", g.geotag, Modifier.weight(1f)) { v -> onGlobal { it.copy(geotag = v) } }
+                IconToggle(Icons.Rounded.Speed, "Parametry", g.exposureInfo, Modifier.weight(1f)) { v -> onGlobal { it.copy(exposureInfo = v) } }
+                IconToggle(Icons.Rounded.Explore, "Kompas", g.compass, Modifier.weight(1f)) { v -> onGlobal { it.copy(compass = v) } }
+            }
         }
         Text(
-            "Dźwięk migawki, sygnał samowyzwalacza i nakładki w kadrze. Nakładki przeciągasz po kadrze, a upuszczone na koszu znikają.",
+            "Lokalizacja zapisuje miejsce w zdjęciach i filmach. Nakładki (parametry, kompas, histogram) przeciągasz po kadrze, a upuszczone na koszu znikają.",
             fontSize = 10.sp,
             lineHeight = 13.sp,
             color = Palette.TextDim,

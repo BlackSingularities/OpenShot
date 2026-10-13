@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.5.0
+
+- **Lokalizacja w zdjęciach i filmach** (domyślnie włączona): współrzędne GPS trafiają do EXIF zdjęć – także nocnych, HDR, portretów, ruchomych i przyciętych zoomem cyfrowym – oraz do metadanych filmów. Pozycja pochodzi z systemowej usługi lokalizacji (działa bez usług Google, np. na Huawei) i jest odświeżana tylko przy otwartej aplikacji. Przełącznik „Lokalizacja” w ustawieniach ogólnych; przy włączeniu aplikacja prosi o zgodę.
+- Przełączniki w ustawieniach ogólnych w dwóch rzędach po trzy.
+
 ## 2.4.7
 
 - Szeroki kąt na telefonach, które udostępniają ten sam sensor jako osobny aparat i jako część aparatu logicznego (np. Huawei Mate X7): aplikacja otwiera go jako osobny aparat zamiast przez aparat logiczny, czego producent nie obsługuje. W diagnostyce takie aparaty mają dopisek „też fizyczny”.

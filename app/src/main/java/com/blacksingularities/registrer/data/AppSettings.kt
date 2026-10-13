@@ -231,6 +231,8 @@ data class GlobalSettings(
     val zoomNavigatorY: Float = 0.18f,
     val autoCheckUpdates: Boolean = true,
     val autoDownloadUpdates: Boolean = true,
+    /** Zapis współrzędnych GPS w zdjęciach i filmach. */
+    val geotag: Boolean = true,
     val lastMode: CaptureMode = CaptureMode.PHOTO,
 )
 
@@ -259,6 +261,7 @@ class SettingsStore(context: Context) {
             zoomNavigatorY = prefs.getFloat("g.zoomNavY", d.zoomNavigatorY),
             autoCheckUpdates = prefs.getBoolean("g.autoCheck", d.autoCheckUpdates),
             autoDownloadUpdates = prefs.getBoolean("g.autoDownload", d.autoDownloadUpdates),
+            geotag = prefs.getBoolean("g.geotag", d.geotag),
             lastMode = enumOr(prefs.getString("g.lastMode", null), d.lastMode),
         )
     }
@@ -284,6 +287,7 @@ class SettingsStore(context: Context) {
             .putFloat("g.zoomNavY", g.zoomNavigatorY)
             .putBoolean("g.autoCheck", g.autoCheckUpdates)
             .putBoolean("g.autoDownload", g.autoDownloadUpdates)
+            .putBoolean("g.geotag", g.geotag)
             .putString("g.lastMode", g.lastMode.name)
             .apply()
     }

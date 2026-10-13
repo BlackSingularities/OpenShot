@@ -81,6 +81,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     private val store = SettingsStore(app)
     val engine = CameraEngine(app)
     private val audio = AudioEngine.get(app)
+    private val locationTracker = com.blacksingularities.registrer.camera.LocationTracker(app)
     private val sound = MediaActionSound().apply {
         load(MediaActionSound.SHUTTER_CLICK)
         load(MediaActionSound.START_VIDEO_RECORDING)
@@ -389,8 +390,19 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun updateGlobal(transform: (GlobalSettings) -> GlobalSettings) {
+        val before = global.geotag
         global = transform(global)
         store.saveGlobal(global)
+        if (global.geotag != before) refreshLocation()
+    }
+
+    /** Oznaczanie lokalizacją: nasłuch tylko przy widocznej aplikacji i włączonej opcji. */
+    fun refreshLocation() {
+        when {
+            !global.geotag -> locationTracker.disable()
+            inForeground -> locationTracker.start()
+            else -> locationTracker.stop()
+        }
     }
 
     fun selectMode(m: CaptureMode) {
@@ -1050,6 +1062,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
                 val exif = androidx.exifinterface.media.ExifInterface(tmp.absolutePath)
                 if (orientation != null) exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_ORIENTATION, orientation)
                 exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_SOFTWARE, "OpenShot zoom cyfrowy ×${crop.toInt()}")
+                MediaSaver.tagGps(exif)
                 exif.saveAttributes()
             }
             resolver.openOutputStream(uri, "wt")?.use { os -> tmp.inputStream().use { it.copyTo(os) } }
@@ -1554,6 +1567,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         stopMomentBuffer()
         // Nagrywanie dźwięku trwa dalej w usłudze pierwszoplanowej; mierniki usypiają.
         inForeground = false
+        refreshLocation()
         audioJob?.cancel()
         audioJob = null
         if (recState != RecState.IDLE) engine.stopRecording()
@@ -1572,6 +1586,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
 
     fun onForeground() {
         inForeground = true
+        refreshLocation()
         syncAudio()
         if (audio.isActive) startAudioMeter()
         refreshRecordings()
@@ -1595,6 +1610,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     override fun onCleared() {
         stopMomentBuffer()
         audio.removeListener(audioListener)
+        locationTracker.stop()
         runCatching { ctx.getSystemService(AudioManager::class.java)?.unregisterAudioDeviceCallback(deviceCallback) }
         stopPlayback()
         engine.release()

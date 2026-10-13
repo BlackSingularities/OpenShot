@@ -18,6 +18,14 @@ import java.util.Locale
 object MediaSaver {
     const val MEDIA_DIR = "DCIM/OpenShot"
 
+    /** Ostatnia znana pozycja do oznaczania zdjęć i filmów; null = bez lokalizacji. */
+    @Volatile var location: android.location.Location? = null
+
+    /** Dopisuje współrzędne GPS do EXIF, jeśli pozycja jest znana. */
+    fun tagGps(exif: ExifInterface) {
+        location?.let { runCatching { exif.setGpsInfo(it) } }
+    }
+
     private fun stamp(): String = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date())
 
     private fun photoValues(tag: String, mime: String = "image/jpeg") = ContentValues().apply {
@@ -31,7 +39,12 @@ object MediaSaver {
             context.contentResolver,
             MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
             photoValues(tag, mime),
-        ).setMetadata(ImageCapture.Metadata().apply { isReversedHorizontal = mirror }).build()
+        ).setMetadata(
+            ImageCapture.Metadata().apply {
+                isReversedHorizontal = mirror
+                MediaSaver.location?.let { setLocation(it) }
+            },
+        ).build()
 
     /** Surowy obraz z sensora zapisywany jako DNG. */
     fun rawOutputOptions(context: Context, tag: String): ImageCapture.OutputFileOptions =
@@ -39,7 +52,7 @@ object MediaSaver {
             context.contentResolver,
             MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
             photoValues(tag, "image/x-adobe-dng"),
-        ).build()
+        ).setMetadata(ImageCapture.Metadata().apply { MediaSaver.location?.let { setLocation(it) } }).build()
 
     fun videoOutputOptions(context: Context): MediaStoreOutputOptions {
         val values = ContentValues().apply {
@@ -47,9 +60,10 @@ object MediaSaver {
             put(MediaStore.MediaColumns.MIME_TYPE, "video/mp4")
             put(MediaStore.MediaColumns.RELATIVE_PATH, MEDIA_DIR)
         }
-        return MediaStoreOutputOptions.Builder(context.contentResolver, MediaStore.Video.Media.EXTERNAL_CONTENT_URI)
+        val builder = MediaStoreOutputOptions.Builder(context.contentResolver, MediaStore.Video.Media.EXTERNAL_CONTENT_URI)
             .setContentValues(values)
-            .build()
+        location?.let { builder.setLocation(it) }
+        return builder.build()
     }
 
     /** Zapisuje przetworzoną bitmapę (w orientacji sensora) z poprawnym tagiem EXIF orientacji. */
@@ -90,6 +104,7 @@ object MediaSaver {
             val now = SimpleDateFormat("yyyy:MM:dd HH:mm:ss", Locale.US).format(Date())
             exif.setAttribute(ExifInterface.TAG_DATETIME_ORIGINAL, now)
             exif.setAttribute(ExifInterface.TAG_DATETIME, now)
+            tagGps(exif)
             exif.saveAttributes()
         }
     }

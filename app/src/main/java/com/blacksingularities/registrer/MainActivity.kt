@@ -54,17 +54,29 @@ class MainActivity : ComponentActivity() {
                 var cameraGranted by remember { mutableStateOf(isGranted(Manifest.permission.CAMERA)) }
                 val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
                     cameraGranted = result[Manifest.permission.CAMERA] == true || isGranted(Manifest.permission.CAMERA)
+                    vm.refreshLocation()
+                }
+                val locationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
+                    vm.refreshLocation()
                 }
                 val request = {
                     val perms = mutableListOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)
                     // Powiadomienie „zaktualizowano – dotknij, aby otworzyć”, gdy system nie pozwoli otworzyć aparatu sam.
                     if (android.os.Build.VERSION.SDK_INT >= 33) perms += Manifest.permission.POST_NOTIFICATIONS
+                    if (vm.global.geotag) perms += listOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
                     launcher.launch(perms.toTypedArray())
                 }
                 LaunchedEffect(Unit) {
                     val notificationsMissing = android.os.Build.VERSION.SDK_INT >= 33 &&
                         !isGranted(Manifest.permission.POST_NOTIFICATIONS)
                     if (!cameraGranted || !isGranted(Manifest.permission.RECORD_AUDIO) || notificationsMissing) request()
+                }
+                // Włączenie lokalizacji w ustawieniach prosi o zgodę, jeśli jej brakuje.
+                LaunchedEffect(vm.global.geotag, cameraGranted) {
+                    val missing = !isGranted(Manifest.permission.ACCESS_FINE_LOCATION) && !isGranted(Manifest.permission.ACCESS_COARSE_LOCATION)
+                    if (vm.global.geotag && cameraGranted && missing) {
+                        locationLauncher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+                    }
                 }
                 // Stały ekran (obracają się tylko elementy) albo pełny obrót – niezależnie od blokady systemu.
                 // Podczas nagrywania i przetwarzania orientacja jest zablokowana.
