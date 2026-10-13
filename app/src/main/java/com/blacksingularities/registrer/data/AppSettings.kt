@@ -11,10 +11,10 @@ enum class AspectRatioMode(val label: String, val ratio: Float) {
     R16_9("16:9", 9f / 16f),
 }
 
+/** Siatki kompozycyjne – można włączyć dowolny zestaw naraz. */
 enum class GridType(val label: String) {
-    NONE("Brak"),
     THIRDS("3×3"),
-    GOLDEN("Złoty"),
+    GOLDEN("Złoty podział"),
     SQUARE("Kwadrat"),
     DIAGONAL("Przekątne"),
 }
@@ -64,7 +64,7 @@ enum class VolumeAction(val label: String) {
 
 enum class ScreenRotation(val label: String, val description: String) {
     FIXED("Stały", "Ekran stoi, obracają się ikony i informacje"),
-    AUTO("Obracaj", "Cały interfejs obraca się z telefonem"),
+    AUTO("Obracaj", "Cały interfejs obraca się z telefonem, także przy systemowej blokadzie obrotu"),
 }
 
 enum class AudioPreset(
@@ -93,7 +93,7 @@ enum class AudioSourceType(val label: String, val description: String) {
 data class ModeSettings(
     // kadr i nakładki
     val aspect: AspectRatioMode = AspectRatioMode.R4_3,
-    val grid: GridType = GridType.THIRDS,
+    val grids: Set<GridType> = setOf(GridType.THIRDS),
     val level: Boolean = true,
     val histogram: Boolean = true,
     val timerSeconds: Int = 0,
@@ -144,13 +144,13 @@ data class ModeSettings(
 
     companion object {
         fun defaultsFor(mode: CaptureMode): ModeSettings = when (mode) {
-            CaptureMode.NIGHT -> ModeSettings(priority = CapturePriority.QUALITY, histogram = false, grid = GridType.NONE)
-            CaptureMode.PORTRAIT -> ModeSettings(grid = GridType.NONE, histogram = false, priority = CapturePriority.QUALITY)
+            CaptureMode.NIGHT -> ModeSettings(priority = CapturePriority.QUALITY, histogram = false, grids = emptySet())
+            CaptureMode.PORTRAIT -> ModeSettings(grids = emptySet(), histogram = false, priority = CapturePriority.QUALITY)
             CaptureMode.HDR -> ModeSettings(priority = CapturePriority.QUALITY)
-            CaptureMode.PRO -> ModeSettings(priority = CapturePriority.QUALITY, grid = GridType.THIRDS)
+            CaptureMode.PRO -> ModeSettings(priority = CapturePriority.QUALITY, grids = setOf(GridType.THIRDS))
             CaptureMode.VIDEO -> ModeSettings(aspect = AspectRatioMode.R16_9, histogram = false)
             CaptureMode.SLOWMO -> ModeSettings(aspect = AspectRatioMode.R16_9, histogram = false, level = false)
-            CaptureMode.AUDIO -> ModeSettings(histogram = false, level = false, grid = GridType.NONE)
+            CaptureMode.AUDIO -> ModeSettings(histogram = false, level = false, grids = emptySet())
             CaptureMode.PHOTO -> ModeSettings()
         }
     }
@@ -162,6 +162,7 @@ data class GlobalSettings(
     val timerBeep: Boolean = true,
     val volumeAction: VolumeAction = VolumeAction.SHUTTER,
     val screenRotation: ScreenRotation = ScreenRotation.FIXED,
+    val exposureInfo: Boolean = true,
     val autoCheckUpdates: Boolean = true,
     val autoDownloadUpdates: Boolean = true,
     val lastMode: CaptureMode = CaptureMode.PHOTO,
@@ -178,6 +179,7 @@ class SettingsStore(context: Context) {
             timerBeep = prefs.getBoolean("g.beep", d.timerBeep),
             volumeAction = enumOr(prefs.getString("g.volume", null), d.volumeAction),
             screenRotation = enumOr(prefs.getString("g.rotation", null), d.screenRotation),
+            exposureInfo = prefs.getBoolean("g.exposureInfo", d.exposureInfo),
             autoCheckUpdates = prefs.getBoolean("g.autoCheck", d.autoCheckUpdates),
             autoDownloadUpdates = prefs.getBoolean("g.autoDownload", d.autoDownloadUpdates),
             lastMode = enumOr(prefs.getString("g.lastMode", null), d.lastMode),
@@ -191,6 +193,7 @@ class SettingsStore(context: Context) {
             .putBoolean("g.beep", g.timerBeep)
             .putString("g.volume", g.volumeAction.name)
             .putString("g.rotation", g.screenRotation.name)
+            .putBoolean("g.exposureInfo", g.exposureInfo)
             .putBoolean("g.autoCheck", g.autoCheckUpdates)
             .putBoolean("g.autoDownload", g.autoDownloadUpdates)
             .putString("g.lastMode", g.lastMode.name)
@@ -204,7 +207,7 @@ class SettingsStore(context: Context) {
         val k = mode.name + "."
         return ModeSettings(
             aspect = enumOr(prefs.getString(k + "aspect", null), d.aspect),
-            grid = enumOr(prefs.getString(k + "grid", null), d.grid),
+            grids = loadGrids(prefs.getString(k + "grids", null), prefs.getString(k + "grid", null), d.grids),
             level = prefs.getBoolean(k + "level", d.level),
             histogram = prefs.getBoolean(k + "histogram", d.histogram),
             timerSeconds = prefs.getInt(k + "timer", d.timerSeconds),
@@ -238,7 +241,7 @@ class SettingsStore(context: Context) {
         val k = mode.name + "."
         prefs.edit()
             .putString(k + "aspect", s.aspect.name)
-            .putString(k + "grid", s.grid.name)
+            .putString(k + "grids", s.grids.joinToString(",") { it.name })
             .putBoolean(k + "level", s.level)
             .putBoolean(k + "histogram", s.histogram)
             .putInt(k + "timer", s.timerSeconds)
@@ -270,6 +273,14 @@ class SettingsStore(context: Context) {
 
     fun getLong(key: String) = prefs.getLong(key, 0L)
     fun putLong(key: String, value: Long) = prefs.edit().putLong(key, value).apply()
+
+    /** Nowy zapis „THIRDS,GOLDEN”; starsza wersja trzymała jedną siatkę pod kluczem „grid”. */
+    private fun loadGrids(list: String?, legacy: String?, default: Set<GridType>): Set<GridType> = when {
+        list != null -> list.split(',').mapNotNull { n -> GridType.entries.firstOrNull { it.name == n } }.toSet()
+        legacy == "NONE" -> emptySet()
+        legacy != null -> GridType.entries.firstOrNull { it.name == legacy }?.let { setOf(it) } ?: default
+        else -> default
+    }
 
     private inline fun <reified T : Enum<T>> enumOr(name: String?, default: T): T =
         name?.let { n -> enumValues<T>().firstOrNull { it.name == n } } ?: default

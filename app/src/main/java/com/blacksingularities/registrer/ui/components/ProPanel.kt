@@ -97,11 +97,11 @@ fun ProPanel(
 
     val isoValues = remember(caps.isoRange) {
         val r = caps.isoRange
-        ISO_STEPS.filter { r == null || it in r }
+        ISO_STEPS.filter { r == null || it in r }.ifEmpty { ISO_STEPS }
     }
     val shutterValues = remember(caps.exposureRange) {
         val r = caps.exposureRange
-        SHUTTER_STEPS.filter { r == null || it in r }
+        SHUTTER_STEPS.filter { r == null || it in r }.ifEmpty { SHUTTER_STEPS }
     }
     val focusValues = remember(caps.minFocusDistance) {
         val max = caps.minFocusDistance
@@ -153,7 +153,7 @@ fun ProPanel(
             ProParam.entries.forEach { p ->
                 val enabled = when (p) {
                     ProParam.ISO, ProParam.SHUTTER -> manual
-                    ProParam.FOCUS -> manual && focusValues.isNotEmpty()
+                    ProParam.FOCUS -> focusValues.isNotEmpty()
                     ProParam.WB -> true
                     ProParam.EV -> evMax > evMin && !pro.manualExposure
                 }

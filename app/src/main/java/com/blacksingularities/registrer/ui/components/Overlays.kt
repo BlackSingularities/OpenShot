@@ -29,6 +29,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
@@ -64,37 +65,52 @@ fun imageRect(container: Size, ratio: Float, centered: Boolean = false): Rect {
     return Rect(left, top, left + w, top + h)
 }
 
+/**
+ * Siatki kompozycyjne nakładane jednocześnie. Każda ma własny styl, by dało się je rozróżnić:
+ * 3×3 – biała linia, złoty podział – bursztynowa przerywana, kwadrat – ramka z krzyżykiem,
+ * przekątne – delikatne. Pod każdą linią cień, by była widoczna także na jasnym niebie.
+ */
 @Composable
-fun GridOverlay(type: GridType, ratio: Float, modifier: Modifier = Modifier, centered: Boolean = false) {
-    if (type == GridType.NONE) return
+fun GridOverlay(types: Set<GridType>, ratio: Float, modifier: Modifier = Modifier, centered: Boolean = false) {
+    if (types.isEmpty()) return
     Canvas(modifier) {
         val r = imageRect(size, ratio, centered)
-        val c = Color.White.copy(alpha = 0.32f)
         val sw = 1.dp.toPx()
-        fun v(fx: Float) = drawLine(c, Offset(r.left + r.width * fx, r.top), Offset(r.left + r.width * fx, r.bottom), sw)
-        fun h(fy: Float) = drawLine(c, Offset(r.left, r.top + r.height * fy), Offset(r.right, r.top + r.height * fy), sw)
-        when (type) {
-            GridType.THIRDS -> {
-                v(1 / 3f); v(2 / 3f); h(1 / 3f); h(2 / 3f)
-            }
-            GridType.GOLDEN -> {
-                val g = 0.382f
-                v(g); v(1 - g); h(g); h(1 - g)
-            }
-            GridType.SQUARE -> {
-                val side = minOf(r.width, r.height)
-                val top = r.top + (r.height - side) / 2f
-                val left = r.left + (r.width - side) / 2f
-                drawRect(c, Offset(left, top), Size(side, side), style = Stroke(sw))
-                drawLine(c, Offset(left + side / 2, top + side / 2 - 12.dp.toPx()), Offset(left + side / 2, top + side / 2 + 12.dp.toPx()), sw)
-                drawLine(c, Offset(left + side / 2 - 12.dp.toPx(), top + side / 2), Offset(left + side / 2 + 12.dp.toPx(), top + side / 2), sw)
-            }
-            GridType.DIAGONAL -> {
-                v(1 / 3f); v(2 / 3f); h(1 / 3f); h(2 / 3f)
-                drawLine(c, r.topLeft, r.bottomRight, sw)
-                drawLine(c, Offset(r.right, r.top), Offset(r.left, r.bottom), sw)
-            }
-            GridType.NONE -> Unit
+        val shadow = Color.Black.copy(alpha = 0.28f)
+        fun line(a: Offset, b: Offset, color: Color, effect: PathEffect? = null) {
+            drawLine(shadow, a + Offset(0f, sw), b + Offset(0f, sw), sw * 1.6f, pathEffect = effect)
+            drawLine(color, a, b, sw, pathEffect = effect)
+        }
+        fun v(fx: Float, c: Color, e: PathEffect? = null) = line(Offset(r.left + r.width * fx, r.top), Offset(r.left + r.width * fx, r.bottom), c, e)
+        fun h(fy: Float, c: Color, e: PathEffect? = null) = line(Offset(r.left, r.top + r.height * fy), Offset(r.right, r.top + r.height * fy), c, e)
+
+        if (GridType.DIAGONAL in types) {
+            val c = Color.White.copy(alpha = 0.22f)
+            line(r.topLeft, r.bottomRight, c)
+            line(Offset(r.right, r.top), Offset(r.left, r.bottom), c)
+        }
+        if (GridType.THIRDS in types) {
+            val c = Color.White.copy(alpha = 0.42f)
+            v(1 / 3f, c); v(2 / 3f, c); h(1 / 3f, c); h(2 / 3f, c)
+        }
+        if (GridType.GOLDEN in types) {
+            val c = Palette.Amber.copy(alpha = 0.75f)
+            val dash = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 4.dp.toPx()))
+            val g = 0.382f
+            v(g, c, dash); v(1 - g, c, dash); h(g, c, dash); h(1 - g, c, dash)
+        }
+        if (GridType.SQUARE in types) {
+            val c = Color.White.copy(alpha = 0.6f)
+            val side = minOf(r.width, r.height)
+            val top = r.top + (r.height - side) / 2f
+            val left = r.left + (r.width - side) / 2f
+            drawRect(shadow, Offset(left, top + sw), Size(side, side), style = Stroke(sw * 1.6f))
+            drawRect(c, Offset(left, top), Size(side, side), style = Stroke(sw))
+            val cx = left + side / 2
+            val cy = top + side / 2
+            val arm = 10.dp.toPx()
+            line(Offset(cx, cy - arm), Offset(cx, cy + arm), c)
+            line(Offset(cx - arm, cy), Offset(cx + arm, cy), c)
         }
     }
 }

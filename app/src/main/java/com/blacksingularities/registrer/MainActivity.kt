@@ -61,11 +61,11 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(Unit) {
                     if (!cameraGranted || !isGranted(Manifest.permission.RECORD_AUDIO)) request()
                 }
-                // Stały ekran (obracają się tylko elementy) albo pełny obrót zgodny z blokadą systemu.
+                // Stały ekran (obracają się tylko elementy) albo pełny obrót – niezależnie od blokady systemu.
                 LaunchedEffect(vm.global.screenRotation) {
                     requestedOrientation = when (vm.global.screenRotation) {
                         ScreenRotation.FIXED -> ActivityInfo.SCREEN_ORIENTATION_NOSENSOR
-                        ScreenRotation.AUTO -> ActivityInfo.SCREEN_ORIENTATION_FULL_USER
+                        ScreenRotation.AUTO -> ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
                     }
                 }
                 if (cameraGranted) CameraScreen(vm, onToggleRearDisplay = rearDisplay::toggle) else PermissionScreen(onRequest = request)

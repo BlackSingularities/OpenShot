@@ -109,7 +109,7 @@ class CameraEngine(private val context: Context) {
             if (hudFrame++ % 6 != 0) return
             val iso = result.get(CaptureResult.SENSOR_SENSITIVITY) ?: return
             val exposure = result.get(CaptureResult.SENSOR_EXPOSURE_TIME) ?: return
-            val hud = Hud(iso, exposure, result.get(CaptureResult.LENS_FOCUS_DISTANCE))
+            val hud = Hud(iso, exposure, result.get(CaptureResult.LENS_FOCUS_DISTANCE), result.get(CaptureResult.LENS_APERTURE))
             lastHud = hud
             main.execute { onHud?.invoke(hud) }
         }
@@ -127,7 +127,70 @@ class CameraEngine(private val context: Context) {
         p.hasCamera(CameraSelector.Builder().requireLensFacing(facing).build())
     }.getOrDefault(false)
 
-    private fun selectorFor(facing: Int) = CameraSelector.Builder().requireLensFacing(facing).build()
+    private fun cameraIdOf(info: CameraInfo): String? = runCatching { Camera2CameraInfo.from(info).cameraId }.getOrNull()
+
+    private fun selectorFor(facing: Int, cameraId: String? = null): CameraSelector {
+        if (cameraId != null) {
+            val match = runCatching { provider?.availableCameraInfos }.getOrNull()?.firstOrNull { cameraIdOf(it) == cameraId }
+            if (match != null) return match.cameraSelector
+        }
+        return CameraSelector.Builder().requireLensFacing(facing).build()
+    }
+
+    private fun zoomRange(info: CameraInfo): Pair<Float, Float> {
+        val range = if (Build.VERSION.SDK_INT >= 30) {
+            runCatching { Camera2CameraInfo.from(info).getCameraCharacteristic(CameraCharacteristics.CONTROL_ZOOM_RATIO_RANGE) }.getOrNull()
+        } else {
+            null
+        }
+        val zoom = info.zoomState.value
+        return (range?.lower ?: zoom?.minZoomRatio ?: 1f) to (range?.upper ?: zoom?.maxZoomRatio ?: 1f)
+    }
+
+    private fun roundLens(ratio: Float): Float =
+        if (ratio >= 1.5f && abs(ratio - ratio.roundToInt()) < 0.2f) ratio.roundToInt().toFloat() else (ratio * 10f).roundToInt() / 10f
+
+    /**
+     * Wszystkie aparaty po danej stronie. Wielu producentów udostępnia szeroki kąt (i tele) jako
+     * osobny aparat zamiast zoomu < 1× aparatu głównego – takie zwracamy jako [AuxLens].
+     */
+    private fun auxLenses(p: ProcessCameraProvider, primary: CameraInfo, facing: Int, presets: List<Float>): Pair<List<AuxLens>, String> {
+        val primaryId = cameraIdOf(primary)
+        val primaryFocal = equivalentFocal(primary)
+        val physicalIds = runCatching { primary.physicalCameraInfos.mapNotNull { cameraIdOf(it) } }.getOrDefault(emptyList()).toSet()
+        val all = runCatching { p.availableCameraInfos }.getOrDefault(emptyList())
+            .filter { runCatching { it.lensFacing }.getOrNull() == facing }
+        val aux = mutableListOf<AuxLens>()
+        val summary = StringBuilder()
+        for (o in all) {
+            val id = cameraIdOf(o) ?: continue
+            val c2 = Camera2CameraInfo.from(o)
+            val focal = equivalentFocal(o)
+            val pixels = runCatching { c2.getCameraCharacteristic(CameraCharacteristics.SENSOR_INFO_PIXEL_ARRAY_SIZE) }.getOrNull()
+            val mp = pixels?.let { it.width.toFloat() * it.height / 1_000_000f } ?: 0f
+            val logical = runCatching {
+                c2.getCameraCharacteristic(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES)
+                    ?.contains(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_LOGICAL_MULTI_CAMERA) == true
+            }.getOrDefault(false)
+            val (minZ, _) = zoomRange(o)
+            if (summary.isNotEmpty()) summary.append("\n")
+            summary.append("#").append(id).append(": ")
+            summary.append(focal?.let { "${it.roundToInt()} mm" } ?: "? mm")
+            summary.append(" · ").append(mp.roundToInt()).append(" MP")
+            summary.append(" · od ").append(String.format(java.util.Locale.US, "%.2f", minZ)).append("×")
+            if (logical) summary.append(" · logiczny")
+            if (id == primaryId) summary.append(" · główny")
+
+            if (id == primaryId || id in physicalIds || focal == null || primaryFocal == null) continue
+            if (mp in 0.1f..4.9f) continue // makro / głębia
+            val factor = roundLens(focal / primaryFocal)
+            if (factor in 0.86f..1.3f) continue
+            if (presets.any { abs(it - factor) / factor < 0.1f }) continue
+            if (aux.any { abs(it.factor - factor) / factor < 0.1f }) continue
+            aux += AuxLens(id, factor)
+        }
+        return aux.sortedBy { it.factor } to summary.toString()
+    }
 
     // ------------------------------------------------------------------ sondowanie
 
@@ -184,10 +247,22 @@ class CameraEngine(private val context: Context) {
             }
         }.getOrDefault(emptyList())
 
+        val presets = lensZooms(info)
+        val aux = runCatching { auxLenses(p, info, facing, presets) }.getOrDefault(emptyList<AuxLens>() to "")
+
         val capabilities = ch(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES)
-        val manual = capabilities?.contains(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_MANUAL_SENSOR) == true
         val isoRange = ch(CameraCharacteristics.SENSOR_INFO_SENSITIVITY_RANGE)
         val expRange = ch(CameraCharacteristics.SENSOR_INFO_EXPOSURE_TIME_RANGE)
+        // Wielu producentów (Samsung na aparacie logicznym, Huawei, foldy) nie zgłasza flagi
+        // MANUAL_SENSOR aplikacjom innych firm, choć ręczne ISO i czas działają. Wystarczą zakresy.
+        val manual = capabilities?.contains(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_MANUAL_SENSOR) == true ||
+            (isoRange != null && expRange != null) ||
+            runCatching { info.physicalCameraInfos }.getOrDefault(emptySet()).any { phys ->
+                runCatching {
+                    Camera2CameraInfo.from(phys).getCameraCharacteristic(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES)
+                        ?.contains(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_MANUAL_SENSOR) == true
+                }.getOrDefault(false)
+            }
 
         return CameraCaps(
             hasFront = hasLens(p, CameraSelector.LENS_FACING_FRONT),
@@ -210,7 +285,10 @@ class CameraEngine(private val context: Context) {
             fps24 = fpsRanges.any { it.lower <= 24 && it.upper >= 24 },
             slowMoRanges = slowRanges,
             lowLightBoost = runCatching { info.isLowLightBoostSupported }.getOrDefault(false),
-            lensZooms = lensZooms(info),
+            lensZooms = presets,
+            maxZoom = zoomRange(info).second,
+            auxLenses = aux.first,
+            cameraSummary = aux.second,
         )
     }
 
@@ -231,15 +309,7 @@ class CameraEngine(private val context: Context) {
      * Szeroki kąt nie jest „1”, tylko np. 0,6× – zgodnie z minimalnym zoomem urządzenia.
      */
     private fun lensZooms(info: CameraInfo): List<Float> {
-        val zoom = info.zoomState.value
-        val c2 = Camera2CameraInfo.from(info)
-        val range = if (Build.VERSION.SDK_INT >= 30) {
-            runCatching { c2.getCameraCharacteristic(CameraCharacteristics.CONTROL_ZOOM_RATIO_RANGE) }.getOrNull()
-        } else {
-            null
-        }
-        val minZoom = zoom?.minZoomRatio ?: range?.lower ?: 1f
-        val maxZoom = zoom?.maxZoomRatio ?: range?.upper ?: 1f
+        val (minZoom, maxZoom) = zoomRange(info)
         val result = mutableListOf(1f)
         if (minZoom < 0.95f) result += minZoom
         val base = equivalentFocal(info)
@@ -249,12 +319,7 @@ class CameraEngine(private val context: Context) {
                 var ratio = f / base
                 if (ratio < 1f) ratio = max(ratio, minZoom)
                 if (ratio > maxZoom + 0.01f) return@forEach
-                ratio = if (ratio >= 1.5f && abs(ratio - ratio.roundToInt()) < 0.2f) {
-                    ratio.roundToInt().toFloat()
-                } else {
-                    (ratio * 10f).roundToInt() / 10f
-                }
-                result += ratio
+                result += roundLens(ratio)
             }
         }
         val sorted = result.filter { it in (minZoom - 0.01f)..(maxZoom + 0.01f) }.sorted()
@@ -287,9 +352,10 @@ class CameraEngine(private val context: Context) {
         if (req.mode == CaptureMode.AUDIO) return session
 
         val s = req.settings
-        val base = selectorFor(req.lensFacing)
+        val auxId = req.cameraId.takeIf { req.mode != CaptureMode.SLOWMO }
+        val base = selectorFor(req.lensFacing, auxId)
         val ext = extensions
-        val wantedExtension = when (req.mode) {
+        val wantedExtension = if (auxId != null) null else when (req.mode) {
             CaptureMode.NIGHT -> ExtensionMode.NIGHT.takeIf { caps.nightExtension }
             CaptureMode.PORTRAIT -> when {
                 s.portraitEffect == PortraitEffect.RETOUCH && caps.retouchExtension -> ExtensionMode.FACE_RETOUCH
@@ -402,7 +468,7 @@ class CameraEngine(private val context: Context) {
 
             else -> {
                 val format = when {
-                    wantedExtension != null -> PhotoFormat.JPEG
+                    wantedExtension != null || auxId != null -> PhotoFormat.JPEG
                     req.mode != CaptureMode.PHOTO && req.mode != CaptureMode.PRO -> PhotoFormat.JPEG
                     s.photoFormat in caps.photoFormats -> s.photoFormat
                     else -> PhotoFormat.JPEG

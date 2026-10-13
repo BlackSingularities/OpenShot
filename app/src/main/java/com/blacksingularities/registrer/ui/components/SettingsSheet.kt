@@ -33,6 +33,7 @@ import androidx.compose.material.icons.rounded.Brightness4
 import androidx.compose.material.icons.rounded.BurstMode
 import androidx.compose.material.icons.rounded.CameraAlt
 import androidx.compose.material.icons.rounded.CenterFocusStrong
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.DataUsage
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Face
@@ -151,14 +152,7 @@ fun SettingsSheet(
     ) {
         Column(Modifier.fillMaxWidth().navigationBarsPadding()) {
             Row(Modifier.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) {
-                    Text("Ustawienia", fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                    Text(
-                        tab?.let { "Profil trybu ${it.label} – zapisywany osobno" } ?: "Wspólne dla całej aplikacji",
-                        color = Palette.TextDim,
-                        fontSize = 12.sp,
-                    )
-                }
+                Text("Ustawienia", fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
             }
             Spacer(Modifier.height(12.dp))
             Row(
@@ -366,7 +360,9 @@ private fun FramingGroup(
 ) {
     Group("Kadr") {
         if (showAspect) Chips(Icons.Rounded.AspectRatio, "Proporcje", AspectRatioMode.entries, s.aspect, { it.label }, enabled) { v -> change { it.copy(aspect = v) } }
-        Chips(Icons.Rounded.GridOn, "Siatka", GridType.entries, s.grid, { it.label }) { v -> change { it.copy(grid = v) } }
+        MultiChips(Icons.Rounded.GridOn, "Siatki (dowolne naraz)", GridType.entries, s.grids, { it.label }) { v ->
+            change { it.copy(grids = if (v in it.grids) it.grids - v else it.grids + v) }
+        }
         if (showTimer) Chips(Icons.Rounded.Timer, "Samowyzwalacz", listOf(0, 3, 5, 10), s.timerSeconds, { if (it == 0) "Wył." else "$it s" }) { v -> change { it.copy(timerSeconds = v) } }
         SwitchRow(Icons.Rounded.Straighten, "Poziomica", null, s.level) { v -> change { it.copy(level = v) } }
         if (showHistogram) SwitchRow(Icons.Rounded.BarChart, "Histogram na żywo", null, s.histogram, enabled) { v -> change { it.copy(histogram = v) } }
@@ -396,6 +392,9 @@ private fun GeneralTab(
         SwitchRow(Icons.Rounded.Vibration, "Wibracje", "Haptyka pokręteł, zoomu i poziomicy", g.haptics) { v -> onGlobal { it.copy(haptics = v) } }
         SwitchRow(Icons.Rounded.CameraAlt, "Dźwięk migawki", null, g.shutterSound) { v -> onGlobal { it.copy(shutterSound = v) } }
         SwitchRow(Icons.Rounded.Alarm, "Sygnał samowyzwalacza", null, g.timerBeep) { v -> onGlobal { it.copy(timerBeep = v) } }
+        SwitchRow(Icons.Rounded.Speed, "Parametry ekspozycji", "Pasek ISO · czas · przysłona · EV u góry kadru", g.exposureInfo) { v ->
+            onGlobal { it.copy(exposureInfo = v) }
+        }
         Chips(
             Icons.Rounded.ScreenRotation,
             "Obrót ekranu",
@@ -407,8 +406,10 @@ private fun GeneralTab(
         Chips(Icons.Rounded.VolumeUp, "Klawisze głośności", VolumeAction.entries, g.volumeAction, { it.label }) { v -> onGlobal { it.copy(volumeAction = v) } }
     }
     Group("Ten aparat") {
-        val lenses = caps.lensZooms.joinToString(" · ") { formatZoom(it) + "×" }.ifEmpty { "1×" }
+        val lenses = (caps.lensZooms + caps.auxLenses.map { it.factor }).distinct().sorted()
+            .joinToString(" · ") { formatZoom(it) + "×" }.ifEmpty { "1×" }
         InfoRow(Icons.Rounded.ZoomIn, "Obiektywy: $lenses")
+        if (caps.cameraSummary.isNotEmpty()) InfoRow(Icons.Rounded.CameraAlt, "Wykryte aparaty:\n" + caps.cameraSummary)
         InfoRow(Icons.Rounded.Image, "Formaty: " + caps.photoFormats.sortedBy { it.ordinal }.joinToString { it.label })
         InfoRow(Icons.Rounded.Movie, "Wideo: " + caps.videoResolutions.joinToString { it.label } + (if (caps.fps60) " · 60 kl/s" else "") + (if (caps.videoHlg) " · HLG" else ""))
         if (caps.slowMo) InfoRow(Icons.Rounded.SlowMotionVideo, "Slow-mo: " + caps.slowMoRanges.joinToString { "${it.upper} kl/s" })
@@ -539,6 +540,53 @@ private fun SwitchRow(icon: ImageVector, title: String, subtitle: String?, value
             modifier = Modifier.scale(0.82f),
             colors = SwitchDefaults.colors(checkedTrackColor = Palette.Amber, checkedThumbColor = Palette.Ink),
         )
+    }
+}
+
+/** Chipy wielokrotnego wyboru – każde dotknięcie włącza / wyłącza jedną opcję. */
+@Composable
+private fun <T> MultiChips(
+    icon: ImageVector,
+    title: String,
+    options: List<T>,
+    selected: Set<T>,
+    label: (T) -> String,
+    onToggle: (T) -> Unit,
+) {
+    Column(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            RowIcon(icon)
+            Text(title, fontSize = 14.sp, color = Color.White, modifier = Modifier.padding(horizontal = 12.dp))
+        }
+        Row(
+            Modifier
+                .padding(start = 44.dp, top = 6.dp)
+                .horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
+        ) {
+            options.forEach { o ->
+                val sel = o in selected
+                Row(
+                    Modifier
+                        .clip(RoundedCornerShape(50))
+                        .background(if (sel) Palette.Amber else Color.White.copy(alpha = 0.07f))
+                        .clickable { onToggle(o) }
+                        .padding(start = if (sel) 8.dp else 12.dp, end = 12.dp, top = 6.dp, bottom = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    if (sel) {
+                        Icon(Icons.Rounded.Check, null, tint = Palette.Ink, modifier = Modifier.size(14.dp))
+                        Spacer(Modifier.width(4.dp))
+                    }
+                    Text(
+                        label(o),
+                        color = if (sel) Palette.Ink else Color.White,
+                        fontSize = 12.sp,
+                        fontWeight = if (sel) FontWeight.Bold else FontWeight.Medium,
+                    )
+                }
+            }
+        }
     }
 }
 

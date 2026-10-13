@@ -47,6 +47,7 @@ import com.blacksingularities.registrer.data.GlobalSettings
 import com.blacksingularities.registrer.data.ModeSettings
 import com.blacksingularities.registrer.data.PhotoFormat
 import com.blacksingularities.registrer.data.SettingsStore
+import com.blacksingularities.registrer.data.VideoFps
 import com.blacksingularities.registrer.data.VolumeAction
 import com.blacksingularities.registrer.update.UpdateManager
 import com.blacksingularities.registrer.update.UpdateState
@@ -56,6 +57,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.math.abs
 import kotlin.math.exp
 import kotlin.math.log10
 
@@ -64,7 +66,7 @@ enum class RecState { IDLE, RECORDING, PAUSED }
 data class Processing(val label: String, val progress: Float?)
 
 /** Klucz konfiguracji – jego zmiana wymusza ponowne związanie kamery. */
-data class BindKey(val mode: CaptureMode, val lens: Int, val settings: ModeSettings)
+data class BindKey(val mode: CaptureMode, val lens: Int, val cameraId: String?, val settings: ModeSettings)
 
 class CameraViewModel(app: Application) : AndroidViewModel(app) {
     private val ctx get() = getApplication<Application>()
@@ -142,7 +144,20 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     private var burstJob: Job? = null
     private var intervalJob: Job? = null
 
-    val bindKey: BindKey get() = BindKey(mode, lensFacing, cfg.bindKey())
+    val bindKey: BindKey get() = BindKey(mode, lensFacing, activeCameraId.takeIf { mode != CaptureMode.SLOWMO }, cfg.bindKey())
+
+    /** Osobny aparat (szeroki kąt / tele) albo null, gdy aktywny jest aparat główny. */
+    var activeCameraId by mutableStateOf<String?>(null); private set
+
+    /** Krotność 1× aktywnego aparatu względem głównego (np. 0,6 dla szerokiego kąta). */
+    val zoomScale: Float
+        get() = caps.auxLenses.firstOrNull { it.cameraId == activeCameraId && mode != CaptureMode.SLOWMO }?.factor ?: 1f
+
+    /** Zoom w jednostkach użytkownika (0,6× / 1× / 3×), niezależnie od aktywnego aparatu. */
+    val displayZoom: Float get() = zoomCurrent * zoomScale
+    val displayZoomMin: Float
+        get() = minOf(zoomMin * zoomScale, caps.auxLenses.minOfOrNull { it.factor } ?: Float.MAX_VALUE, caps.lensZooms.minOrNull() ?: 1f)
+    val displayZoomMax: Float get() = maxOf(zoomMax * zoomScale, caps.maxZoom)
 
     val effectiveAspect: AspectRatioMode
         get() = if (mode.isVideo) AspectRatioMode.R16_9 else cfg.aspect
@@ -159,14 +174,11 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     /** Presety zoomu odpowiadające obiektywom (+ cyfrowe 2× i 10×, jeśli brak tele). */
     val zoomPresets: List<Float>
         get() {
-            val lenses = caps.lensZooms.filter { it in (zoomMin - 0.01f)..(zoomMax + 0.01f) }.ifEmpty {
-                buildList {
-                    if (zoomMin < 0.95f) add(zoomMin)
-                    add(1f)
-                }
-            }.toMutableList()
-            if (lenses.none { it > 1.4f } && zoomMax >= 2f) lenses += 2f
-            if (lenses.none { it >= 4.5f } && zoomMax >= 10f) lenses += 10f
+            val lenses = caps.lensZooms.ifEmpty { listOf(1f) }.toMutableList()
+            if (mode != CaptureMode.SLOWMO) lenses += caps.auxLenses.map { it.factor }
+            val max = caps.maxZoom
+            if (lenses.none { it > 1.4f } && max >= 2f) lenses += 2f
+            if (lenses.none { it >= 4.5f } && max >= 10f) lenses += 10f
             return lenses.distinct().sorted()
         }
 
@@ -203,7 +215,11 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
                 mode = if (mode == CaptureMode.SLOWMO) CaptureMode.VIDEO else CaptureMode.PHOTO
                 return
             }
-            session = engine.bind(owner, surfaceProvider, BindRequest(lensFacing, mode, cfg, pro), c)
+            if (activeCameraId != null && c.auxLenses.none { it.cameraId == activeCameraId }) {
+                activeCameraId = null
+                return
+            }
+            session = engine.bind(owner, surfaceProvider, BindRequest(lensFacing, mode, cfg, pro, activeCameraId), c)
             if (mode == CaptureMode.AUDIO) return
             val cam = engine.camera ?: return
             val zs = cam.cameraInfo.zoomState.value
@@ -256,6 +272,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         if (next == CameraSelector.LENS_FACING_FRONT && !caps.hasFront) return
         if (next == CameraSelector.LENS_FACING_BACK && !caps.hasBack) return
         lensFacing = next
+        activeCameraId = null
         zoomTarget = 1f
         pro = ProSettings()
     }
@@ -286,6 +303,42 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         updateProfile { s -> s.copy(videoResolution = all[(all.indexOf(s.videoResolution) + 1).mod(all.size)]) }
     }
 
+    /** Klatkaż: w Wideo Auto/24/30/60 (obsługiwane), w Slow-mo dostępne prędkości wysokoklatkowe. */
+    fun cycleVideoFps() {
+        if (busy) return
+        if (mode == CaptureMode.SLOWMO) {
+            val all = caps.slowMoRanges.map { it.upper }.distinct().sorted()
+            if (all.isEmpty()) return
+            updateProfile { s ->
+                val current = if (s.slowMoFps in all) s.slowMoFps else all.last()
+                s.copy(slowMoFps = all[(all.indexOf(current) + 1).mod(all.size)])
+            }
+        } else {
+            val all = videoFpsOptions()
+            updateProfile { s -> s.copy(videoFps = all[(all.indexOf(s.videoFps).coerceAtLeast(0) + 1).mod(all.size)]) }
+        }
+    }
+
+    fun videoFpsOptions(): List<VideoFps> = VideoFps.entries.filter {
+        when (it) {
+            VideoFps.F60 -> caps.fps60
+            VideoFps.F24 -> caps.fps24
+            else -> true
+        }
+    }
+
+    /** Etykieta klatkażu na pasku: rzeczywista wartość po związaniu albo wybór użytkownika. */
+    val fpsLabel: String
+        get() = when {
+            mode == CaptureMode.SLOWMO -> {
+                val all = caps.slowMoRanges.map { it.upper }
+                val fps = if (cfg.slowMoFps in all) cfg.slowMoFps else all.maxOrNull() ?: 0
+                "$fps kl/s"
+            }
+            cfg.videoFps == VideoFps.AUTO -> if (session.fps > 0) "${session.fps} kl/s" else "Auto kl/s"
+            else -> "${cfg.videoFps.fps} kl/s"
+        }
+
     fun cyclePhotoFormat() {
         if (busy) return
         val all = PhotoFormat.entries.filter { it in caps.photoFormats }
@@ -306,9 +359,55 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Przełącznik zoomu: [rate] w jednostkach ln(zoom)/s (+ przybliża, − oddala). */
     fun nudgeZoom(rate: Float, dtSeconds: Float) {
-        if (rate == 0f) return
-        zoomTarget = (zoomTarget * exp(rate * dtSeconds)).coerceIn(zoomMin, zoomMax)
-        zoomSpeed = 30f
+        if (rate == 0f || !cameraReady) return
+        zoomDisplayTo(zoomTarget * zoomScale * exp(rate * dtSeconds), 30f, cinematic = false)
+    }
+
+    /** Szczypanie / klawisze głośności: względna zmiana zoomu. */
+    fun zoomBy(factor: Float, speed: Float) {
+        if (!cameraReady) return
+        zoomDisplayTo(zoomTarget * zoomScale * factor, speed, cinematic = true)
+    }
+
+    /** Przycisk obiektywu: osobny aparat albo krotność aparatu głównego. */
+    fun selectZoomPreset(value: Float) {
+        val aux = caps.auxLenses.firstOrNull { abs(it.factor - value) < 0.01f }
+        when {
+            !canSwitchCamera() -> if (activeCameraId == null) setZoomTarget(value, if (mode.isVideo) 4f else 14f)
+            aux != null && mode != CaptureMode.SLOWMO -> switchCamera(aux.cameraId, 1f)
+            activeCameraId != null -> switchCamera(null, value)
+            else -> setZoomTarget(value, if (mode.isVideo) 4f else 14f)
+        }
+    }
+
+    private fun canSwitchCamera() = recState == RecState.IDLE && !bursting && processing == null && !intervalRunning
+
+    private fun switchCamera(id: String?, ratio: Float) {
+        if (id == activeCameraId) {
+            setZoomTarget(ratio)
+            return
+        }
+        activeCameraId = id
+        zoomTarget = ratio
+        zoomSpeed = 14f
+    }
+
+    /**
+     * Zoom w jednostkach użytkownika. Zejście poniżej minimum aparatu głównego włącza osobny
+     * szeroki kąt, a powrót powyżej 1× (lub poniżej krotności tele) wraca do aparatu głównego.
+     */
+    private fun zoomDisplayTo(display: Float, speed: Float, cinematic: Boolean) {
+        val scale = zoomScale
+        if (canSwitchCamera() && mode != CaptureMode.SLOWMO) {
+            val wide = caps.auxLenses.filter { it.factor < 1f }.minByOrNull { it.factor }
+            when {
+                activeCameraId != null && scale < 1f && display >= 1f -> return switchCamera(null, display)
+                activeCameraId != null && scale > 1f && display < scale * 0.98f -> return switchCamera(null, display)
+                activeCameraId == null && wide != null && display < zoomMin * 0.97f -> return switchCamera(wide.cameraId, 1f)
+            }
+        }
+        zoomTarget = (display / scale).coerceIn(zoomMin, zoomMax)
+        zoomSpeed = if (cinematic && mode.isVideo && cfg.cinematicZoom) minOf(speed, 3.2f) else speed
     }
 
     fun applyZoomFrame(value: Float) {
@@ -434,7 +533,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
             true
         }
         VolumeAction.ZOOM -> {
-            if (mode != CaptureMode.AUDIO) setZoomTarget(zoomTarget * if (up) 1.15f else 1f / 1.15f, 6f)
+            if (mode != CaptureMode.AUDIO) zoomBy(if (up) 1.15f else 1f / 1.15f, 6f)
             true
         }
     }

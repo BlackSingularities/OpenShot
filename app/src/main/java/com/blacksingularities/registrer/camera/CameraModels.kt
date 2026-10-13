@@ -66,10 +66,19 @@ data class CameraCaps(
     val lowLightBoost: Boolean = false,
     /** Krotności odpowiadające fizycznym obiektywom (np. 0.6 szeroki kąt, 1, 3 tele). */
     val lensZooms: List<Float> = emptyList(),
+    /** Górna granica zoomu głównego (logicznego) aparatu. */
+    val maxZoom: Float = 1f,
+    /** Osobne aparaty (np. szeroki kąt z własnym id), do których przełączamy się przyciskiem. */
+    val auxLenses: List<AuxLens> = emptyList(),
+    /** Opis wszystkich wykrytych aparatów – do diagnostyki w ustawieniach. */
+    val cameraSummary: String = "",
 ) {
     val slowMo get() = slowMoRanges.isNotEmpty()
     val portrait get() = bokehExtension || retouchExtension
 }
+
+/** Osobny aparat po tej samej stronie; [factor] to krotność względem 1× głównego aparatu. */
+data class AuxLens(val cameraId: String, val factor: Float)
 
 /** Stan rzeczywiście aktywny po związaniu (może być skromniejszy niż żądany). */
 data class ActiveSession(
@@ -83,13 +92,15 @@ data class ActiveSession(
 )
 
 /** Bieżące parametry ekspozycji odczytane z sensora (HUD). */
-data class Hud(val iso: Int, val exposureNs: Long, val focusDiopters: Float?)
+data class Hud(val iso: Int, val exposureNs: Long, val focusDiopters: Float?, val aperture: Float? = null)
 
 data class BindRequest(
     val lensFacing: Int,
     val mode: CaptureMode,
     val settings: ModeSettings,
     val pro: ProSettings,
+    /** Id osobnego aparatu (szeroki kąt / tele) albo null dla głównego. */
+    val cameraId: String? = null,
 )
 
 class CapturedFrame(val bytes: ByteArray, val rotation: Int)

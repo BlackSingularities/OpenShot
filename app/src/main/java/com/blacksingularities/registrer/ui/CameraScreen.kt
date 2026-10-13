@@ -41,10 +41,15 @@ import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Cameraswitch
+import androidx.compose.material.icons.rounded.CheckBox
+import androidx.compose.material.icons.rounded.CheckBoxOutlineBlank
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.FlashAuto
 import androidx.compose.material.icons.rounded.FlashOff
@@ -58,6 +63,8 @@ import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material.icons.rounded.Timer
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -146,7 +153,7 @@ fun CameraScreen(vm: CameraViewModel, onToggleRearDisplay: () -> Unit = {}) {
     val previewView = remember {
         PreviewView(context).apply {
             implementationMode = PreviewView.ImplementationMode.PERFORMANCE
-            scaleType = PreviewView.ScaleType.FIT_START
+            scaleType = PreviewView.ScaleType.FIT_CENTER
         }
     }
 
@@ -237,9 +244,6 @@ fun CameraScreen(vm: CameraViewModel, onToggleRearDisplay: () -> Unit = {}) {
 
     BoxWithConstraints(Modifier.fillMaxSize().background(Color.Black)) {
         val wide = maxWidth > maxHeight * 1.05f
-        LaunchedEffect(wide) {
-            previewView.scaleType = if (wide) PreviewView.ScaleType.FIT_CENTER else PreviewView.ScaleType.FIT_START
-        }
         if (wide) WideLayout(ui, previewView) else TallLayout(ui, previewView)
     }
 
@@ -397,7 +401,13 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
         val containerSize = with(density) { Size(maxWidth.toPx(), maxHeight.toPx()) }
         val rect = imageRect(containerSize, ratio, centered)
 
-        AndroidView(factory = { previewView }, modifier = Modifier.fillMaxSize())
+        // Widok kamery zajmuje dokładnie prostokąt kadru – obraz jest wyśrodkowany.
+        AndroidView(
+            factory = { previewView },
+            modifier = Modifier
+                .offset { IntOffset(rect.left.roundToInt(), rect.top.roundToInt()) }
+                .size(with(density) { rect.width.toDp() }, with(density) { rect.height.toDp() }),
+        )
 
         val streaming = streamState == PreviewView.StreamState.STREAMING && vm.cameraReady
         val curtain by animateFloatAsState(if (streaming) 0f else 1f, tween(if (streaming) 380 else 120), label = "curtain")
@@ -409,13 +419,13 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
                 .fillMaxSize()
                 .pointerInput(Unit) {
                     detectTransformGestures { _, _, zoom, _ ->
-                        if (zoom != 1f) vm.setZoomTarget(vm.zoomTarget * zoom, 22f)
+                        if (zoom != 1f) vm.zoomBy(zoom, 22f)
                     }
                 }
                 .pointerInput(rect) {
                     fun meter(o: Offset, lock: Boolean) {
                         if (!rect.contains(o) || vm.mode == CaptureMode.AUDIO) return
-                        vm.focus(previewView.meteringPointFactory.createPoint(o.x, o.y), lock)
+                        vm.focus(previewView.meteringPointFactory.createPoint(o.x - rect.left, o.y - rect.top), lock)
                         focusPoint = o
                         focusTrigger++
                     }
@@ -427,7 +437,7 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
                 },
         )
 
-        GridOverlay(vm.cfg.grid, ratio, Modifier.fillMaxSize(), centered)
+        GridOverlay(vm.cfg.grids, ratio, Modifier.fillMaxSize(), centered)
         if (vm.cfg.level && vm.mode != CaptureMode.AUDIO) LevelOverlay(ratio, ui.haptics, Modifier.fillMaxSize(), centered, ui.displayDegrees)
 
         focusPoint?.let { p ->
@@ -499,13 +509,10 @@ private fun BoxScope.FrameInfo(ui: Ui) {
             .padding(10.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+        if (vm.global.exposureInfo && vm.mode != CaptureMode.AUDIO) ExposureStrip(vm, Modifier.align(Alignment.CenterHorizontally))
         Row(verticalAlignment = Alignment.Top) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 modeBadge(vm)?.let { Badge(it) }
-                val hud = vm.hud
-                if (hud != null && (vm.mode == CaptureMode.PRO || vm.mode == CaptureMode.NIGHT)) {
-                    Badge("ISO ${hud.iso} · ${formatShutter(hud.exposureNs)}", mono = true)
-                }
                 if (vm.focusLocked) Badge("AE/AF · zablokowane  ✕", color = Palette.Amber, onClick = vm::unlockFocus)
                 if (vm.intervalRunning) {
                     val total = vm.cfg.intervalCount
@@ -604,15 +611,15 @@ private fun CaptureTools(ui: Ui) {
             onEv = vm::setEv,
         )
     }
-    if (vm.mode != CaptureMode.AUDIO && vm.cameraReady) {
+    if (vm.mode != CaptureMode.AUDIO && (vm.cameraReady || vm.caps.lensZooms.isNotEmpty())) {
         ZoomControls(
             presets = vm.zoomPresets,
-            current = vm.zoomCurrent,
-            min = vm.zoomMin,
-            max = vm.zoomMax,
+            current = vm.displayZoom,
+            min = vm.displayZoomMin,
+            max = vm.displayZoomMax,
             iconRotation = ui.iconRotation,
             haptics = ui.haptics,
-            onPreset = { vm.setZoomTarget(it, if (vm.mode.isVideo) 4f else 14f) },
+            onPreset = vm::selectZoomPreset,
             onRate = vm::nudgeZoom,
             modifier = Modifier.padding(bottom = 4.dp),
         )
@@ -755,7 +762,17 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
                     GridButton(vm, rot)
                 }
             } else {
-                TextChip(cfg.videoResolution.label, rot, enabled = !vm.busy && vm.caps.videoResolutions.size > 1, onClick = vm::cycleVideoResolution)
+                if (vm.mode == CaptureMode.VIDEO) {
+                    TextChip(cfg.videoResolution.label, rot, enabled = !vm.busy && vm.caps.videoResolutions.size > 1, onClick = vm::cycleVideoResolution)
+                }
+                val fpsChoices = if (vm.mode == CaptureMode.SLOWMO) vm.caps.slowMoRanges.size else vm.videoFpsOptions().size
+                TextChip(
+                    vm.fpsLabel,
+                    rot,
+                    enabled = !vm.busy && fpsChoices > 1,
+                    active = vm.mode == CaptureMode.VIDEO && cfg.videoFps != com.blacksingularities.registrer.data.VideoFps.AUTO,
+                    onClick = vm::cycleVideoFps,
+                )
                 if (vm.mode == CaptureMode.VIDEO && vm.caps.videoHlg) {
                     TextChip(
                         if (cfg.videoHdr) "HDR" else "SDR",
@@ -795,11 +812,75 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
             horizontalAlignment = Alignment.CenterHorizontally,
         ) { items() }
     } else {
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) { items() }
+        // Równo rozłożone, a gdy przycisków jest więcej niż miejsca (wąski ekran) – przewijane.
+        BoxWithConstraints(Modifier.fillMaxWidth()) {
+            Row(
+                Modifier
+                    .horizontalScroll(rememberScrollState())
+                    .widthIn(min = maxWidth),
+                horizontalArrangement = SpreadOrPack,
+                verticalAlignment = Alignment.CenterVertically,
+            ) { items() }
+        }
+    }
+}
+
+/**
+ * Pasek parametrów na samej górze kadru: ISO, czas naświetlania, przysłona, kompensacja EV
+ * i zoom. Wartości ustawione ręcznie (tryb Pro) są wyróżnione bursztynem.
+ */
+@Composable
+private fun ExposureStrip(vm: CameraViewModel, modifier: Modifier = Modifier) {
+    val hud = vm.hud
+    val pro = if (vm.mode == CaptureMode.PRO) vm.pro else null
+    val items = buildList {
+        val iso = pro?.iso ?: hud?.iso
+        add(Triple("ISO", iso?.toString() ?: "—", pro?.iso != null))
+        val shutter = pro?.exposureNs ?: hud?.exposureNs
+        add(Triple("S", shutter?.let { formatShutter(it) } ?: "—", pro?.exposureNs != null))
+        hud?.aperture?.let { add(Triple("f/", String.format(java.util.Locale.US, "%.1f", it), false)) }
+        val ev = vm.evIndex * vm.evStep
+        add(Triple("EV", String.format(java.util.Locale.US, "%+.1f", ev), vm.evIndex != 0))
+        add(Triple("", com.blacksingularities.registrer.ui.components.formatZoom(vm.displayZoom) + "×", false))
+    }
+    Row(
+        modifier
+            .clip(RoundedCornerShape(50))
+            .background(Palette.GlassStrong)
+            .padding(horizontal = 12.dp, vertical = 5.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        items.forEach { (label, value, manual) ->
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (label.isNotEmpty()) {
+                    Text(label, color = Palette.TextFaint, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.width(3.dp))
+                }
+                Text(value, style = MonoDigits, fontSize = 12.sp, color = if (manual) Palette.Amber else Color.White)
+            }
+        }
+    }
+}
+
+/** Rozkłada elementy na całą szerokość; gdy się nie mieszczą – ciasno, z odstępem 6 dp. */
+private object SpreadOrPack : Arrangement.Horizontal {
+    override val spacing = 6.dp
+
+    override fun androidx.compose.ui.unit.Density.arrange(
+        totalSize: Int,
+        sizes: IntArray,
+        layoutDirection: androidx.compose.ui.unit.LayoutDirection,
+        outPositions: IntArray,
+    ) {
+        val minGap = spacing.roundToPx()
+        val content = sizes.sum()
+        val gap = if (sizes.size > 1) maxOf(minGap, (totalSize - content) / (sizes.size - 1)) else 0
+        var x = 0
+        sizes.forEachIndexed { i, w ->
+            outPositions[i] = x
+            x += w + gap
+        }
     }
 }
 
@@ -880,19 +961,51 @@ private fun Badge(text: String, mono: Boolean = false, color: Color = Color.Whit
     )
 }
 
+/** Siatki: menu z zaznaczaniem – można włączyć kilka naraz. */
 @Composable
 private fun GridButton(vm: CameraViewModel, rotation: Float) {
-    val grid = vm.cfg.grid
-    RoundIcon(
-        Icons.Rounded.GridOn,
-        "Siatka: ${grid.label}",
-        rotation,
-        tint = if (grid == GridType.NONE) Palette.TextFaint else Color.White,
-        onClick = {
-            val all = GridType.entries
-            vm.updateProfile { it.copy(grid = all[(all.indexOf(it.grid) + 1) % all.size]) }
-        },
-    )
+    var open by remember { mutableStateOf(false) }
+    val grids = vm.cfg.grids
+    Box {
+        RoundIcon(
+            Icons.Rounded.GridOn,
+            "Siatki",
+            rotation,
+            tint = if (grids.isEmpty()) Palette.TextFaint else Color.White,
+            onClick = { open = true },
+        )
+        DropdownMenu(
+            expanded = open,
+            onDismissRequest = { open = false },
+            containerColor = Palette.PanelHigh,
+            shape = RoundedCornerShape(16.dp),
+        ) {
+            GridType.entries.forEach { g ->
+                val on = g in grids
+                DropdownMenuItem(
+                    text = { Text(g.label, color = if (on) Palette.Amber else Color.White, fontWeight = if (on) FontWeight.Bold else FontWeight.Normal) },
+                    leadingIcon = {
+                        Icon(
+                            if (on) Icons.Rounded.CheckBox else Icons.Rounded.CheckBoxOutlineBlank,
+                            null,
+                            tint = if (on) Palette.Amber else Palette.TextDim,
+                        )
+                    },
+                    onClick = { vm.updateProfile { it.copy(grids = if (g in it.grids) it.grids - g else it.grids + g) } },
+                )
+            }
+            if (grids.isNotEmpty()) {
+                DropdownMenuItem(
+                    text = { Text("Wyłącz wszystkie", color = Palette.TextDim) },
+                    leadingIcon = { Icon(Icons.Rounded.Close, null, tint = Palette.TextDim) },
+                    onClick = {
+                        vm.updateProfile { it.copy(grids = emptySet()) }
+                        open = false
+                    },
+                )
+            }
+        }
+    }
 }
 
 /** Informacja o nowej wersji – sprawdzanej automatycznie przy starcie i po powrocie do aplikacji. */
