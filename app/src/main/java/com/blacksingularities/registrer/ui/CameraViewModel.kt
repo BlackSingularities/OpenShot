@@ -187,6 +187,8 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
      */
     var cropZoom by mutableFloatStateOf(1f); private set
     private val cropAllowed get() = (mode == CaptureMode.PHOTO || mode == CaptureMode.PRO) && session.extension == null
+    /** Powyżej 10× zatrzymujemy sensor na 10× i powiększamy programowo, zachowując szerszy obraz nawigatora. */
+    val zoomNavigatorBase: Float get() = minOf(ZOOM_NAVIGATOR_THRESHOLD, zoomMax * zoomScale).coerceAtLeast(zoomMin * zoomScale)
     val displayZoom: Float get() = zoomCurrent * zoomScale * cropZoom
     val displayZoomMin: Float
         get() = if (mode == CaptureMode.SLOWMO) zoomMin else minOf(
@@ -400,6 +402,11 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     fun setVideoHdr(on: Boolean) {
         if (!busy) updateProfile { it.copy(videoHdr = on) }
     }
+    fun setStabilization(on: Boolean) {
+        if (!busy && mode == CaptureMode.VIDEO && caps.videoStabilization) {
+            updateProfile { it.copy(stabilization = on) }
+        }
+    }
 
     fun cycleTimer() {
         val options = listOf(0, 3, 5, 10)
@@ -538,14 +545,15 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     // ================================================================ zoom / ostrość / EV
 
     fun setZoomTarget(value: Float, speed: Float = 14f) {
-        if (cropAllowed && value > zoomMax * zoomScale + 0.01f) {
-            zoomTarget = zoomMax
-            cropZoom = (value / (zoomMax * zoomScale)).coerceIn(1f, MAX_DIGITAL_ZOOM)
+        val softwareBase = zoomNavigatorBase
+        if (cropAllowed && value > softwareBase + 0.01f) {
+            zoomTarget = softwareBase / zoomScale
+            cropZoom = (value / softwareBase).coerceIn(1f, MAX_DIGITAL_ZOOM / softwareBase)
             zoomSpeed = speed
             return
         }
         cropZoom = 1f
-        zoomTarget = value.coerceIn(zoomMin, zoomMax)
+        zoomTarget = (value / zoomScale).coerceIn(zoomMin, zoomMax)
         zoomSpeed = if (mode.isVideo && cfg.cinematicZoom) minOf(speed, 3.2f) else speed
     }
 
@@ -613,13 +621,14 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
         }
-        val hw = display / scale
-        if (cropAllowed && hw > zoomMax) {
-            zoomTarget = zoomMax
-            cropZoom = (hw / zoomMax).coerceIn(1f, MAX_DIGITAL_ZOOM / (zoomMax * scale))
+        val softwareBase = zoomNavigatorBase
+        if (cropAllowed && display > softwareBase) {
+            zoomTarget = softwareBase / scale
+            cropZoom = (display / softwareBase).coerceIn(1f, MAX_DIGITAL_ZOOM / softwareBase)
             zoomSpeed = speed
             return
         }
+        val hw = display / scale
         cropZoom = 1f
         zoomTarget = hw.coerceIn(zoomMin, zoomMax)
         zoomSpeed = if (cinematic && mode.isVideo && cfg.cinematicZoom) minOf(speed, 3.2f) else speed
@@ -1402,3 +1411,4 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
 
 /** Maksymalny zoom cyfrowy (z przycięciem zdjęcia) w trybach Foto i Pro. */
 const val MAX_DIGITAL_ZOOM = 100f
+const val ZOOM_NAVIGATOR_THRESHOLD = 10f
