@@ -689,7 +689,7 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
             }
         }
 
-        if (bins != null && vm.cfg.histogram && vm.mode.isPhoto) {
+        if (bins != null && vm.cfg.histogram && vm.mode.isPhoto && !vm.videoMode) {
             DraggableOverlay(
                 rect = overlayArea,
                 start = Offset(vm.global.histogramX, vm.global.histogramY),
@@ -728,7 +728,7 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
                 onDelete = { vm.updateGlobal { it.copy(exposureInfo = false) } },
             ) { ExposureStrip(vm) }
         }
-        if (vm.global.audioMeter && vm.mode == CaptureMode.VIDEO && vm.cfg.videoAudio) {
+        if (vm.global.audioMeter && vm.videoMode && vm.mode != CaptureMode.SLOWMO && vm.cfg.videoAudio) {
             DraggableOverlay(
                 rect = overlayArea,
                 start = Offset(vm.global.audioMeterX, vm.global.audioMeterY),
@@ -1365,7 +1365,7 @@ private fun ShutterCluster(ui: Ui) {
 
     Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
         val thumb = vm.thumbnail
-        if (vm.mode.isVideo && vm.recState != RecState.IDLE && vm.session.snapshotInVideo) {
+        if (vm.videoMode && vm.recState != RecState.IDLE && vm.session.snapshotInVideo) {
             RoundIcon(Icons.Rounded.PhotoCamera, "Zdjęcie z wideo", rot, size = 48.dp, onClick = vm::snapshot)
         } else if (isAudio && vm.audioState != RecState.IDLE) {
             RoundIcon(
@@ -1408,12 +1408,13 @@ private fun ShutterCluster(ui: Ui) {
     }
 
     val active = when {
-        vm.mode.isVideo -> vm.recState != RecState.IDLE
+        vm.videoMode -> vm.recState != RecState.IDLE
         isAudio -> vm.audioState != RecState.IDLE
         else -> vm.countdown != null || vm.intervalRunning || vm.bursting
     }
     ShutterButton(
         mode = vm.mode,
+        video = vm.videoMode,
         active = active,
         progress = vm.processing?.progress,
         processing = vm.processing != null,
@@ -1425,7 +1426,7 @@ private fun ShutterCluster(ui: Ui) {
         modifier = Modifier.graphicsLayer { rotationZ = rot },
     )
 
-    val recording = (vm.mode.isVideo && vm.recState != RecState.IDLE) || (isAudio && vm.audioState != RecState.IDLE)
+    val recording = (vm.videoMode && vm.recState != RecState.IDLE) || (isAudio && vm.audioState != RecState.IDLE)
     val paused = vm.recState == RecState.PAUSED || vm.audioState == RecState.PAUSED
     when {
         recording -> RoundIcon(
@@ -1479,6 +1480,22 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
                 onPick = { i -> vm.setFlash(vm.flashOptions()[i]) },
                 onClick = vm::cycleFlash,
             )
+            if (vm.mode == CaptureMode.PRO) {
+                RoundIcon(
+                    if (cfg.proVideo) Icons.Rounded.Videocam else Icons.Rounded.PhotoCamera,
+                    if (cfg.proVideo) "Tryb ręczny: wideo" else "Tryb ręczny: zdjęcia",
+                    rot,
+                    active = cfg.proVideo,
+                    enabled = !vm.busy,
+                    options = listOf(
+                        PickerOption("Tryb ręczny: zdjęcia", Icons.Rounded.PhotoCamera, caption = "Zdjęcia"),
+                        PickerOption("Tryb ręczny: wideo", Icons.Rounded.Videocam, caption = "Wideo"),
+                    ),
+                    selected = if (cfg.proVideo) 1 else 0,
+                    onPick = { i -> vm.setProVideo(i == 1) },
+                    onClick = { vm.setProVideo(!cfg.proVideo) },
+                )
+            }
             if (vm.mode == CaptureMode.LONG) {
                 val blends = com.blacksingularities.registrer.data.LongBlend.entries
                 fun blendIcon(b: com.blacksingularities.registrer.data.LongBlend) =
@@ -1495,7 +1512,7 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
                     onClick = { vm.updateProfile { it.copy(longBlend = blends[(blends.indexOf(it.longBlend) + 1) % blends.size]) } },
                 )
             }
-            if (vm.mode.isPhoto) {
+            if (vm.mode.isPhoto && !vm.videoMode) {
                 RoundIcon(
                     Icons.Rounded.Timer,
                     if (cfg.timerSeconds == 0) "Samowyzwalacz wyłączony" else "Samowyzwalacz ${cfg.timerSeconds} s",
@@ -1551,8 +1568,8 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
                         onClick = vm::cyclePhotoFormat,
                     )
                 }
-            } else if (vm.mode.isVideo) {
-                if (vm.mode == CaptureMode.VIDEO) {
+            } else if (vm.videoMode) {
+                if (vm.mode != CaptureMode.SLOWMO) {
                     val (resValue, resUnit) = resolutionGlyph(cfg.videoResolution)
                     GlassValueButton(
                         resValue,
@@ -1591,7 +1608,7 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
                 }
                 val slowFps = vm.slowMoFpsOptions()
                 val fpsChoices = if (vm.mode == CaptureMode.SLOWMO) slowFps.size else vm.videoFpsOptions().size
-                val autoFps = vm.mode == CaptureMode.VIDEO && cfg.videoFps == com.blacksingularities.registrer.data.VideoFps.AUTO
+                val autoFps = vm.mode != CaptureMode.SLOWMO && cfg.videoFps == com.blacksingularities.registrer.data.VideoFps.AUTO
                 val fpsNumber = vm.fpsLabel.removeSuffix(" kl/s").removePrefix("Auto").trim()
                 GlassValueButton(
                     if (autoFps) (vm.session.fps.takeIf { it > 0 }?.toString() ?: "A") else fpsNumber,
@@ -1615,7 +1632,7 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
                     },
                     onClick = vm::cycleVideoFps,
                 )
-                if (vm.mode == CaptureMode.VIDEO && vm.caps.videoHlg) {
+                if (vm.mode != CaptureMode.SLOWMO && vm.caps.videoHlg) {
                     RoundIcon(
                         if (cfg.videoHdr) Icons.Rounded.HdrOn else Icons.Rounded.HdrOff,
                         if (cfg.videoHdr) "Wideo HDR (HLG)" else "Wideo SDR",
@@ -1631,7 +1648,7 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
                         onClick = { vm.updateProfile { it.copy(videoHdr = !it.videoHdr) } },
                     )
                 }
-                if (vm.mode == CaptureMode.VIDEO && vm.caps.videoStabilization) {
+                if (vm.mode != CaptureMode.SLOWMO && vm.caps.videoStabilization) {
                     RoundIcon(
                         Icons.Rounded.VideoStable,
                         if (cfg.stabilization) "Stabilizacja włączona" else "Stabilizacja wyłączona",
@@ -1748,7 +1765,7 @@ private fun ExposureStrip(vm: CameraViewModel, modifier: Modifier = Modifier) {
     val pro = if (vm.mode == CaptureMode.PRO) vm.pro else null
     data class Item(val icon: ImageVector?, val name: String, val value: String, val manual: Boolean = false)
     val items = buildList {
-        add(Item(if (vm.mode.isVideo) Icons.Rounded.Videocam else Icons.Rounded.Image, "Rozdzielczość", resolutionText(vm)))
+        add(Item(if (vm.videoMode) Icons.Rounded.Videocam else Icons.Rounded.Image, "Rozdzielczość", resolutionText(vm)))
         val iso = pro?.iso ?: hud?.iso
         add(Item(null, "ISO", iso?.toString() ?: "—", pro?.iso != null))
         val shutter = pro?.exposureNs ?: hud?.exposureNs
@@ -1793,7 +1810,7 @@ private fun ExposureStrip(vm: CameraViewModel, modifier: Modifier = Modifier) {
 /** „50 MP” dla zdjęć, „2160p30” dla wideo – z rzeczywistej rozdzielczości, a gdy nieznana, z ustawień. */
 private fun resolutionText(vm: CameraViewModel): String {
     val size = vm.session.outputSize
-    return if (vm.mode.isVideo) {
+    return if (vm.videoMode) {
         val requested = if (vm.mode == CaptureMode.SLOWMO) vm.effectiveSlowMoResolution else vm.cfg.videoResolution
         val lines = size?.let { minOf(it.width, it.height) } ?: when (requested) {
             com.blacksingularities.registrer.data.VideoResolution.UHD -> 2160
@@ -1810,7 +1827,7 @@ private fun resolutionText(vm: CameraViewModel): String {
     }
 }
 
-private fun isVideoRecording(vm: CameraViewModel) = vm.mode.isVideo && vm.recState != RecState.IDLE
+private fun isVideoRecording(vm: CameraViewModel) = vm.videoMode && vm.recState != RecState.IDLE
 
 @Composable
 private fun RecordingClock(vm: CameraViewModel, rotation: Float) {

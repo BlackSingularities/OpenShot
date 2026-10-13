@@ -55,6 +55,8 @@ fun ShutterButton(
     counter: Int? = null,
     onLongPress: () -> Unit = {},
     onRelease: () -> Unit = {},
+    /** Tryb nagrywa wideo (także tryb ręczny w wariancie wideo) – czerwony środek. */
+    video: Boolean = false,
 ) {
     var pressed by remember { mutableStateOf(false) }
     val click by rememberUpdatedState(onClick)
@@ -63,11 +65,12 @@ fun ShutterButton(
     val measurer = rememberTextMeasurer()
     val scale by animateFloatAsState(if (pressed) 0.88f else 1f, spring(dampingRatio = 0.5f, stiffness = 600f), label = "scale")
     val inner by animateColorAsState(
-        when (mode) {
-            CaptureMode.VIDEO, CaptureMode.SLOWMO -> Palette.Record
-            CaptureMode.AUDIO -> Palette.Amber
-            CaptureMode.NIGHT -> Palette.Moon
-            CaptureMode.PORTRAIT -> Color(0xFFFFE2C4)
+        when {
+            video -> Palette.Record
+            mode == CaptureMode.VIDEO || mode == CaptureMode.SLOWMO -> Palette.Record
+            mode == CaptureMode.AUDIO -> Palette.Amber
+            mode == CaptureMode.NIGHT -> Palette.Moon
+            mode == CaptureMode.PORTRAIT -> Color(0xFFFFE2C4)
             else -> Color.White
         },
         tween(350),

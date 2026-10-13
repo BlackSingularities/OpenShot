@@ -106,6 +106,9 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     var mode by mutableStateOf(global.lastMode.takeIf { it != CaptureMode.SLOWMO } ?: CaptureMode.PHOTO); private set
     val cfg: ModeSettings get() = effective(mode)
 
+    /** Bieżący tryb nagrywa wideo (Wideo, Zwolnione tempo albo tryb ręczny w wariancie wideo). */
+    val videoMode: Boolean get() = mode.isVideo || (mode == CaptureMode.PRO && cfg.proVideo)
+
     var lensFacing by mutableIntStateOf(CameraSelector.LENS_FACING_BACK); private set
     var pro by mutableStateOf(ProSettings()); private set
     var caps by mutableStateOf(CameraCaps()); private set
@@ -177,7 +180,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     var videoAudioNote by mutableStateOf<String?>(null); private set
 
     private fun shouldMonitorLevel(): Boolean =
-        global.audioMeter && mode == CaptureMode.VIDEO && cfg.videoAudio && recState == RecState.IDLE && inForeground
+        global.audioMeter && videoMode && mode != CaptureMode.SLOWMO && cfg.videoAudio && recState == RecState.IDLE && inForeground
 
     private fun setVideoLevel(linear: Float) {
         videoLevel = linear.coerceIn(0f, 1f)
@@ -256,7 +259,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
      * powiększany programowo, a zapisane zdjęcie przycinane do widocznego kadru.
      */
     var cropZoom by mutableFloatStateOf(1f); private set
-    private val cropAllowed get() = (mode == CaptureMode.PHOTO || mode == CaptureMode.PRO) && session.extension == null
+    private val cropAllowed get() = (mode == CaptureMode.PHOTO || (mode == CaptureMode.PRO && !cfg.proVideo)) && session.extension == null
     /** Powyżej 10× zatrzymujemy sensor na 10× i powiększamy programowo, zachowując szerszy obraz nawigatora. */
     val zoomNavigatorBase: Float get() = minOf(ZOOM_NAVIGATOR_THRESHOLD, zoomMax * zoomScale).coerceAtLeast(zoomMin * zoomScale)
     val displayZoom: Float get() = zoomCurrent * zoomScale * cropZoom
@@ -269,7 +272,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     val displayZoomMax: Float get() = if (cropAllowed) MAX_DIGITAL_ZOOM else maxOf(zoomMax * zoomScale, caps.maxZoom)
 
     val effectiveAspect: AspectRatioMode
-        get() = if (mode.isVideo) AspectRatioMode.R16_9 else cfg.aspect
+        get() = if (videoMode) AspectRatioMode.R16_9 else cfg.aspect
 
     val availableModes: List<CaptureMode>
         get() = CaptureMode.entries.filter {
@@ -427,7 +430,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         }
         rawProfiles = rawProfiles + (target to next)
         store.save(target, next)
-        if (target == mode) engine.applyFlash(next.flash, mode)
+        if (target == mode) engine.applyFlash(next.flash, mode.isVideo || (mode == CaptureMode.PRO && next.proVideo))
     }
 
     /** Domyślne dla trybu – grupy wspólne zostają nietknięte (reset nie zmienia innych trybów). */
@@ -483,7 +486,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
 
     fun flashOptions(): List<FlashSetting> = when {
         !caps.hasFlash -> listOf(FlashSetting.OFF)
-        mode.isVideo || mode == CaptureMode.NIGHT || mode == CaptureMode.LONG -> listOf(FlashSetting.OFF, FlashSetting.TORCH)
+        videoMode || mode == CaptureMode.NIGHT || mode == CaptureMode.LONG -> listOf(FlashSetting.OFF, FlashSetting.TORCH)
         else -> FlashSetting.entries
     }
 
@@ -521,11 +524,18 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
             )
         }
     }
+    /** Tryb ręczny: przełączenie między zdjęciami a wideo (nowe wiązanie kamery). */
+    fun setProVideo(on: Boolean) {
+        if (busy || mode != CaptureMode.PRO) return
+        cropZoom = 1f
+        updateProfile { it.copy(proVideo = on) }
+    }
+
     fun setVideoHdr(on: Boolean) {
         if (!busy) updateProfile { it.copy(videoHdr = on) }
     }
     fun setStabilization(on: Boolean) {
-        if (!busy && mode == CaptureMode.VIDEO && caps.videoStabilization) {
+        if (!busy && videoMode && mode != CaptureMode.SLOWMO && caps.videoStabilization) {
             updateProfile { it.copy(stabilization = on) }
         }
     }
@@ -676,7 +686,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         }
         cropZoom = 1f
         zoomTarget = (value / zoomScale).coerceIn(zoomMin, zoomMax)
-        zoomSpeed = if (mode.isVideo && cfg.cinematicZoom) minOf(speed, 3.2f) else speed
+        zoomSpeed = if (videoMode && cfg.cinematicZoom) minOf(speed, 3.2f) else speed
     }
 
     /** Przełącznik zoomu: [rate] w jednostkach ln(zoom)/s (+ przybliża, − oddala). */
@@ -697,13 +707,13 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         // Aparat główny osiąga tę krotność (lub prawie tę) zoomem – najpłynniej, bez przełączania kamery.
         val primaryReaches = value >= primaryZoomMin * 0.9f - 0.01f
         when {
-            !canSwitchCamera() -> if (activeCameraId == null) setZoomTarget(value, if (mode.isVideo) 4f else 14f)
-            primaryReaches && activeCameraId == null -> setZoomTarget(maxOf(value, zoomMin), if (mode.isVideo) 4f else 14f)
+            !canSwitchCamera() -> if (activeCameraId == null) setZoomTarget(value, if (videoMode) 4f else 14f)
+            primaryReaches && activeCameraId == null -> setZoomTarget(maxOf(value, zoomMin), if (videoMode) 4f else 14f)
             primaryReaches && aux?.cameraId != activeCameraId -> switchCamera(null, maxOf(value, primaryZoomMin))
             aux != null && mode != CaptureMode.SLOWMO -> switchCamera(aux.cameraId, 1f)
             activeCameraId != null -> switchCamera(null, value)
             else -> {
-                setZoomTarget(value, if (mode.isVideo) 4f else 14f)
+                setZoomTarget(value, if (videoMode) 4f else 14f)
                 if (value < zoomMin - 0.01f) {
                     message = "Szeroki kąt niedostępny: aparat pozwala od ${formatRatio(zoomMin)}×, a osobnego sensora system nie udostępnia"
                 }
@@ -767,7 +777,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         val hw = display / scale
         cropZoom = 1f
         zoomTarget = hw.coerceIn(zoomMin, zoomMax)
-        zoomSpeed = if (cinematic && mode.isVideo && cfg.cinematicZoom) minOf(speed, 3.2f) else speed
+        zoomSpeed = if (cinematic && videoMode && cfg.cinematicZoom) minOf(speed, 3.2f) else speed
     }
 
     fun applyZoomFrame(value: Float) {
@@ -796,9 +806,9 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     // ================================================================ migawka
 
     fun onShutter() {
-        when (mode) {
-            CaptureMode.VIDEO, CaptureMode.SLOWMO -> toggleVideo()
-            CaptureMode.AUDIO -> toggleAudio()
+        when {
+            videoMode -> toggleVideo()
+            mode == CaptureMode.AUDIO -> toggleAudio()
             else -> {
                 if (countdown != null) {
                     timerJob?.cancel()
@@ -1303,7 +1313,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     private fun toggleVideo() {
         if (!cameraReady) return
         if (recState == RecState.IDLE) {
-            val withAudio = cfg.videoAudio && mode == CaptureMode.VIDEO
+            val withAudio = cfg.videoAudio && mode != CaptureMode.SLOWMO
             if (withAudio && !hasAudioPermission()) message = "Brak uprawnienia do mikrofonu – wideo bez dźwięku"
             levelJob?.cancel()
             levelMonitor.stopAndWait()
@@ -1321,7 +1331,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
 
     fun togglePause() {
         when {
-            mode.isVideo -> when (recState) {
+            videoMode -> when (recState) {
                 RecState.RECORDING -> engine.pauseRecording()
                 RecState.PAUSED -> engine.resumeRecording()
                 RecState.IDLE -> Unit

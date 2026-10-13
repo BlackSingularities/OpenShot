@@ -301,6 +301,18 @@ private fun ModeTab(mode: CaptureMode, s: ModeSettings, caps: CameraCaps, enable
     val isPhoto = mode.isPhoto
     @Composable
     fun shared(group: SharedGroup) = SharedSwitch(group, s, change)
+    if (mode == CaptureMode.PRO) {
+        Group("Tryb ręczny") {
+            Chips(Icons.Rounded.Tune, "Nagrywanie", listOf(false, true), s.proVideo, { if (it) "Wideo" else "Zdjęcia" }, enabled, hint = "Ręczne ISO, czas, ostrość i balans bieli działają w obu wariantach") { v ->
+                change { it.copy(proVideo = v) }
+            }
+        }
+        // Wariant wideo ma te same ustawienia co tryb Wideo (zapisywane w profilu trybu ręcznego).
+        if (s.proVideo) {
+            ModeTab(CaptureMode.VIDEO, s, caps, enabled, change)
+            return
+        }
+    }
     when (mode) {
         CaptureMode.VIDEO -> {
             Group("Obraz") {

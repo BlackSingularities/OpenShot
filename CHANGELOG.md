@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.10.0
+
+- **Tryb ręczny dla wideo**: tryb Ręczny przełącza się między zdjęciami a wideo przyciskiem na górnym pasku (albo w ustawieniach trybu). W wideo działają ręczne ISO, czas naświetlania, ostrość i balans bieli, a do tego rozdzielczość, klatkaż, HDR, stabilizacja i dźwięk jak w trybie Wideo – z osobnymi ustawieniami.
+- Czas naświetlania w wideo jest ograniczany do czasu klatki, by nagranie zachowało płynność.
+
 ## 2.9.0
 
 - **Wskaźnik poziomu dźwięku w wideo** (włączany w ustawieniach ogólnych → Pomoce kadru): pływa po kadrze jak kompas i histogram – przeciągnij go w dowolne miejsce albo upuść na koszu.

@@ -513,7 +513,10 @@ class CameraEngine(private val context: Context) {
         }
         val selector = if (wantedExtension != null && ext != null) ext.getExtensionEnabledCameraSelector(base, wantedExtension) else base
 
-        val aspect = if (req.mode.isVideo) AspectRatioMode.R16_9 else s.aspect
+        // Tryb ręczny może nagrywać wideo – wtedy wiązany jest jak Wideo, z ręczną ekspozycją.
+        val proVideo = req.mode == CaptureMode.PRO && s.proVideo
+        val video = req.mode.isVideo || proVideo
+        val aspect = if (video) AspectRatioMode.R16_9 else s.aspect
         val aspectStrategy = if (aspect == AspectRatioMode.R16_9) {
             AspectRatioStrategy.RATIO_16_9_FALLBACK_AUTO_STRATEGY
         } else {
@@ -534,7 +537,7 @@ class CameraEngine(private val context: Context) {
         var active: ActiveSession
         val bound: Camera
 
-        when (req.mode) {
+        when (if (proVideo) CaptureMode.VIDEO else req.mode) {
             CaptureMode.SLOWMO -> {
                 val profiles = caps.slowMoProfiles
                 val resolution = s.slowMoResolution.takeIf { wanted -> profiles.any { it.resolution == wanted } }
@@ -726,7 +729,7 @@ class CameraEngine(private val context: Context) {
 
         camera = bound
         val output = runCatching {
-            if (req.mode.isVideo) videoCapture?.resolutionInfo?.resolution else imageCapture?.resolutionInfo?.resolution
+            if (video) videoCapture?.resolutionInfo?.resolution else imageCapture?.resolutionInfo?.resolution
         }.getOrNull()
         active = active.copy(outputSize = output)
         session = active
@@ -747,7 +750,7 @@ class CameraEngine(private val context: Context) {
         }
 
         if (req.mode == CaptureMode.PRO) applyPro(req.pro) else applyBaseOptions()
-        applyFlash(s.flash, req.mode)
+        applyFlash(s.flash, video)
         return active
     }
 
@@ -775,11 +778,14 @@ class CameraEngine(private val context: Context) {
         val b = CaptureRequestOptions.Builder()
         if (pro.manualExposure) {
             val iso = pro.iso ?: lastHud?.iso ?: 400
-            val exposure = pro.exposureNs ?: lastHud?.exposureNs ?: 16_666_666L
+            // W wideo czas naświetlania nie może przekroczyć czasu klatki (płynność nagrania).
+            val frame = if (videoCapture != null) 1_000_000_000L / session.fps.takeIf { it > 0 }.let { it ?: 30 } else 33_333_333L
+            val wanted = pro.exposureNs ?: lastHud?.exposureNs ?: 16_666_666L
+            val exposure = if (videoCapture != null) minOf(wanted, frame) else wanted
             b.setCaptureRequestOption(CaptureRequest.CONTROL_AE_MODE, CaptureRequest.CONTROL_AE_MODE_OFF)
             b.setCaptureRequestOption(CaptureRequest.SENSOR_SENSITIVITY, iso)
             b.setCaptureRequestOption(CaptureRequest.SENSOR_EXPOSURE_TIME, exposure)
-            b.setCaptureRequestOption(CaptureRequest.SENSOR_FRAME_DURATION, max(exposure, 33_333_333L))
+            b.setCaptureRequestOption(CaptureRequest.SENSOR_FRAME_DURATION, if (videoCapture != null) frame else max(exposure, frame))
         }
         val focus = pro.focusDiopters
         if (focus != null) {
@@ -798,11 +804,11 @@ class CameraEngine(private val context: Context) {
         else -> ImageCapture.FLASH_MODE_OFF
     }
 
-    fun applyFlash(f: FlashSetting, mode: CaptureMode) {
-        imageCapture?.flashMode = if (mode.isVideo) ImageCapture.FLASH_MODE_OFF else flashModeOf(f)
+    fun applyFlash(f: FlashSetting, video: Boolean) {
+        imageCapture?.flashMode = if (video) ImageCapture.FLASH_MODE_OFF else flashModeOf(f)
         val cam = camera ?: return
         if (cam.cameraInfo.hasFlashUnit()) {
-            val torch = f == FlashSetting.TORCH || (mode.isVideo && f == FlashSetting.ON)
+            val torch = f == FlashSetting.TORCH || (video && f == FlashSetting.ON)
             cam.cameraControl.enableTorch(torch)
         }
     }
