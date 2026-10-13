@@ -165,8 +165,8 @@ fun QuickControl(
             val w = size.width - 2 * pad
             val cy = size.height / 2f
             val n = options.lastIndex.coerceAtLeast(1)
-            val trackH = 4.dp.toPx()
-            drawRoundRect(Color.White.copy(alpha = 0.16f), Offset(pad, cy - trackH / 2), Size(w, trackH), CornerRadius(trackH / 2))
+            val trackH = 2.dp.toPx()
+            drawRoundRect(Color.White.copy(alpha = 0.16f), Offset(pad, cy - trackH / 2), Size(w, trackH), CornerRadius.Zero)
             val x = pad + w * position / n
             // wypełnienie od wartości domyślnej (albo od lewej) do bieżącej
             val from = pad + w * ((defaultIndex ?: 0).toFloat() / n)
@@ -174,7 +174,7 @@ fun QuickControl(
                 Palette.Amber.copy(alpha = 0.85f),
                 Offset(minOf(from, x), cy - trackH / 2),
                 Size(kotlin.math.abs(x - from), trackH),
-                CornerRadius(trackH / 2),
+                CornerRadius.Zero,
             )
             if (options.size <= 24) {
                 for (i in 0..options.lastIndex) {
@@ -188,9 +188,9 @@ fun QuickControl(
                     )
                 }
             }
-            val r = (7f + 2f * glow).dp.toPx()
-            drawCircle(Color.Black.copy(alpha = 0.25f), r + 1.dp.toPx(), Offset(x, cy + 1.dp.toPx()))
-            drawCircle(if (dragging) Palette.Amber else Color.White, r, Offset(x, cy))
+            val th = (18f + 4f * glow).dp.toPx()
+            val tw = 3.dp.toPx()
+            drawRect(if (dragging) Palette.Amber else Color.White, Offset(x - tw / 2, cy - th / 2), Size(tw, th))
         }
     }
 }

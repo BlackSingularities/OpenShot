@@ -160,7 +160,7 @@ fun SettingsSheet(
                 .fillMaxWidth()
                 .heightIn(max = maxHeight * 0.86f)
                 .padding(horizontal = 6.dp)
-                .glass(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp), GlassLevel.Thick)
+                .glass(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp), GlassLevel.Thick)
                 .pointerInput(Unit) { detectTapGestures { } }
                 .navigationBarsPadding(),
         ) {
@@ -169,7 +169,7 @@ fun SettingsSheet(
                     .padding(top = 10.dp)
                     .align(Alignment.CenterHorizontally)
                     .size(width = 38.dp, height = 4.dp)
-                    .clip(RoundedCornerShape(50))
+                    .clip(RoundedCornerShape(4.dp))
                     .background(Color.White.copy(alpha = 0.35f)),
             )
             Row(Modifier.padding(start = 20.dp, end = 12.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -211,7 +211,7 @@ fun SettingsSheet(
                         Row(
                             Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(14.dp))
+                                .clip(RoundedCornerShape(4.dp))
                                 .clickable { onReset(current) }
                                 .padding(12.dp),
                             horizontalArrangement = Arrangement.Center,
@@ -467,7 +467,7 @@ private fun UpdateRow(update: UpdateState, onCheck: () -> Unit, onDownload: () -
                     fontWeight = FontWeight.Bold,
                     fontSize = 13.sp,
                     modifier = Modifier
-                        .clip(RoundedCornerShape(50))
+                        .clip(RoundedCornerShape(4.dp))
                         .background(Palette.Amber)
                         .clickable(onClick = handler)
                         .padding(horizontal = 14.dp, vertical = 7.dp),
@@ -523,7 +523,7 @@ private fun Group(title: String, content: @Composable ColumnScope.() -> Unit) {
         Column(
             Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
+                .clip(RoundedCornerShape(4.dp))
                 .background(Color.White.copy(alpha = 0.06f))
                 .padding(vertical = 4.dp),
             content = content,
@@ -593,7 +593,7 @@ private fun <T> MultiChips(
                 val sel = o in selected
                 Row(
                     Modifier
-                        .clip(RoundedCornerShape(50))
+                        .clip(RoundedCornerShape(4.dp))
                         .background(if (sel) Palette.Amber else Color.White.copy(alpha = 0.07f))
                         .clickable { onToggle(o) }
                         .padding(start = if (sel) 8.dp else 12.dp, end = 12.dp, top = 6.dp, bottom = 6.dp),
@@ -645,7 +645,7 @@ private fun <T> Chips(
                     fontSize = 12.sp,
                     fontWeight = if (sel) FontWeight.Bold else FontWeight.Medium,
                     modifier = Modifier
-                        .clip(RoundedCornerShape(50))
+                        .clip(RoundedCornerShape(4.dp))
                         .background(if (sel) Palette.Amber else Color.White.copy(alpha = 0.07f))
                         .clickable(enabled = enabled) { onSelect(o) }
                         .padding(horizontal = 12.dp, vertical = 6.dp),

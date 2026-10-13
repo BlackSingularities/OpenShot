@@ -196,7 +196,7 @@ private fun RecordingRow(
     Column(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
+            .clip(RoundedCornerShape(6.dp))
             .background(if (playing) Palette.PanelHigh else Palette.Panel)
             .clickable(onClick = onPlay)
             .padding(start = 8.dp, end = 4.dp, top = 6.dp, bottom = 6.dp),

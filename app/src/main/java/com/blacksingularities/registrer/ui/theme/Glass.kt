@@ -93,7 +93,7 @@ enum class GlassLevel(val tint: Color, val blur: Dp) {
 private val ActiveTint = Color(0xF2FFB547)
 
 /** Kształt bloków: prostokąt z małym zaokrągleniem zamiast kół i pigułek. */
-val BlockShape = RoundedCornerShape(12.dp)
+val BlockShape = RoundedCornerShape(4.dp)
 
 /**
  * Szkło: rozmyty obraz kamery pod spodem, delikatne zabarwienie, ziarno i obwódka ze
@@ -194,7 +194,7 @@ private fun HintLayer(hints: HintState) {
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier
                     .onSizeChanged { bubble = it }
-                    .glass(RoundedCornerShape(12.dp), GlassLevel.Regular)
+                    .glass(RoundedCornerShape(4.dp), GlassLevel.Regular)
                     .padding(horizontal = 12.dp, vertical = 7.dp),
             )
         }
@@ -292,7 +292,7 @@ fun GlassIconButton(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .offset(x = 9.dp, y = 7.dp)
-                        .background(Palette.Amber, RoundedCornerShape(50))
+                        .background(Palette.Amber, RoundedCornerShape(4.dp))
                         .padding(horizontal = 4.dp),
                 )
             }
@@ -376,7 +376,7 @@ fun GlassToolbar(
         if (vertical) {
             androidx.compose.foundation.layout.Column(
                 modifier
-                    .glass(RoundedCornerShape(16.dp), GlassLevel.Regular)
+                    .glass(RoundedCornerShape(6.dp), GlassLevel.Regular)
                     .padding(4.dp),
                 verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(2.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -384,7 +384,7 @@ fun GlassToolbar(
         } else {
             Row(
                 modifier
-                    .glass(RoundedCornerShape(16.dp), GlassLevel.Regular)
+                    .glass(RoundedCornerShape(6.dp), GlassLevel.Regular)
                     .padding(4.dp),
                 horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(2.dp),
                 verticalAlignment = Alignment.CenterVertically,

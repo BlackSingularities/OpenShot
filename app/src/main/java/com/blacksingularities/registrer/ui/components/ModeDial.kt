@@ -114,18 +114,8 @@ fun ModeDial(
             },
     ) {
         Canvas(Modifier.matchParentSize()) {
-            // Delikatny łuk-prowadnica oraz znacznik aktualnego trybu.
-            val top = 40.dp.toPx()
-            drawArc(
-                color = Color.White.copy(alpha = 0.07f),
-                startAngle = 245f,
-                sweepAngle = 50f,
-                useCenter = false,
-                topLeft = Offset(size.width / 2f - radiusPx, top),
-                size = Size(radiusPx * 2, radiusPx * 2),
-                style = Stroke(1.dp.toPx()),
-            )
-            drawCircle(Palette.Amber, radius = 2.5f.dp.toPx(), center = Offset(size.width / 2f, 4.dp.toPx()))
+            // Znacznik aktualnego trybu.
+            drawRect(Palette.Amber, Offset(size.width / 2f - 6.dp.toPx(), 2.dp.toPx()), Size(12.dp.toPx(), 2.dp.toPx()))
         }
         modes.forEachIndexed { i, m ->
             val d = i - position.value

@@ -364,7 +364,7 @@ private fun TallLayout(ui: Ui, previewView: PreviewView) {
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .padding(start = 8.dp, end = 8.dp, bottom = insets.calculateBottomPadding() + 6.dp)
-                .glass(RoundedCornerShape(20.dp), GlassLevel.Regular)
+                .glass(RoundedCornerShape(6.dp), GlassLevel.Regular)
                 .padding(bottom = 8.dp, top = 10.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
@@ -410,7 +410,7 @@ private fun WideLayout(ui: Ui, previewView: PreviewView) {
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
                     .padding(horizontal = 12.dp, vertical = 10.dp)
-                    .glass(RoundedCornerShape(20.dp), GlassLevel.Regular)
+                    .glass(RoundedCornerShape(6.dp), GlassLevel.Regular)
                     .padding(top = 10.dp, bottom = 6.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
@@ -659,7 +659,7 @@ private fun BoxScope.FrameInfo(ui: Ui) {
                 textAlign = TextAlign.Center,
                 modifier = Modifier
                     .padding(horizontal = 16.dp)
-                    .glass(RoundedCornerShape(16.dp))
+                    .glass(RoundedCornerShape(6.dp))
                     .padding(horizontal = 16.dp, vertical = 10.dp),
             )
         }
@@ -1194,7 +1194,7 @@ private fun GridButton(vm: CameraViewModel, rotation: Float) {
             expanded = open,
             onDismissRequest = { open = false },
             containerColor = Palette.PanelHigh.copy(alpha = 0.9f),
-            shape = RoundedCornerShape(18.dp),
+            shape = RoundedCornerShape(6.dp),
         ) {
             GridType.entries.forEach { g ->
                 val on = g in grids
@@ -1261,7 +1261,7 @@ private fun UpdateBanner(
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier
-                        .clip(RoundedCornerShape(50))
+                        .clip(RoundedCornerShape(4.dp))
                         .background(Palette.Amber)
                         .clickable(onClick = handler)
                         .padding(horizontal = 12.dp, vertical = 6.dp),
