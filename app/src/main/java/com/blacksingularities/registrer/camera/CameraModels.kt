@@ -10,9 +10,13 @@ enum class CaptureMode(val label: String, val isPhoto: Boolean, val isVideo: Boo
     NIGHT("Noc", true, false),
     PORTRAIT("Portret", true, false),
     PHOTO("Foto", true, false),
+    /** Zdjęcie ruchome (Motion Photo): zdjęcie + ~3 s klip wokół naciśnięcia migawki. */
+    MOTION("Ruchome", true, false),
     HDR("HDR", true, false),
     PRO("Pro", true, false),
     VIDEO("Wideo", false, true),
+    /** Klip HEVC: każde naciśnięcie migawki zapisuje ~3 s film (1,5 s przed i 1,5 s po). */
+    CLIP("Klip", false, false),
     SLOWMO("Slow-mo", false, true),
     AUDIO("Audio", false, false),
 }
@@ -111,3 +115,6 @@ data class BindRequest(
 )
 
 class CapturedFrame(val bytes: ByteArray, val rotation: Int)
+
+/** Chwile nagrywane z bufora w tle. */
+val CaptureMode.isMoment: Boolean get() = this == CaptureMode.MOTION || this == CaptureMode.CLIP

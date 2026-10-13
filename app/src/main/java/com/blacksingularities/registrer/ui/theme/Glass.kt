@@ -113,8 +113,8 @@ enum class GlassLevel(val tint: Color, val blur: Dp, val flat: Color) {
 /** Aktywny element to pełny bursztynowy blok z ciemną ikoną. */
 private val ActiveTint = Color(0xF2FFB547)
 
-/** Kształt bloków: prostokąt z małym zaokrągleniem zamiast kół i pigułek. */
-val BlockShape = RoundedCornerShape(4.dp)
+/** Kształt przycisków i plakietek: koło / pigułka. */
+val BlockShape = RoundedCornerShape(50)
 
 /**
  * Szkło: rozmyty obraz kamery pod spodem, delikatne zabarwienie, ziarno i obwódka ze
@@ -409,7 +409,7 @@ private fun HintLayer(hints: HintState) {
                 fontWeight = FontWeight.SemiBold,
                 modifier = Modifier
                     .onSizeChanged { bubble = it }
-                    .glass(RoundedCornerShape(4.dp), GlassLevel.Regular)
+                    .glass(RoundedCornerShape(50), GlassLevel.Regular)
                     .padding(horizontal = 12.dp, vertical = 7.dp),
             )
         }
@@ -583,7 +583,7 @@ fun GlassIconButton(
                     modifier = Modifier
                         .align(Alignment.BottomEnd)
                         .offset(x = 9.dp, y = 7.dp)
-                        .background(Palette.Amber, RoundedCornerShape(4.dp))
+                        .background(Palette.Amber, RoundedCornerShape(50))
                         .padding(horizontal = 4.dp),
                 )
             }
@@ -670,7 +670,7 @@ fun GlassToolbar(
         if (vertical) {
             androidx.compose.foundation.layout.Column(
                 modifier
-                    .glass(RoundedCornerShape(6.dp), GlassLevel.Regular)
+                    .glass(RoundedCornerShape(50), GlassLevel.Regular)
                     .padding(4.dp),
                 verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(2.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -678,7 +678,7 @@ fun GlassToolbar(
         } else {
             Row(
                 modifier
-                    .glass(RoundedCornerShape(6.dp), GlassLevel.Regular)
+                    .glass(RoundedCornerShape(50), GlassLevel.Regular)
                     .padding(4.dp),
                 horizontalArrangement = SpreadOrPack,
                 verticalAlignment = Alignment.CenterVertically,

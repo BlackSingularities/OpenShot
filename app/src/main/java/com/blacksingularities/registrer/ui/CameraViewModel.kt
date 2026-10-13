@@ -1,5 +1,8 @@
 package com.blacksingularities.registrer.ui
 
+import com.blacksingularities.registrer.camera.isMoment
+import com.blacksingularities.registrer.camera.MomentMedia
+import kotlinx.coroutines.sync.withLock
 import android.Manifest
 import android.app.Application
 import android.content.pm.PackageManager
@@ -165,10 +168,16 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         get() = caps.auxLenses.firstOrNull { it.cameraId == activeCameraId && mode != CaptureMode.SLOWMO }?.factor ?: 1f
 
     /** Zoom w jednostkach użytkownika (0,6× / 1× / 3×), niezależnie od aktywnego aparatu. */
-    val displayZoom: Float get() = zoomCurrent * zoomScale
+    /**
+     * Dodatkowy zoom cyfrowy ponad maksimum aparatu (tylko Foto i Pro): podgląd jest
+     * powiększany programowo, a zapisane zdjęcie przycinane do widocznego kadru.
+     */
+    var cropZoom by mutableFloatStateOf(1f); private set
+    private val cropAllowed get() = (mode == CaptureMode.PHOTO || mode == CaptureMode.PRO) && session.extension == null
+    val displayZoom: Float get() = zoomCurrent * zoomScale * cropZoom
     val displayZoomMin: Float
         get() = minOf(zoomMin * zoomScale, caps.auxLenses.minOfOrNull { it.factor } ?: Float.MAX_VALUE, caps.lensZooms.minOrNull() ?: 1f)
-    val displayZoomMax: Float get() = maxOf(zoomMax * zoomScale, caps.maxZoom)
+    val displayZoomMax: Float get() = if (cropAllowed) MAX_DIGITAL_ZOOM else maxOf(zoomMax * zoomScale, caps.maxZoom)
 
     val effectiveAspect: AspectRatioMode
         get() = if (mode.isVideo) AspectRatioMode.R16_9 else cfg.aspect
@@ -190,6 +199,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
             val max = caps.maxZoom
             if (lenses.none { it > 1.4f } && max >= 2f) lenses += 2f
             if (lenses.none { it >= 4.5f } && max >= 10f) lenses += 10f
+            if (cropAllowed) lenses += MAX_DIGITAL_ZOOM
             return lenses.distinct().sorted()
         }
 
@@ -210,7 +220,9 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     // ================================================================ wiązanie kamery
 
     suspend fun bind(owner: LifecycleOwner, surfaceProvider: Preview.SurfaceProvider) {
+        stopMomentBuffer()
         cameraReady = false
+        cropZoom = 1f
         hud = null
         histogram = null
         focusLocked = false
@@ -247,6 +259,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
             evIndex = 0
             engine.setExposureIndex(0)
             cameraReady = true
+            if (mode.isMoment) startMomentBuffer()
         } catch (e: Exception) {
             message = "Kamera niedostępna: ${e.message ?: e.javaClass.simpleName}"
         }
@@ -422,6 +435,13 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     // ================================================================ zoom / ostrość / EV
 
     fun setZoomTarget(value: Float, speed: Float = 14f) {
+        if (cropAllowed && value > zoomMax * zoomScale + 0.01f) {
+            zoomTarget = zoomMax
+            cropZoom = (value / (zoomMax * zoomScale)).coerceIn(1f, MAX_DIGITAL_ZOOM)
+            zoomSpeed = speed
+            return
+        }
+        cropZoom = 1f
         zoomTarget = value.coerceIn(zoomMin, zoomMax)
         zoomSpeed = if (mode.isVideo && cfg.cinematicZoom) minOf(speed, 3.2f) else speed
     }
@@ -429,13 +449,13 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     /** Przełącznik zoomu: [rate] w jednostkach ln(zoom)/s (+ przybliża, − oddala). */
     fun nudgeZoom(rate: Float, dtSeconds: Float) {
         if (rate == 0f || !cameraReady) return
-        zoomDisplayTo(zoomTarget * zoomScale * exp(rate * dtSeconds), 30f, cinematic = false)
+        zoomDisplayTo(zoomTarget * zoomScale * cropZoom * exp(rate * dtSeconds), 30f, cinematic = false)
     }
 
     /** Szczypanie / klawisze głośności: względna zmiana zoomu. */
     fun zoomBy(factor: Float, speed: Float) {
         if (!cameraReady) return
-        zoomDisplayTo(zoomTarget * zoomScale * factor, speed, cinematic = true)
+        zoomDisplayTo(zoomTarget * zoomScale * cropZoom * factor, speed, cinematic = true)
     }
 
     /** Przycisk obiektywu: osobny aparat albo krotność aparatu głównego. */
@@ -475,7 +495,15 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
                 activeCameraId == null && wide != null && display < zoomMin * 0.97f -> return switchCamera(wide.cameraId, 1f)
             }
         }
-        zoomTarget = (display / scale).coerceIn(zoomMin, zoomMax)
+        val hw = display / scale
+        if (cropAllowed && hw > zoomMax) {
+            zoomTarget = zoomMax
+            cropZoom = (hw / zoomMax).coerceIn(1f, MAX_DIGITAL_ZOOM / (zoomMax * scale))
+            zoomSpeed = speed
+            return
+        }
+        cropZoom = 1f
+        zoomTarget = hw.coerceIn(zoomMin, zoomMax)
         zoomSpeed = if (cinematic && mode.isVideo && cfg.cinematicZoom) minOf(speed, 3.2f) else speed
     }
 
@@ -647,6 +675,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
             mode == CaptureMode.NIGHT && session.extension == null -> nightCapture()
             mode == CaptureMode.HDR && session.extension == null -> hdrCapture()
             mode == CaptureMode.PORTRAIT && session.extension == null -> portraitCapture()
+            mode.isMoment -> momentCapture(motion = mode == CaptureMode.MOTION)
             else -> {
                 val hardware = session.extension != null
                 if (hardware) processing = Processing("Przetwarzanie sprzętowe", null)
@@ -668,6 +697,12 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
                 processing = null
                 val uri = result.uri
                 if (uri != null) {
+                    val crop = cropZoom
+                    if (crop > 1.01f && session.photoFormat == PhotoFormat.JPEG) {
+                        processing = Processing("Zoom cyfrowy ×${crop.toInt()}", null)
+                        withContext(Dispatchers.IO) { runCatching { cropSavedPhoto(uri, crop) } }
+                        processing = null
+                    }
                     onSaved(uri, false, result.secondary)
                 } else {
                     message = "Nie zapisano zdjęcia: ${result.error}"
@@ -787,6 +822,153 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
                 pro = ProSettings()
             }
             message = "Selfie głównym aparatem – złóż telefon lub dotknij ikony, by wrócić"
+        }
+    }
+
+    /** Przycina zapisane zdjęcie do środka kadru (zoom cyfrowy ponad maksimum aparatu). */
+    private fun cropSavedPhoto(uri: Uri, crop: Float) {
+        val resolver = ctx.contentResolver
+        val bytes = resolver.openInputStream(uri)?.use { it.readBytes() } ?: return
+        val src = android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return
+        val orientation = runCatching {
+            androidx.exifinterface.media.ExifInterface(java.io.ByteArrayInputStream(bytes))
+                .getAttribute(androidx.exifinterface.media.ExifInterface.TAG_ORIENTATION)
+        }.getOrNull()
+        val w = (src.width / crop).toInt().coerceAtLeast(16)
+        val h = (src.height / crop).toInt().coerceAtLeast(16)
+        val cut = Bitmap.createBitmap(src, (src.width - w) / 2, (src.height - h) / 2, w, h)
+        // Małe wycinki skalujemy do co najmniej 2048 px dłuższego boku.
+        val scale = (2048f / maxOf(w, h)).coerceAtLeast(1f)
+        val out = if (scale > 1f) Bitmap.createScaledBitmap(cut, (w * scale).toInt(), (h * scale).toInt(), true) else cut
+        val tmp = java.io.File(ctx.cacheDir, "crop_${System.nanoTime()}.jpg")
+        try {
+            tmp.outputStream().use { out.compress(Bitmap.CompressFormat.JPEG, cfg.jpegQuality, it) }
+            runCatching {
+                val exif = androidx.exifinterface.media.ExifInterface(tmp.absolutePath)
+                if (orientation != null) exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_ORIENTATION, orientation)
+                exif.setAttribute(androidx.exifinterface.media.ExifInterface.TAG_SOFTWARE, "Registrer zoom cyfrowy ×${crop.toInt()}")
+                exif.saveAttributes()
+            }
+            resolver.openOutputStream(uri, "wt")?.use { os -> tmp.inputStream().use { it.copyTo(os) } }
+        } finally {
+            tmp.delete()
+            src.recycle()
+            if (cut !== src) cut.recycle()
+            if (out !== cut) out.recycle()
+        }
+    }
+
+    // ================================================================ chwile: zdjęcia ruchome i klipy
+
+    private var momentJob: Job? = null
+    private var segment: CameraEngine.Segment? = null
+    private val momentLock = kotlinx.coroutines.sync.Mutex()
+    private var momentBusy = false
+
+    /** Bufor w tle: odcinki nagrania po ok. 10 s, zastępowane kolejnymi. */
+    private fun startMomentBuffer() {
+        momentJob?.cancel()
+        momentJob = viewModelScope.launch {
+            while (isActive) {
+                momentLock.withLock { if (segment == null && cameraReady && mode.isMoment) newSegment() }
+                delay(1000)
+                momentLock.withLock {
+                    val s = segment ?: return@withLock
+                    if (!momentBusy && SystemClock.elapsedRealtime() - s.startedAt > 10_000) {
+                        segment = null
+                        s.finish()
+                        s.file.delete()
+                        newSegment()
+                    }
+                }
+            }
+        }
+    }
+
+    private suspend fun newSegment(): CameraEngine.Segment? {
+        val file = java.io.File(ctx.cacheDir, "moment_${System.nanoTime()}.mp4")
+        val withAudio = cfg.videoAudio && hasAudioPermission()
+        val s = engine.startSegment(file, surfaceRotation(), withAudio)
+        segment = s
+        if (s == null) file.delete()
+        return s
+    }
+
+    private fun stopMomentBuffer() {
+        momentJob?.cancel()
+        momentJob = null
+        val s = segment
+        segment = null
+        if (s != null) {
+            viewModelScope.launch {
+                s.finish()
+                s.file.delete()
+            }
+        }
+    }
+
+    /** Migawka w trybie chwil: zdjęcie (Motion Photo) + fragment bufora 1,5 s przed i 1,5 s po. */
+    private suspend fun momentCapture(motion: Boolean) {
+        val seg = segment
+        if (seg == null) {
+            message = "Bufor nagrania jeszcze się uruchamia – spróbuj za chwilę"
+            return
+        }
+        momentBusy = true
+        try {
+            playShutter()
+            val pressMs = SystemClock.elapsedRealtime() - seg.startedAt
+            val photo = if (motion && session.snapshotInVideo) runCatching { engine.captureFrame() }.getOrNull() else null
+            processing = Processing(if (motion) "Zdjęcie ruchome" else "Klip", null)
+            delay(1500)
+            val ok = momentLock.withLock {
+                if (segment === seg) segment = null
+                val done = seg.finish()
+                newSegment()
+                done
+            }
+            if (!ok) {
+                message = "Nie udało się zapisać fragmentu nagrania"
+                seg.file.delete()
+                return
+            }
+            val clip = java.io.File(ctx.cacheDir, "clip_${System.nanoTime()}.mp4")
+            val saved = withContext(Dispatchers.IO) {
+                try {
+                    val fromUs = ((pressMs - 1500).coerceAtLeast(0)) * 1000
+                    val toUs = (pressMs + 1500) * 1000
+                    val base = MomentMedia.trim(seg.file, clip, fromUs, toUs)
+                    val presentationUs = (pressMs * 1000 - base).coerceAtLeast(0)
+                    if (motion) {
+                        val still = photo?.let { MomentMedia.jpegWithOrientation(ctx, it.bytes, it.rotation) }
+                            ?: MomentMedia.frameAt(seg.file, pressMs * 1000)
+                            ?: error("Brak klatki zdjęcia")
+                        val file = MomentMedia.buildMotionPhoto(still, clip.readBytes(), presentationUs)
+                        MomentMedia.saveImage(ctx, file)?.let { it to "Zapisano zdjęcie ruchome" }
+                    } else {
+                        withContext(Dispatchers.Main) { processing = Processing("Kodowanie HEVC", null) }
+                        val hevc = java.io.File(ctx.cacheDir, "hevc_${System.nanoTime()}.mp4")
+                        val isHevc = MomentMedia.transcodeHevc(clip, hevc)
+                        val uri = MomentMedia.saveVideo(ctx, if (isHevc) hevc else clip, isHevc)
+                        hevc.delete()
+                        uri?.let { it to if (isHevc) "Zapisano klip HEVC" else "Zapisano klip (brak kodera HEVC – H.264)" }
+                    }
+                } catch (e: Exception) {
+                    null
+                } finally {
+                    clip.delete()
+                    seg.file.delete()
+                }
+            }
+            if (saved != null) {
+                onSaved(saved.first, !motion)
+                message = saved.second
+            } else {
+                message = "Nie udało się zapisać chwili"
+            }
+        } finally {
+            processing = null
+            momentBusy = false
         }
     }
 
@@ -1056,6 +1238,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     // ================================================================ cykl życia
 
     fun onBackground() {
+        stopMomentBuffer()
         if (audioState != RecState.IDLE) stopAudio()
         if (recState != RecState.IDLE) engine.stopRecording()
         bursting = false
@@ -1072,6 +1255,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun onForeground() {
+        if (mode.isMoment && cameraReady && momentJob == null) startMomentBuffer()
         val installing = update
         if (installing is UpdateState.Installing) {
             // Instalacja przerwana albo odrzucona – plik nadal czeka w pamięci podręcznej.
@@ -1089,6 +1273,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     override fun onCleared() {
+        stopMomentBuffer()
         audio.release()
         stopPlayback()
         engine.release()
@@ -1096,3 +1281,6 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         tone?.release()
     }
 }
+
+/** Maksymalny zoom cyfrowy (z przycięciem zdjęcia) w trybach Foto i Pro. */
+const val MAX_DIGITAL_ZOOM = 100f

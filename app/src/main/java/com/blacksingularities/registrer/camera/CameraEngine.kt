@@ -541,6 +541,34 @@ class CameraEngine(private val context: Context) {
                 bound = result ?: throw (lastError ?: IllegalStateException("Nie udało się uruchomić wideo"))
             }
 
+            CaptureMode.MOTION, CaptureMode.CLIP -> {
+                // Podgląd + nagrywanie w tle (bufor chwil) + zdjęcie (dla Motion Photo).
+                val recorder = Recorder.Builder()
+                    .setQualitySelector(QualitySelector.from(Quality.FHD, FallbackStrategy.lowerQualityOrHigherThan(Quality.SD)))
+                    .setAspectRatio(if (aspect == AspectRatioMode.R16_9) androidx.camera.core.AspectRatio.RATIO_16_9 else androidx.camera.core.AspectRatio.RATIO_4_3)
+                    .build()
+                val vc = VideoCapture.Builder(recorder).setMirrorMode(MirrorMode.MIRROR_MODE_ON_FRONT_ONLY).build()
+                var ic: ImageCapture? = null
+                if (req.mode == CaptureMode.MOTION) {
+                    ic = ImageCapture.Builder()
+                        .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+                        .setResolutionSelector(ResolutionSelector.Builder().setAspectRatioStrategy(aspectStrategy).build())
+                        .setJpegQuality(s.jpegQuality.coerceIn(1, 100))
+                        .build()
+                }
+                bound = try {
+                    p.bindToLifecycle(owner, base, *listOfNotNull<UseCase>(buildPreview(), vc, ic).toTypedArray())
+                } catch (e: Exception) {
+                    if (ic == null) throw e
+                    ic = null
+                    p.unbindAll()
+                    p.bindToLifecycle(owner, base, buildPreview(), vc)
+                }
+                videoCapture = vc
+                imageCapture = ic
+                active = ActiveSession(snapshotInVideo = ic != null)
+            }
+
             else -> {
                 val format = when {
                     wantedExtension != null || auxId != null -> PhotoFormat.JPEG
@@ -842,6 +870,55 @@ class CameraEngine(private val context: Context) {
             cam.cameraControl.setExposureCompensationIndex(original)
         }
         return frames
+    }
+
+    // ------------------------------------------------------------------ bufor chwil
+
+    /** Odcinek nagrania w tle; [startedAt] – SystemClock.elapsedRealtime() początku nagrania. */
+    class Segment internal constructor(
+        val file: java.io.File,
+        val startedAt: Long,
+        private val rec: Recording,
+        private val done: kotlinx.coroutines.CompletableDeferred<Boolean>,
+    ) {
+        /** Kończy nagrywanie i czeka na zapis pliku; true = plik poprawny. */
+        suspend fun finish(): Boolean {
+            runCatching { rec.stop() }
+            return kotlinx.coroutines.withTimeoutOrNull(5_000) { done.await() } ?: false
+        }
+    }
+
+    private var segmentActive = false
+
+    /** Rozpoczyna odcinek bufora do pliku; null, gdy nagrywanie nie ruszyło. */
+    @SuppressLint("MissingPermission")
+    suspend fun startSegment(file: java.io.File, rotation: Int, withAudio: Boolean): Segment? {
+        val vc = videoCapture ?: return null
+        if (recording != null || segmentActive) return null
+        vc.targetRotation = rotation
+        val started = kotlinx.coroutines.CompletableDeferred<Long>()
+        val done = kotlinx.coroutines.CompletableDeferred<Boolean>()
+        val pending = vc.output.prepareRecording(context, androidx.camera.video.FileOutputOptions.Builder(file).build())
+        val audioGranted = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
+        if (withAudio && audioGranted) pending.withAudioEnabled()
+        segmentActive = true
+        val rec = pending.start(main) { e ->
+            when (e) {
+                is VideoRecordEvent.Start -> started.complete(android.os.SystemClock.elapsedRealtime())
+                is VideoRecordEvent.Finalize -> {
+                    segmentActive = false
+                    if (!started.isCompleted) started.complete(-1L)
+                    done.complete(!e.hasError() || e.error == VideoRecordEvent.Finalize.ERROR_NONE)
+                }
+                else -> Unit
+            }
+        }
+        val t = kotlinx.coroutines.withTimeoutOrNull(4_000) { started.await() } ?: -1L
+        if (t < 0) {
+            runCatching { rec.stop() }
+            return null
+        }
+        return Segment(file, t, rec, done)
     }
 
     // ------------------------------------------------------------------ wideo

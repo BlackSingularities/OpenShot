@@ -152,6 +152,8 @@ data class ModeSettings(
             CaptureMode.SLOWMO -> ModeSettings(aspect = AspectRatioMode.R16_9, histogram = false, level = false)
             CaptureMode.AUDIO -> ModeSettings(histogram = false, level = false, grids = emptySet())
             CaptureMode.PHOTO -> ModeSettings()
+            CaptureMode.MOTION -> ModeSettings()
+            CaptureMode.CLIP -> ModeSettings(aspect = AspectRatioMode.R16_9, histogram = false)
         }
     }
 }

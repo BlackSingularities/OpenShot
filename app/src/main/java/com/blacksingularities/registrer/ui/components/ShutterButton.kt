@@ -65,6 +65,7 @@ fun ShutterButton(
     val inner by animateColorAsState(
         when (mode) {
             CaptureMode.VIDEO, CaptureMode.SLOWMO -> Palette.Record
+            CaptureMode.CLIP -> Palette.Coral
             CaptureMode.AUDIO -> Palette.Amber
             CaptureMode.NIGHT -> Palette.Moon
             CaptureMode.PORTRAIT -> Color(0xFFFFE2C4)
@@ -74,14 +75,14 @@ fun ShutterButton(
         label = "inner",
     )
     val corner by animateFloatAsState(if (active) 0.32f else 1f, spring(dampingRatio = 0.7f, stiffness = 300f), label = "corner")
-    val innerSize by animateFloatAsState(if (active) 0.42f else 0.78f, spring(dampingRatio = 0.6f, stiffness = 300f), label = "size")
+    val innerSize by animateFloatAsState(if (active) 0.42f else 0.8f, spring(dampingRatio = 0.6f, stiffness = 300f), label = "size")
     val crescent by animateFloatAsState(if (mode == CaptureMode.NIGHT && !active) 1f else 0f, tween(400), label = "moon")
     val spin = rememberInfiniteTransition(label = "spin")
     val sweepStart by spin.animateFloat(0f, 360f, infiniteRepeatable(tween(1100, easing = LinearEasing), RepeatMode.Restart), label = "start")
 
     Canvas(
         modifier
-            .size(86.dp)
+            .size(74.dp)
             .graphicsLayer { scaleX = scale; scaleY = scale; alpha = if (enabled) 1f else 0.45f }
             .semantics { contentDescription = if (active) "Zatrzymaj" else "Wyzwól migawkę" }
             .pointerInput(enabled) {
@@ -98,7 +99,7 @@ fun ShutterButton(
                 )
             },
     ) {
-        val ringWidth = 4.dp.toPx()
+        val ringWidth = 3.dp.toPx()
         val radius = size.minDimension / 2f - ringWidth
         drawCircle(Color.White.copy(alpha = 0.92f), radius = radius, style = Stroke(ringWidth))
 

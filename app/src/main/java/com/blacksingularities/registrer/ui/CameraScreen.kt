@@ -1,5 +1,6 @@
 package com.blacksingularities.registrer.ui
 
+import androidx.compose.ui.draw.clipToBounds
 import com.blacksingularities.registrer.ui.theme.LocalPickerHorizontal
 import com.blacksingularities.registrer.ui.theme.PickerOption
 import androidx.compose.material.icons.rounded.TimerOff
@@ -206,8 +207,12 @@ fun CameraScreen(vm: CameraViewModel, onToggleRearDisplay: () -> Unit = {}) {
         }
     }
 
+    var freezeFrame by remember { mutableStateOf<androidx.compose.ui.graphics.ImageBitmap?>(null) }
     val bindKey = vm.bindKey
     LaunchedEffect(bindKey, lifecycleOwner) {
+        // Ostatnia klatka zostaje na ekranie podczas przełączania obiektywu / trybu
+        // i płynnie przenika w nowy obraz – bez czarnego mignięcia.
+        freezeFrame = runCatching { previewView.bitmap?.asImageBitmap() }.getOrNull()
         vm.bind(lifecycleOwner, previewView.surfaceProvider)
     }
 
@@ -294,7 +299,7 @@ fun CameraScreen(vm: CameraViewModel, onToggleRearDisplay: () -> Unit = {}) {
         }
     }
 
-    val ui = Ui(vm, iconRotation, uprightTurn, displayDegrees, haptics, onSettings = { showSettings = true }, onFold = onToggleRearDisplay)
+    val ui = Ui(vm, iconRotation, uprightTurn, displayDegrees, haptics, onSettings = { showSettings = true }, onFold = onToggleRearDisplay, freeze = freezeFrame)
 
     val hazeState = rememberHazeState()
     BackHandler(enabled = showSettings) { showSettings = false }
@@ -351,6 +356,7 @@ private class Ui(
     val haptics: Boolean,
     val onSettings: () -> Unit,
     val onFold: () -> Unit,
+    val freeze: androidx.compose.ui.graphics.ImageBitmap? = null,
 )
 
 // ==================================================================== układy
@@ -383,15 +389,15 @@ private fun TallLayout(ui: Ui, previewView: PreviewView) {
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .padding(start = 8.dp, end = 8.dp, bottom = insets.calculateBottomPadding() + 6.dp)
-                .glass(RoundedCornerShape(6.dp), GlassLevel.Faint)
-                .padding(bottom = 8.dp, top = 10.dp),
+                .glass(RoundedCornerShape(28.dp), GlassLevel.Faint)
+                .padding(bottom = 4.dp, top = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             CaptureTools(ui)
             Row(
                 Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 28.dp, vertical = 6.dp),
+                    .padding(horizontal = 30.dp, vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
@@ -429,7 +435,7 @@ private fun WideLayout(ui: Ui, previewView: PreviewView) {
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
                     .padding(horizontal = 12.dp, vertical = 10.dp)
-                    .glass(RoundedCornerShape(6.dp), GlassLevel.Faint)
+                    .glass(RoundedCornerShape(28.dp), GlassLevel.Faint)
                     .padding(top = 10.dp, bottom = 6.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
@@ -480,17 +486,42 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
 
         // Widok kamery zajmuje dokładnie prostokąt kadru – obraz jest wyśrodkowany.
         val haze = LocalHaze.current
-        AndroidView(
-            factory = { previewView },
-            modifier = Modifier
+        // Zoom cyfrowy ponad maksimum aparatu: podgląd powiększany w obrębie kadru.
+        val crop by animateFloatAsState(vm.cropZoom, tween(90), label = "crop")
+        Box(
+            Modifier
                 .offset { IntOffset(rect.left.roundToInt(), rect.top.roundToInt()) }
                 .size(with(density) { rect.width.toDp() }, with(density) { rect.height.toDp() })
-                .then(if (haze != null) Modifier.hazeSource(haze) else Modifier),
-        )
+                .clipToBounds(),
+        ) {
+            AndroidView(
+                factory = { previewView },
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        scaleX = crop
+                        scaleY = crop
+                    }
+                    .then(if (haze != null) Modifier.hazeSource(haze) else Modifier),
+            )
+        }
 
         val streaming = streamState == PreviewView.StreamState.STREAMING && vm.cameraReady
         val curtain by animateFloatAsState(if (streaming) 0f else 1f, tween(if (streaming) 380 else 120), label = "curtain")
-        Box(Modifier.fillMaxSize().graphicsLayer { alpha = curtain }.background(Color.Black))
+        val freeze = ui.freeze
+        if (freeze != null) {
+            Image(
+                bitmap = freeze,
+                contentDescription = null,
+                contentScale = ContentScale.FillBounds,
+                modifier = Modifier
+                    .offset { IntOffset(rect.left.roundToInt(), rect.top.roundToInt()) }
+                    .size(with(density) { rect.width.toDp() }, with(density) { rect.height.toDp() })
+                    .graphicsLayer { alpha = curtain },
+            )
+        } else {
+            Box(Modifier.fillMaxSize().graphicsLayer { alpha = curtain }.background(Color.Black))
+        }
 
         // Szczypanie = zoom, dotknięcie = ostrość, przytrzymanie = blokada AE/AF, podwójne = obiektyw.
         Box(
@@ -504,7 +535,10 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
                 .pointerInput(rect) {
                     fun meter(o: Offset, lock: Boolean) {
                         if (!rect.contains(o) || vm.mode == CaptureMode.AUDIO) return
-                        vm.focus(previewView.meteringPointFactory.createPoint(o.x - rect.left, o.y - rect.top), lock)
+                        vm.focus(previewView.meteringPointFactory.createPoint(
+                            rect.width / 2f + (o.x - rect.center.x) / vm.cropZoom,
+                            rect.height / 2f + (o.y - rect.center.y) / vm.cropZoom,
+                        ), lock)
                         focusPoint = o
                         focusTrigger++
                     }
@@ -721,7 +755,7 @@ private fun BoxScope.FrameInfo(ui: Ui) {
                 textAlign = TextAlign.Center,
                 modifier = Modifier
                     .padding(horizontal = 16.dp)
-                    .glass(RoundedCornerShape(6.dp))
+                    .glass(RoundedCornerShape(50))
                     .padding(horizontal = 16.dp, vertical = 10.dp),
             )
         }
@@ -772,7 +806,7 @@ private fun AudioPane(vm: CameraViewModel, padding: PaddingValues) {
 @Composable
 private fun CaptureTools(ui: Ui) {
     val vm = ui.vm
-    if (vm.mode != CaptureMode.PRO) ModeQuickControl(ui, Modifier.padding(bottom = 8.dp))
+    if (vm.mode != CaptureMode.PRO) ModeQuickControl(ui, Modifier.padding(bottom = 4.dp))
     if (vm.mode == CaptureMode.PRO && vm.cameraReady) {
         ProPanel(
             caps = vm.caps,
@@ -910,17 +944,17 @@ private fun ShutterCluster(ui: Ui) {
     val isAudio = vm.mode == CaptureMode.AUDIO
     val rot = ui.iconRotation
 
-    Box(Modifier.size(56.dp), contentAlignment = Alignment.Center) {
+    Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
         val thumb = vm.thumbnail
         if (vm.mode.isVideo && vm.recState != RecState.IDLE && vm.session.snapshotInVideo) {
-            RoundIcon(Icons.Rounded.PhotoCamera, "Zdjęcie z wideo", rot, size = 56.dp, onClick = vm::snapshot)
+            RoundIcon(Icons.Rounded.PhotoCamera, "Zdjęcie z wideo", rot, size = 48.dp, onClick = vm::snapshot)
         } else if (!isAudio && thumb != null) {
             Image(
                 bitmap = thumb.asImageBitmap(),
                 contentDescription = "Ostatnie ujęcie",
                 contentScale = ContentScale.Crop,
                 modifier = Modifier
-                    .size(52.dp)
+                    .size(44.dp)
                     .graphicsLayer { rotationZ = rot }
                     .clip(CircleShape)
                     .border(1.5.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.9f), Color.White.copy(alpha = 0.3f))), CircleShape)
@@ -968,7 +1002,7 @@ private fun ShutterCluster(ui: Ui) {
             if (paused) Icons.Rounded.PlayArrow else Icons.Rounded.Pause,
             if (paused) "Wznów" else "Pauza",
             rot,
-            size = 56.dp,
+            size = 48.dp,
             onClick = vm::togglePause,
         )
         !isAudio && vm.caps.hasFront && vm.caps.hasBack && !vm.rearDisplayActive -> {
@@ -977,9 +1011,9 @@ private fun ShutterCluster(ui: Ui) {
                 tween(420),
                 label = "switch",
             )
-            RoundIcon(Icons.Rounded.Cameraswitch, "Zmień obiektyw", rot + spin, size = 56.dp, enabled = !vm.busy, onClick = vm::switchLens)
+            RoundIcon(Icons.Rounded.Cameraswitch, "Zmień obiektyw", rot + spin, size = 48.dp, enabled = !vm.busy, onClick = vm::switchLens)
         }
-        else -> Spacer(Modifier.size(56.dp))
+        else -> Spacer(Modifier.size(48.dp))
     }
 }
 
@@ -1071,7 +1105,7 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
                         onClick = vm::cyclePhotoFormat,
                     )
                 }
-            } else {
+            } else if (vm.mode.isVideo) {
                 if (vm.mode == CaptureMode.VIDEO) {
                     val (resValue, resUnit) = resolutionGlyph(cfg.videoResolution)
                     GlassValueButton(
@@ -1355,7 +1389,7 @@ private fun GridButton(vm: CameraViewModel, rotation: Float) {
             expanded = open,
             onDismissRequest = { open = false },
             containerColor = Palette.PanelHigh.copy(alpha = 0.9f),
-            shape = RoundedCornerShape(6.dp),
+            shape = RoundedCornerShape(18.dp),
         ) {
             GridType.entries.forEach { g ->
                 val on = g in grids
@@ -1422,7 +1456,7 @@ private fun UpdateBanner(
                     fontSize = 13.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
+                        .clip(RoundedCornerShape(50))
                         .background(Palette.Amber)
                         .clickable(onClick = handler)
                         .padding(horizontal = 12.dp, vertical = 6.dp),

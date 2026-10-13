@@ -85,7 +85,7 @@ fun ModeDial(
     Box(
         modifier
             .fillMaxWidth()
-            .height(76.dp)
+            .height(62.dp)
             .pointerInput(enabled, modes) {
                 if (!enabled) return@pointerInput
                 var lastTick = selectedIndex
@@ -129,7 +129,7 @@ fun ModeDial(
                     .align(Alignment.TopCenter)
                     .graphicsLayer {
                         translationX = radiusPx * sin(angle)
-                        translationY = radiusPx * (1f - cos(angle)) + 14.dp.toPx()
+                        translationY = radiusPx * (1f - cos(angle)) + 8.dp.toPx()
                         rotationZ = Math.toDegrees(angle.toDouble()).toFloat()
                         alpha = (1f - dist * 0.3f).coerceIn(0f, 1f)
                         val s = 1f - dist * 0.08f
@@ -139,12 +139,12 @@ fun ModeDial(
             ) {
                 Box(
                     Modifier
-                        .size(34.dp)
+                        .size(30.dp)
                         .graphicsLayer { scaleX = 0.9f + 0.18f * focus; scaleY = 0.9f + 0.18f * focus }
                         .glass(BlockShape, active = isSel, border = isSel),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(modeIcon(m), m.label, tint = if (isSel) Palette.Ink else Color.White, modifier = Modifier.size(18.dp))
+                    Icon(modeIcon(m), m.label, tint = if (isSel) Palette.Ink else Color.White, modifier = Modifier.size(16.dp))
                 }
                 Text(
                     m.label.uppercase(),
@@ -152,7 +152,7 @@ fun ModeDial(
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = 1.4.sp,
-                    modifier = Modifier.padding(top = 3.dp).graphicsLayer { alpha = focus * focus },
+                    modifier = Modifier.padding(top = 2.dp).graphicsLayer { alpha = focus * focus },
                 )
             }
         }

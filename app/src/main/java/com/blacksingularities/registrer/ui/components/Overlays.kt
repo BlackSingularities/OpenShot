@@ -121,7 +121,7 @@ fun HistogramView(bins: IntArray, modifier: Modifier = Modifier) {
     Canvas(
         modifier
             .size(width = 112.dp, height = 52.dp)
-            .glass(RoundedCornerShape(4.dp)),
+            .glass(RoundedCornerShape(12.dp)),
     ) {
         val maxV = bins.maxOrNull()?.coerceAtLeast(1) ?: 1
         val path = Path()

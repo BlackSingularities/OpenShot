@@ -49,6 +49,7 @@ import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.Movie
+import androidx.compose.material.icons.rounded.MotionPhotosOn
 import androidx.compose.material.icons.rounded.NightsStay
 import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.Portrait
@@ -127,6 +128,8 @@ fun modeIcon(mode: CaptureMode): ImageVector = when (mode) {
     CaptureMode.NIGHT -> Icons.Rounded.NightsStay
     CaptureMode.PORTRAIT -> Icons.Rounded.Portrait
     CaptureMode.PHOTO -> Icons.Rounded.PhotoCamera
+    CaptureMode.MOTION -> Icons.Rounded.MotionPhotosOn
+    CaptureMode.CLIP -> Icons.Rounded.Movie
     CaptureMode.HDR -> Icons.Rounded.HdrOn
     CaptureMode.PRO -> Icons.Rounded.Tune
     CaptureMode.VIDEO -> Icons.Rounded.Videocam
@@ -161,7 +164,7 @@ fun SettingsSheet(
                 .fillMaxWidth()
                 .heightIn(max = maxHeight * 0.86f)
                 .padding(horizontal = 6.dp)
-                .glass(RoundedCornerShape(topStart = 6.dp, topEnd = 6.dp), GlassLevel.Thick)
+                .glass(RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp), GlassLevel.Thick)
                 .pointerInput(Unit) { detectTapGestures { } }
                 .navigationBarsPadding(),
         ) {
@@ -170,7 +173,7 @@ fun SettingsSheet(
                     .padding(top = 10.dp)
                     .align(Alignment.CenterHorizontally)
                     .size(width = 38.dp, height = 4.dp)
-                    .clip(RoundedCornerShape(4.dp))
+                    .clip(RoundedCornerShape(50))
                     .background(Color.White.copy(alpha = 0.35f)),
             )
             Row(Modifier.padding(start = 20.dp, end = 12.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -212,7 +215,7 @@ fun SettingsSheet(
                         Row(
                             Modifier
                                 .fillMaxWidth()
-                                .clip(RoundedCornerShape(4.dp))
+                                .clip(RoundedCornerShape(50))
                                 .clickable { onReset(current) }
                                 .padding(12.dp),
                             horizontalArrangement = Arrangement.Center,
@@ -472,7 +475,7 @@ private fun UpdateRow(update: UpdateState, onCheck: () -> Unit, onDownload: () -
                     fontWeight = FontWeight.Bold,
                     fontSize = 13.sp,
                     modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
+                        .clip(RoundedCornerShape(50))
                         .background(Palette.Amber)
                         .clickable(onClick = handler)
                         .padding(horizontal = 14.dp, vertical = 7.dp),
@@ -526,7 +529,7 @@ private fun Group(title: String, content: @Composable ColumnScope.() -> Unit) {
         Column(
             Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(4.dp))
+                .clip(RoundedCornerShape(16.dp))
                 .background(Color.White.copy(alpha = 0.06f))
                 .padding(vertical = 2.dp),
             content = content,
@@ -596,7 +599,7 @@ private fun <T> MultiChips(
                 val sel = o in selected
                 Row(
                     Modifier
-                        .clip(RoundedCornerShape(4.dp))
+                        .clip(RoundedCornerShape(50))
                         .background(if (sel) Palette.Amber else Color.White.copy(alpha = 0.07f))
                         .clickable { onToggle(o) }
                         .padding(start = if (sel) 8.dp else 12.dp, end = 12.dp, top = 6.dp, bottom = 6.dp),
@@ -648,7 +651,7 @@ private fun <T> Chips(
                     fontSize = 12.sp,
                     fontWeight = if (sel) FontWeight.Bold else FontWeight.Medium,
                     modifier = Modifier
-                        .clip(RoundedCornerShape(4.dp))
+                        .clip(RoundedCornerShape(50))
                         .background(if (sel) Palette.Amber else Color.White.copy(alpha = 0.07f))
                         .clickable(enabled = enabled) { onSelect(o) }
                         .padding(horizontal = 10.dp, vertical = 4.dp),

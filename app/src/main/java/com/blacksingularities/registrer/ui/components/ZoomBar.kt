@@ -108,9 +108,9 @@ fun LensSelector(
             val scale by animateFloatAsState(if (isActive) 1f else 0.84f, label = "lens")
             Box(
                 Modifier
-                    .size(40.dp)
+                    .size(36.dp)
                     .graphicsLayer { scaleX = scale; scaleY = scale; rotationZ = iconRotation }
-                    .clip(RoundedCornerShape(3.dp))
+                    .clip(RoundedCornerShape(50))
                     .background(if (isActive) Color.White.copy(alpha = 0.16f) else Color.Transparent)
                     .clickable {
                         if (haptics) haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -206,7 +206,7 @@ fun ZoomRocker(
                 },
         ) {
             val h = size.height
-            val trackH = 2.dp.toPx()
+            val trackH = 4.dp.toPx()
             val cy = h / 2f
             val cx = size.width / 2f
             val half = size.width / 2f - h / 2f
@@ -216,7 +216,7 @@ fun ZoomRocker(
                 Color.White.copy(alpha = 0.14f),
                 Offset(h / 2f - trackH / 2f, cy - trackH / 2f),
                 Size(size.width - h + trackH, trackH),
-                CornerRadius.Zero,
+                CornerRadius(trackH / 2f),
             )
             // znaczniki prędkości
             for (k in -4..4) {
@@ -236,15 +236,14 @@ fun ZoomRocker(
                     ),
                     Offset(left, cy - trackH / 2f),
                     Size(abs(thumbX - cx), trackH),
-                    CornerRadius.Zero,
+                    CornerRadius(trackH / 2f),
                 )
             }
             // środek
             drawCircle(Color.White.copy(alpha = 0.5f), 2.dp.toPx(), Offset(cx, cy))
             // kciuk
-            val tw = 3.dp.toPx()
-            val th = h - 6.dp.toPx()
-            drawRect(if (dragging) Palette.Amber else Color.White, Offset(thumbX - tw / 2, cy - th / 2), Size(tw, th))
+            drawCircle(if (dragging) Palette.Amber else Color.White, h / 2f - 5.dp.toPx(), Offset(thumbX, cy))
+            drawCircle(Palette.Ink.copy(alpha = 0.55f), 2.5f.dp.toPx(), Offset(thumbX, cy))
         }
         Icon(rightIcon, rightLabel, tint = Palette.TextDim, modifier = Modifier.size(18.dp))
     }

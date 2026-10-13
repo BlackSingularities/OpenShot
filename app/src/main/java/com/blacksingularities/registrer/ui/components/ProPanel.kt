@@ -148,7 +148,7 @@ fun ProPanel(
         Row(
             Modifier
                 .padding(horizontal = 12.dp, vertical = 4.dp)
-                .glass(RoundedCornerShape(6.dp), GlassLevel.Regular)
+                .glass(RoundedCornerShape(22.dp), GlassLevel.Regular)
                 .padding(4.dp),
             horizontalArrangement = Arrangement.spacedBy(2.dp),
         ) {
@@ -176,7 +176,7 @@ fun ProPanel(
                 Column(
                     Modifier
                         .width(66.dp)
-                        .clip(RoundedCornerShape(4.dp))
+                        .clip(RoundedCornerShape(14.dp))
                         .background(if (active == p) Color.White.copy(alpha = 0.14f) else Color.Transparent)
                         .clickable(enabled = enabled) { active = if (active == p) null else p }
                         .padding(vertical = 6.dp)
