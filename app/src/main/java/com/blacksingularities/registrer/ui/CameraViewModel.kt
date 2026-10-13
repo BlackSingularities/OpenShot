@@ -65,6 +65,7 @@ import kotlinx.coroutines.withContext
 import kotlin.math.abs
 import kotlin.math.exp
 import kotlin.math.log10
+import kotlin.math.roundToInt
 
 enum class RecState { IDLE, RECORDING, PAUSED }
 
