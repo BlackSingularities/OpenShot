@@ -728,6 +728,25 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
                 onDelete = { vm.updateGlobal { it.copy(exposureInfo = false) } },
             ) { ExposureStrip(vm) }
         }
+        if (vm.global.audioMeter && vm.mode == CaptureMode.VIDEO && vm.cfg.videoAudio) {
+            DraggableOverlay(
+                rect = overlayArea,
+                start = Offset(vm.global.audioMeterX, vm.global.audioMeterY),
+                turn = ui.uprightTurn,
+                rotation = ui.iconRotation,
+                haptics = ui.haptics,
+                onCommit = { p -> vm.updateGlobal { it.copy(audioMeterX = p.x, audioMeterY = p.y) } },
+                onDragState = dragState,
+                onDelete = { vm.updateGlobal { it.copy(audioMeter = false) } },
+            ) {
+                com.blacksingularities.registrer.ui.components.VideoAudioMeter(
+                    level = { vm.videoLevel },
+                    peakDb = { vm.videoPeakDb },
+                    note = vm.videoAudioNote,
+                    recording = vm.recState != RecState.IDLE,
+                )
+            }
+        }
         if (vm.global.compass && vm.mode != CaptureMode.AUDIO) {
             DraggableOverlay(
                 rect = overlayArea,

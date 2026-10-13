@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.9.0
+
+- **Wskaźnik poziomu dźwięku w wideo** (włączany w ustawieniach ogólnych → Pomoce kadru): pływa po kadrze jak kompas i histogram – przeciągnij go w dowolne miejsce albo upuść na koszu.
+- Pokazuje szczyt w dBFS z czerwoną strefą od −6 dB i opadającym znacznikiem szczytu. Przed nagraniem podsłuchuje mikrofon, którego użyje film; w trakcie nagrania odczytuje poziom prosto z nagrywanej ścieżki – działa tak samo z mikrofonem wbudowanym, przewodowym, USB i Bluetooth.
+- Podpis pod wskaźnikiem: nazwa mikrofonu albo ostrzeżenie (wyciszony, mikrofon zajęty przez inną aplikację, błąd dźwięku).
+
 ## 2.8.0
 
 - **Obrys ostrości** (focus peaking): najostrzejsze krawędzie kadru podświetlone na czerwono – ułatwia ręczne ustawianie ostrości.

@@ -592,6 +592,12 @@ private fun GeneralTab(
             PillToggle(Icons.Rounded.CenterFocusWeak, "Obrys ostrości", g.peaking, Modifier.weight(1f)) { v -> onGlobal { it.copy(peaking = v) } }
             PillToggle(Icons.Rounded.Gradient, "Zebra", g.zebra, Modifier.weight(1f)) { v -> onGlobal { it.copy(zebra = v) } }
         }
+        Row(
+            Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 2.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            PillToggle(Icons.Rounded.GraphicEq, "Poziom dźwięku w wideo", g.audioMeter, Modifier.weight(1f)) { v -> onGlobal { it.copy(audioMeter = v) } }
+        }
         CompactChoice(
             Icons.Rounded.Gradient,
             "Próg zebry",
@@ -602,7 +608,7 @@ private fun GeneralTab(
             hint = "Paski na prześwietleniach",
         ) { v -> onGlobal { it.copy(zebraPercent = v) } }
         Text(
-            "Czerwony obrys pokazuje najostrzejsze krawędzie – pomocny przy ręcznej ostrości. Działa we wszystkich trybach z podglądem (poza efektami sprzętowymi producenta).",
+            "Czerwony obrys pokazuje najostrzejsze krawędzie – pomocny przy ręcznej ostrości. Działa we wszystkich trybach z podglądem (poza efektami sprzętowymi producenta). Wskaźnik dźwięku pływa po kadrze w trybie Wideo – przeciągnij go albo upuść na koszu.",
             fontSize = 10.sp,
             lineHeight = 13.sp,
             color = Palette.TextDim,

@@ -165,7 +165,25 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     var playPaused by mutableStateOf(false); private set
     var playSpeed by mutableFloatStateOf(1f); private set
     private var player: MediaPlayer? = null
-    private var inForeground = true
+    private var inForeground by mutableStateOf(true)
+
+    // ---------------------------------------------------------------- poziom dźwięku w wideo
+    private val levelMonitor = com.blacksingularities.registrer.audio.AudioLevelMonitor()
+    private var levelJob: Job? = null
+    /** Bieżący szczyt (0–1) i opadający wskaźnik szczytu w dBFS. */
+    var videoLevel by mutableFloatStateOf(0f); private set
+    var videoPeakDb by mutableFloatStateOf(-90f); private set
+    /** Mikrofon albo stan dźwięku (wyciszony, zajęty). */
+    var videoAudioNote by mutableStateOf<String?>(null); private set
+
+    private fun shouldMonitorLevel(): Boolean =
+        global.audioMeter && mode == CaptureMode.VIDEO && cfg.videoAudio && recState == RecState.IDLE && inForeground
+
+    private fun setVideoLevel(linear: Float) {
+        videoLevel = linear.coerceIn(0f, 1f)
+        val db = 20f * log10(videoLevel.coerceAtLeast(1e-5f))
+        videoPeakDb = maxOf(db, videoPeakDb - 0.8f)
+    }
 
     /** Nazwa podłączonego mikrofonu zewnętrznego (odświeżana przy podłączaniu urządzeń). */
     var externalMic by mutableStateOf<String?>(null); private set
@@ -290,6 +308,26 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     init {
         engine.onHud = { hud = it }
         engine.onHistogram = { histogram = it }
+        // Podsłuch poziomu przed nagraniem – tylko gdy wskaźnik jest widoczny.
+        viewModelScope.launch {
+            androidx.compose.runtime.snapshotFlow { shouldMonitorLevel() }.collect { on ->
+                if (on && hasAudioPermission()) {
+                    levelMonitor.start()
+                    levelJob?.cancel()
+                    levelJob = launch {
+                        while (isActive && levelMonitor.isRunning) {
+                            delay(50)
+                            setVideoLevel(levelMonitor.peak)
+                            videoAudioNote = levelMonitor.deviceName
+                        }
+                    }
+                } else {
+                    levelJob?.cancel()
+                    levelMonitor.stop()
+                    if (recState == RecState.IDLE) setVideoLevel(0f)
+                }
+            }
+        }
         engine.onAssist = { assistFrame = it }
         engine.assist = assistConfig()
         refreshRecordings()
@@ -1267,6 +1305,8 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         if (recState == RecState.IDLE) {
             val withAudio = cfg.videoAudio && mode == CaptureMode.VIDEO
             if (withAudio && !hasAudioPermission()) message = "Brak uprawnienia do mikrofonu – wideo bez dźwięku"
+            levelJob?.cancel()
+            levelMonitor.stopAndWait()
             val started = engine.startRecording(surfaceRotation(), withAudio) { onVideoEvent(it) }
             if (started) {
                 recState = RecState.RECORDING
@@ -1312,6 +1352,18 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun onVideoEvent(event: VideoRecordEvent) {
         recNanos = event.recordingStats.recordedDurationNanos
+        if (global.audioMeter) {
+            val stats = event.recordingStats.audioStats
+            setVideoLevel(stats.audioAmplitude.toFloat())
+            when (stats.audioState) {
+                androidx.camera.video.AudioStats.AUDIO_STATE_MUTED -> videoAudioNote = "wyciszony"
+                androidx.camera.video.AudioStats.AUDIO_STATE_SOURCE_SILENCED -> videoAudioNote = "mikrofon zajęty przez inną aplikację"
+                androidx.camera.video.AudioStats.AUDIO_STATE_DISABLED -> videoAudioNote = "nagrywanie bez dźwięku"
+                androidx.camera.video.AudioStats.AUDIO_STATE_SOURCE_ERROR, androidx.camera.video.AudioStats.AUDIO_STATE_ENCODER_ERROR ->
+                    videoAudioNote = "błąd dźwięku"
+                else -> if (videoAudioNote?.startsWith("w") == true || videoAudioNote?.startsWith("b") == true) videoAudioNote = null
+            }
+        }
         when (event) {
             is VideoRecordEvent.Pause -> recState = RecState.PAUSED
             is VideoRecordEvent.Resume -> recState = RecState.RECORDING
@@ -1664,6 +1716,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     override fun onCleared() {
         stopMomentBuffer()
         audio.removeListener(audioListener)
+        levelMonitor.stop()
         locationTracker.stop()
         runCatching { ctx.getSystemService(AudioManager::class.java)?.unregisterAudioDeviceCallback(deviceCallback) }
         stopPlayback()

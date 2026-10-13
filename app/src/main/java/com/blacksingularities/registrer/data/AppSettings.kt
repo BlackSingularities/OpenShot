@@ -261,6 +261,10 @@ data class GlobalSettings(
     /** Pozycja automatycznego nawigatora zoomu >10×. */
     val zoomNavigatorX: Float = 0f,
     val zoomNavigatorY: Float = 0.18f,
+    /** Pływający wskaźnik poziomu dźwięku w trybie Wideo. */
+    val audioMeter: Boolean = false,
+    val audioMeterX: Float = 0f,
+    val audioMeterY: Float = 1f,
     val autoCheckUpdates: Boolean = true,
     val autoDownloadUpdates: Boolean = true,
     /** Zapis współrzędnych GPS w zdjęciach i filmach. */
@@ -301,6 +305,9 @@ class SettingsStore(context: Context) {
             levelCalZ = prefs.getFloat("g.levelCalZ", d.levelCalZ),
             zoomNavigatorX = prefs.getFloat("g.zoomNavX", d.zoomNavigatorX),
             zoomNavigatorY = prefs.getFloat("g.zoomNavY", d.zoomNavigatorY),
+            audioMeter = prefs.getBoolean("g.audioMeter", d.audioMeter),
+            audioMeterX = prefs.getFloat("g.audioMeterX", d.audioMeterX),
+            audioMeterY = prefs.getFloat("g.audioMeterY", d.audioMeterY),
             autoCheckUpdates = prefs.getBoolean("g.autoCheck", d.autoCheckUpdates),
             autoDownloadUpdates = prefs.getBoolean("g.autoDownload", d.autoDownloadUpdates),
             geotag = prefs.getBoolean("g.geotag", d.geotag),
@@ -337,6 +344,9 @@ class SettingsStore(context: Context) {
             .putFloat("g.levelCalZ", g.levelCalZ)
             .putFloat("g.zoomNavX", g.zoomNavigatorX)
             .putFloat("g.zoomNavY", g.zoomNavigatorY)
+            .putBoolean("g.audioMeter", g.audioMeter)
+            .putFloat("g.audioMeterX", g.audioMeterX)
+            .putFloat("g.audioMeterY", g.audioMeterY)
             .putBoolean("g.autoCheck", g.autoCheckUpdates)
             .putBoolean("g.autoDownload", g.autoDownloadUpdates)
             .putBoolean("g.geotag", g.geotag)
