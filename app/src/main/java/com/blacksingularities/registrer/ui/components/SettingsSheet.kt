@@ -434,6 +434,7 @@ private fun GeneralTab(
         InfoRow(Icons.Rounded.ZoomIn, "Obiektywy: $lenses")
         if (caps.cameraSummary.isNotEmpty()) InfoRow(Icons.Rounded.CameraAlt, "Wykryte aparaty:\n" + caps.cameraSummary)
         InfoRow(Icons.Rounded.Image, "Formaty: " + caps.photoFormats.sortedBy { it.ordinal }.joinToString { it.label })
+        if (caps.formatSummary.isNotEmpty()) InfoRow(Icons.Rounded.Info, "Diagnostyka formatów:\n" + caps.formatSummary)
         InfoRow(Icons.Rounded.Movie, "Wideo: " + caps.videoResolutions.joinToString { it.label } + (if (caps.fps60) " · 60 kl/s" else "") + (if (caps.videoHlg) " · HLG" else ""))
         if (caps.slowMo) InfoRow(Icons.Rounded.SlowMotionVideo, "Slow-mo: " + caps.slowMoRanges.joinToString { "${it.upper} kl/s" })
         InfoRow(Icons.Rounded.Tune, if (caps.manualSensor) "Pełne sterowanie ręczne sensora" else "Ograniczone sterowanie ręczne")

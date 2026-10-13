@@ -277,6 +277,7 @@ class CameraEngine(private val context: Context) {
             }
         }.getOrDefault(emptyList())
 
+        val formatSummary = runCatching { formatDiagnostics(info, formats) }.getOrDefault("")
         val presets = lensZooms(info)
         val aux = runCatching { auxLenses(p, info, facing, presets) }.getOrDefault(emptyList<AuxLens>() to "")
 
@@ -319,7 +320,50 @@ class CameraEngine(private val context: Context) {
             maxZoom = zoomRange(info).second,
             auxLenses = aux.first,
             cameraSummary = aux.second,
+            formatSummary = formatSummary,
         )
+    }
+
+    /**
+     * Diagnostyka formatów prosto z Camera2 (aparat główny i jego sensory fizyczne):
+     * zdolność RAW, strumienie RAW_SENSOR / RAW10 / RAW12, JPEG_R (Ultra HDR, Android 14+)
+     * i poziom sprzętowy – zestawione z tym, co faktycznie udostępnia CameraX.
+     */
+    private fun formatDiagnostics(info: CameraInfo, cameraXFormats: Set<Int>): String {
+        fun describe(c2: Camera2CameraInfo): String {
+            val caps = runCatching { c2.getCameraCharacteristic(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES) }.getOrNull()
+            val rawCap = caps?.contains(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_RAW) == true
+            val map = runCatching { c2.getCameraCharacteristic(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP) }.getOrNull()
+            val out = runCatching { map?.outputFormats?.toSet() }.getOrNull().orEmpty()
+            val raws = buildList {
+                if (ImageFormat.RAW_SENSOR in out) add("RAW_SENSOR")
+                if (ImageFormat.RAW10 in out) add("RAW10")
+                if (ImageFormat.RAW12 in out) add("RAW12")
+                if (ImageFormat.RAW_PRIVATE in out) add("RAW_PRIVATE")
+            }
+            val jpegR = Build.VERSION.SDK_INT >= 34 && ImageFormat.JPEG_R in out
+            val level = when (runCatching { c2.getCameraCharacteristic(CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL) }.getOrNull()) {
+                CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_LEGACY -> "LEGACY"
+                CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_LIMITED -> "LIMITED"
+                CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_FULL -> "FULL"
+                CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_3 -> "LEVEL_3"
+                CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_EXTERNAL -> "EXTERNAL"
+                else -> "?"
+            }
+            return "poziom $level · zdolność RAW: ${if (rawCap) "tak" else "nie"} · strumienie RAW: " +
+                (raws.joinToString("/").ifEmpty { "brak" }) + " · JPEG_R: " + (if (jpegR) "tak" else "nie")
+        }
+        val sb = StringBuilder()
+        val main = Camera2CameraInfo.from(info)
+        sb.append("#").append(main.cameraId).append(": ").append(describe(main))
+        for (phys in runCatching { info.physicalCameraInfos }.getOrDefault(emptySet())) {
+            val c2 = runCatching { Camera2CameraInfo.from(phys) }.getOrNull() ?: continue
+            sb.append("\n  └ #").append(c2.cameraId).append(": ").append(describe(c2))
+        }
+        sb.append("\nCameraX: RAW ").append(if (ImageCapture.OUTPUT_FORMAT_RAW in cameraXFormats) "tak" else "nie")
+        sb.append(" · Ultra HDR ").append(if (ImageCapture.OUTPUT_FORMAT_JPEG_ULTRA_HDR in cameraXFormats) "tak" else "nie")
+        if (Build.VERSION.SDK_INT < 34) sb.append(" (Ultra HDR wymaga Androida 14, ten ma API ").append(Build.VERSION.SDK_INT).append(")")
+        return sb.toString()
     }
 
     /** Ekwiwalent ogniskowej 35 mm dla danego obiektywu. */

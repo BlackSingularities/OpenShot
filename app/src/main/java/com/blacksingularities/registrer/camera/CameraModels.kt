@@ -72,6 +72,8 @@ data class CameraCaps(
     val auxLenses: List<AuxLens> = emptyList(),
     /** Opis wszystkich wykrytych aparatów – do diagnostyki w ustawieniach. */
     val cameraSummary: String = "",
+    /** Co o formatach RAW / Ultra HDR mówi Camera2, a co udostępnia CameraX – diagnostyka. */
+    val formatSummary: String = "",
 ) {
     val slowMo get() = slowMoRanges.isNotEmpty()
     val portrait get() = bokehExtension || retouchExtension
