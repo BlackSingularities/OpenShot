@@ -202,7 +202,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     private fun shouldMonitorLevel(): Boolean =
         global.audioMeter && videoMode && mode != CaptureMode.SLOWMO && cfg.videoAudio && recState == RecState.IDLE && inForeground
 
-    private fun setVideoLevel(linear: Float) {
+    private fun updateVideoLevel(linear: Float) {
         videoLevel = linear.coerceIn(0f, 1f)
         val db = 20f * log10(videoLevel.coerceAtLeast(1e-5f))
         videoPeakDb = maxOf(db, videoPeakDb - 0.8f)
@@ -340,14 +340,14 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
                     levelJob = launch {
                         while (isActive && levelMonitor.isRunning) {
                             delay(50)
-                            setVideoLevel(levelMonitor.peak)
+                            updateVideoLevel(levelMonitor.peak)
                             videoAudioNote = levelMonitor.deviceName
                         }
                     }
                 } else {
                     levelJob?.cancel()
                     levelMonitor.stop()
-                    if (recState == RecState.IDLE) setVideoLevel(0f)
+                    if (recState == RecState.IDLE) updateVideoLevel(0f)
                 }
             }
         }
@@ -1661,7 +1661,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         recNanos = event.recordingStats.recordedDurationNanos
         if (global.audioMeter) {
             val stats = event.recordingStats.audioStats
-            setVideoLevel(stats.audioAmplitude.toFloat())
+            updateVideoLevel(stats.audioAmplitude.toFloat())
             when (stats.audioState) {
                 androidx.camera.video.AudioStats.AUDIO_STATE_MUTED -> videoAudioNote = tr("wyciszony", "muted")
                 androidx.camera.video.AudioStats.AUDIO_STATE_SOURCE_SILENCED -> videoAudioNote = tr("mikrofon zajęty przez inną aplikację", "microphone in use by another app")

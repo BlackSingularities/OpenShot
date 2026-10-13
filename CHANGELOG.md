@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.19.1
+
+- Naprawiono budowanie aplikacji (konflikt nazw w obsłudze wskaźnika dźwięku w wideo) – wydania 2.9–2.19 zawierają się w tej wersji.
+
 ## 2.19.0
 
 - **Domyślny aparat**: nowa opcja w Ustawieniach → Ogólne → Sterowanie pokazuje, który aparat jest domyślny, i pomaga to zmienić – gdy żaden, otwiera systemowy wybór (wybierz OpenShot → Zawsze), gdy inna aplikacja – jej ustawienia, by wyczyścić „Otwieraj domyślnie”.
