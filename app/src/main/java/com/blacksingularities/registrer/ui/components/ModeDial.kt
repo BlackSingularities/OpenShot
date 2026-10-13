@@ -70,7 +70,7 @@ fun ModeDial(
     val selectedIndex = modes.indexOf(selected).coerceAtLeast(0)
     val position = remember { Animatable(selectedIndex.toFloat()) }
     var dragging by remember { mutableStateOf(false) }
-    val anglePerItem = 0.30f
+    val anglePerItem = 0.20f
     val radiusPx = with(density) { 300.dp.toPx() }
 
     LaunchedEffect(selectedIndex) {

@@ -1,5 +1,7 @@
 package com.blacksingularities.registrer.ui
 
+import androidx.compose.ui.layout.boundsInRoot
+import androidx.compose.ui.layout.onGloballyPositioned
 import com.blacksingularities.registrer.ui.theme.activeContent
 import com.blacksingularities.registrer.ui.theme.LocalNoBackground
 import androidx.compose.ui.draw.clipToBounds
@@ -298,7 +300,15 @@ fun CameraScreen(vm: CameraViewModel, onToggleRearDisplay: () -> Unit = {}) {
         }
     }
 
-    val ui = Ui(vm, iconRotation, uprightTurn, displayDegrees, haptics, onSettings = { showSettings = true }, onFold = onToggleRearDisplay, freeze = freezeFrame)
+    var controlsTop by remember { mutableFloatStateOf(Float.MAX_VALUE) }
+    val ui = Ui(
+        vm, iconRotation, uprightTurn, displayDegrees, haptics,
+        onSettings = { showSettings = true },
+        onFold = onToggleRearDisplay,
+        freeze = freezeFrame,
+        controlsTop = controlsTop,
+        onControlsTop = { controlsTop = it },
+    )
 
     BackHandler(enabled = showSettings) { showSettings = false }
     GlassScope(haptics = haptics) {
@@ -365,6 +375,9 @@ private class Ui(
     val onSettings: () -> Unit,
     val onFold: () -> Unit,
     val freeze: androidx.compose.ui.graphics.ImageBitmap? = null,
+    /** Górna krawędź dolnego sterowania w układzie okna – nakładki pływające jej nie zasłaniają. */
+    val controlsTop: Float = Float.MAX_VALUE,
+    val onControlsTop: (Float) -> Unit = {},
 )
 
 // ==================================================================== układy
@@ -397,6 +410,7 @@ private fun TallLayout(ui: Ui, previewView: PreviewView) {
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .padding(start = 8.dp, end = 8.dp, bottom = insets.calculateBottomPadding() + 6.dp)
+                .onGloballyPositioned { ui.onControlsTop(it.boundsInRoot().top) }
                 .glass(RoundedCornerShape(28.dp), GlassLevel.Faint)
                 .padding(bottom = 4.dp, top = 8.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -443,6 +457,7 @@ private fun WideLayout(ui: Ui, previewView: PreviewView) {
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
                     .padding(horizontal = 12.dp, vertical = 10.dp)
+                    .onGloballyPositioned { ui.onControlsTop(it.boundsInRoot().top) }
                     .glass(RoundedCornerShape(28.dp), GlassLevel.Faint)
                     .padding(top = 10.dp, bottom = 6.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -488,8 +503,14 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
         }
     }
 
-    BoxWithConstraints(modifier) {
+    var areaTop by remember { mutableFloatStateOf(0f) }
+    BoxWithConstraints(modifier.onGloballyPositioned { areaTop = it.boundsInRoot().top }) {
         val containerSize = with(density) { Size(maxWidth.toPx(), maxHeight.toPx()) }
+        // Nakładki pływające (histogram, pasek parametrów, kompas) tylko nad dolnym sterowaniem.
+        val overlayArea = Rect(
+            Offset.Zero,
+            Size(containerSize.width, (ui.controlsTop - areaTop).coerceIn(containerSize.height * 0.3f, containerSize.height)),
+        )
         val rect = imageRect(containerSize, ratio, centered)
 
         // Widok kamery zajmuje dokładnie prostokąt kadru – obraz jest wyśrodkowany.
@@ -580,7 +601,7 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
         val bins = vm.histogram
         if (bins != null && vm.cfg.histogram && vm.mode.isPhoto) {
             DraggableOverlay(
-                rect = Rect(Offset.Zero, containerSize),
+                rect = overlayArea,
                 start = Offset(vm.global.histogramX, vm.global.histogramY),
                 turn = ui.uprightTurn,
                 rotation = ui.iconRotation,
@@ -605,7 +626,7 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
         }
         if (vm.global.exposureInfo && vm.mode != CaptureMode.AUDIO) {
             DraggableOverlay(
-                rect = Rect(Offset.Zero, containerSize),
+                rect = overlayArea,
                 start = Offset(vm.global.stripX, vm.global.stripY),
                 turn = ui.uprightTurn,
                 rotation = ui.iconRotation,
@@ -615,7 +636,7 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
         }
         if (vm.global.compass && vm.mode != CaptureMode.AUDIO) {
             DraggableOverlay(
-                rect = Rect(Offset.Zero, containerSize),
+                rect = overlayArea,
                 start = Offset(vm.global.compassX, vm.global.compassY),
                 turn = ui.uprightTurn,
                 rotation = ui.iconRotation,
@@ -1329,11 +1350,11 @@ private fun frameIcon(aspect: com.blacksingularities.registrer.data.AspectRatioM
 private fun ExposureStrip(vm: CameraViewModel, modifier: Modifier = Modifier) {
     val hud = vm.hud
     val pro = if (vm.mode == CaptureMode.PRO) vm.pro else null
-    data class Item(val icon: ImageVector, val name: String, val value: String, val manual: Boolean = false)
+    data class Item(val icon: ImageVector?, val name: String, val value: String, val manual: Boolean = false)
     val items = buildList {
         add(Item(if (vm.mode.isVideo) Icons.Rounded.Videocam else Icons.Rounded.Image, "Rozdzielczość", resolutionText(vm)))
         val iso = pro?.iso ?: hud?.iso
-        add(Item(Icons.Rounded.Iso, "ISO", iso?.toString() ?: "—", pro?.iso != null))
+        add(Item(null, "ISO", iso?.toString() ?: "—", pro?.iso != null))
         val shutter = pro?.exposureNs ?: hud?.exposureNs
         add(Item(Icons.Rounded.ShutterSpeed, "Czas naświetlania", shutter?.let { formatShutter(it) } ?: "—", pro?.exposureNs != null))
         hud?.aperture?.let { add(Item(Icons.Rounded.Camera, "Przysłona", String.format(java.util.Locale.US, "f/%.1f", it))) }
@@ -1349,7 +1370,23 @@ private fun ExposureStrip(vm: CameraViewModel, modifier: Modifier = Modifier) {
     ) {
         items.forEach { item ->
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(item.icon, item.name, tint = if (item.manual) Palette.Amber else Palette.TextDim, modifier = Modifier.size(13.dp))
+                val tint = if (item.manual) Palette.Amber else Palette.TextDim
+                if (item.icon != null) {
+                    Icon(item.icon, item.name, tint = tint, modifier = Modifier.size(13.dp))
+                } else {
+                    // „ISO” w ramce – czytelniejsze niż ikona ekspozycji.
+                    Text(
+                        item.name,
+                        color = tint,
+                        fontSize = 7.sp,
+                        fontWeight = FontWeight.Black,
+                        letterSpacing = 0.3.sp,
+                        style = androidx.compose.ui.text.TextStyle(lineHeight = 8.sp),
+                        modifier = Modifier
+                            .border(1.dp, tint, RoundedCornerShape(2.dp))
+                            .padding(horizontal = 2.dp, vertical = 1.dp),
+                    )
+                }
                 Spacer(Modifier.width(3.dp))
                 Text(item.value, style = MonoDigits, fontSize = 12.sp, color = if (item.manual) Palette.Amber else Color.White, maxLines = 1)
             }
