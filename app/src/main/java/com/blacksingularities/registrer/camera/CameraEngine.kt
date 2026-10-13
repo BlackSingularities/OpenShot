@@ -9,6 +9,7 @@ import android.graphics.Bitmap
 import android.graphics.ImageFormat
 import android.hardware.camera2.CameraCaptureSession
 import android.hardware.camera2.CameraCharacteristics
+import android.hardware.camera2.CameraMetadata
 import android.hardware.camera2.CaptureRequest
 import android.hardware.camera2.CaptureResult
 import android.hardware.camera2.TotalCaptureResult
@@ -408,6 +409,11 @@ class CameraEngine(private val context: Context) {
             rawCameraId = rawRoute?.id,
             rawCameraPhysical = rawRoute?.physical == true,
             rawCameraFactor = rawRoute?.factor ?: 1f,
+            flatProfile = run {
+                val modes = ch(CameraCharacteristics.TONEMAP_AVAILABLE_TONE_MAP_MODES)
+                val points = ch(CameraCharacteristics.TONEMAP_MAX_CURVE_POINTS) ?: 0
+                modes?.contains(CameraMetadata.TONEMAP_MODE_CONTRAST_CURVE) == true && points >= 32
+            },
         )
     }
 

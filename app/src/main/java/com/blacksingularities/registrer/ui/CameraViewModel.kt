@@ -116,6 +116,23 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     var session by mutableStateOf(ActiveSession()); private set
     var cameraReady by mutableStateOf(false); private set
     private val capsCache = mutableMapOf<Int, CameraCaps>()
+    private val capsStore = com.blacksingularities.registrer.camera.CapsCache(app)
+    private val capsRefreshed = mutableSetOf<Int>()
+
+    /** Ponowne sondowanie po starcie – wykrywa zmiany (np. po aktualizacji sterowników aparatu). */
+    private fun refreshCapsLater(facing: Int) {
+        if (!capsRefreshed.add(facing)) return
+        viewModelScope.launch {
+            delay(2500)
+            while (busy) delay(1000)
+            val fresh = runCatching { engine.probe(facing) }.getOrNull() ?: return@launch
+            capsStore.save(facing, fresh)
+            if (fresh != capsCache[facing]) {
+                capsCache[facing] = fresh
+                if (lensFacing == facing) caps = fresh
+            }
+        }
+    }
 
     var hud by mutableStateOf<Hud?>(null); private set
     var histogram by mutableStateOf<IntArray?>(null); private set
@@ -369,7 +386,17 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
                 lensFacing = facing
                 return
             }
-            val c = capsCache[facing] ?: engine.probe(facing).also { capsCache[facing] = it }
+            // Zapamiętane możliwości wiążą kamerę od razu; świeże sondowanie odbywa się w tle.
+            val c = capsCache[facing]
+                ?: capsStore.load(facing)?.also {
+                    capsCache[facing] = it
+                    refreshCapsLater(facing)
+                }
+                ?: engine.probe(facing).also {
+                    capsCache[facing] = it
+                    capsStore.save(facing, it)
+                    capsRefreshed += facing
+                }
             caps = c
             if (mode !in availableModes) {
                 mode = if (mode == CaptureMode.SLOWMO) CaptureMode.VIDEO else CaptureMode.PHOTO

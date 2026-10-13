@@ -106,6 +106,8 @@ data class CameraCaps(
     val rawCameraId: String? = null,
     val rawCameraPhysical: Boolean = false,
     val rawCameraFactor: Float = 1f,
+    /** Sterownik pozwala na własną krzywą tonalną – płaski profil (LOG) w wideo ręcznym. */
+    val flatProfile: Boolean = false,
 ) {
     val slowMo get() = slowMoRanges.isNotEmpty()
     val portrait get() = bokehExtension || retouchExtension

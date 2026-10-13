@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.16.0
+
+- **Szybszy start aparatu**: wyniki sprawdzania obiektywów, formatów i profili zwolnionego tempa są zapamiętywane na telefonie, więc przy kolejnym uruchomieniu kamera startuje od razu. Świeże sprawdzenie odbywa się w tle po starcie; aktualizacja systemu lub aplikacji unieważnia zapamiętane dane.
+
 ## 2.15.0
 
 - **Pełna angielska wersja językowa** / *Full English localization*: cały interfejs, komunikaty, powiadomienia, kafelek, skróty i opisy ustawień.
