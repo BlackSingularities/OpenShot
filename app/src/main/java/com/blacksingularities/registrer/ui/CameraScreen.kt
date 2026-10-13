@@ -1,5 +1,6 @@
 package com.blacksingularities.registrer.ui
 
+import com.blacksingularities.registrer.ui.theme.LocalHintOnTap
 import androidx.compose.material.icons.rounded.ZoomIn
 import androidx.compose.material.icons.rounded.Videocam
 import androidx.compose.material.icons.rounded.ShutterSpeed
@@ -1051,7 +1052,9 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Box(Modifier.weight(1f, fill = false)) {
-                GlassToolbar(vertical = true, modifier = Modifier.verticalScroll(rememberScrollState())) { items() }
+                GlassToolbar(vertical = true, modifier = Modifier.verticalScroll(rememberScrollState())) {
+                    CompositionLocalProvider(LocalHintOnTap provides true) { items() }
+                }
             }
             settings()
         }
@@ -1062,7 +1065,9 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
-                GlassToolbar(vertical = false, modifier = Modifier.horizontalScroll(rememberScrollState())) { items() }
+                GlassToolbar(vertical = false, modifier = Modifier.horizontalScroll(rememberScrollState())) {
+                    CompositionLocalProvider(LocalHintOnTap provides true) { items() }
+                }
             }
             settings()
         }
@@ -1209,13 +1214,16 @@ private fun GridButton(vm: CameraViewModel, rotation: Float) {
     var open by remember { mutableStateOf(false) }
     val grids = vm.cfg.grids
     Box {
-        RoundIcon(
-            Icons.Rounded.GridOn,
-            "Siatki",
-            rotation,
-            tint = if (grids.isEmpty()) Palette.TextFaint else Color.White,
-            onClick = { open = true },
-        )
+        // Siatki otwierają menu – bez dymka przy dotknięciu.
+        CompositionLocalProvider(LocalHintOnTap provides false) {
+            RoundIcon(
+                Icons.Rounded.GridOn,
+                "Siatki",
+                rotation,
+                tint = if (grids.isEmpty()) Palette.TextFaint else Color.White,
+                onClick = { open = true },
+            )
+        }
         DropdownMenu(
             expanded = open,
             onDismissRequest = { open = false },

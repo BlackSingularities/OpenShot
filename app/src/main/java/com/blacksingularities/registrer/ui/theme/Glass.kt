@@ -38,6 +38,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -82,6 +83,12 @@ val LocalHaptics = staticCompositionLocalOf { true }
 
 /** Wewnątrz szklanego paska narzędzi przyciski są płaskie (bez własnego szkła). */
 val LocalToolbar = staticCompositionLocalOf { false }
+
+/**
+ * Przełączniki stanu (lampa, format, klatkaż…) pokazują dymek z nową wartością także po
+ * zwykłym dotknięciu – nie tylko po przytrzymaniu.
+ */
+val LocalHintOnTap = staticCompositionLocalOf { false }
 
 /** Dymki z nazwą elementu pokazywane po przytrzymaniu. */
 val LocalHints = staticCompositionLocalOf<HintState?> { null }
@@ -221,10 +228,19 @@ fun Modifier.reactive(
     val haptic = LocalHapticFeedback.current
     val haptics = LocalHaptics.current
     val hints = LocalHints.current
+    val hintOnTap = LocalHintOnTap.current
     var pressed by remember { mutableStateOf(false) }
     var bounds by remember { mutableStateOf(Rect.Zero) }
     val click by rememberUpdatedState(onClick)
     val long by rememberUpdatedState(onLongPress)
+    val currentLabel by rememberUpdatedState(label)
+    // Po dotknięciu: dymek z etykietą po zmianie stanu (czyli już nową wartością).
+    var tapped by remember { mutableStateOf(0) }
+    LaunchedEffect(tapped) {
+        if (tapped == 0) return@LaunchedEffect
+        withFrameNanos { }
+        currentLabel?.let { hints?.show(it, bounds) }
+    }
     val scale by animateFloatAsState(
         if (pressed) 0.86f else 1f,
         spring(dampingRatio = 0.45f, stiffness = 700f),
@@ -250,9 +266,13 @@ fun Modifier.reactive(
                 onLongPress = {
                     if (haptics) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                     val l = long
-                    if (l != null) l() else if (label != null) hints?.show(label, bounds)
+                    val text = currentLabel
+                    if (l != null) l() else if (text != null) hints?.show(text, bounds)
                 },
-                onTap = { click() },
+                onTap = {
+                    click()
+                    if (hintOnTap) tapped++
+                },
             )
         }
 }
