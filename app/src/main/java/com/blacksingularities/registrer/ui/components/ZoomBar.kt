@@ -1,5 +1,6 @@
 package com.blacksingularities.registrer.ui.components
 
+import com.blacksingularities.registrer.ui.theme.BlockShape
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -95,7 +96,7 @@ fun LensSelector(
     val active = presets.lastOrNull { it <= current + 0.02f } ?: presets.first()
     Row(
         modifier
-            .glass(RoundedCornerShape(50))
+            .glass(BlockShape)
             .padding(4.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -107,7 +108,7 @@ fun LensSelector(
                 Modifier
                     .size(40.dp)
                     .graphicsLayer { scaleX = scale; scaleY = scale; rotationZ = iconRotation }
-                    .clip(CircleShape)
+                    .clip(RoundedCornerShape(10.dp))
                     .background(if (isActive) Color.White.copy(alpha = 0.16f) else Color.Transparent)
                     .clickable {
                         if (haptics) haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -278,14 +279,14 @@ fun ZoomControls(
                 Row(
                     Modifier
                         .height(48.dp)
-                        .glass(RoundedCornerShape(50), active = true)
+                        .glass(BlockShape, active = true)
                         .padding(horizontal = 16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(Icons.Rounded.CenterFocusStrong, null, tint = Palette.Amber, modifier = Modifier.size(18.dp).graphicsLayer { rotationZ = iconRotation })
+                    Icon(Icons.Rounded.CenterFocusStrong, null, tint = Palette.Ink, modifier = Modifier.size(18.dp).graphicsLayer { rotationZ = iconRotation })
                     Text(
                         "  Ostrość  " + (focusLabel ?: "AF"),
-                        color = Palette.Amber,
+                        color = Palette.Ink,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.graphicsLayer { rotationZ = iconRotation },

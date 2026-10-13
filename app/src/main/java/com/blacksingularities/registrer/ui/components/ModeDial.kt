@@ -1,5 +1,6 @@
 package com.blacksingularities.registrer.ui.components
 
+import com.blacksingularities.registrer.ui.theme.BlockShape
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
@@ -150,10 +151,10 @@ fun ModeDial(
                     Modifier
                         .size(34.dp)
                         .graphicsLayer { scaleX = 0.9f + 0.18f * focus; scaleY = 0.9f + 0.18f * focus }
-                        .glass(CircleShape, active = isSel, border = isSel),
+                        .glass(BlockShape, active = isSel, border = isSel),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(modeIcon(m), m.label, tint = if (isSel) Palette.Amber else Color.White, modifier = Modifier.size(18.dp))
+                    Icon(modeIcon(m), m.label, tint = if (isSel) Palette.Ink else Color.White, modifier = Modifier.size(18.dp))
                 }
                 Text(
                     m.label.uppercase(),

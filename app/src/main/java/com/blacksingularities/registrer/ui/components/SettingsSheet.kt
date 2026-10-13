@@ -1,5 +1,6 @@
 package com.blacksingularities.registrer.ui.components
 
+import com.blacksingularities.registrer.ui.theme.BlockShape
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -159,7 +160,7 @@ fun SettingsSheet(
                 .fillMaxWidth()
                 .heightIn(max = maxHeight * 0.86f)
                 .padding(horizontal = 6.dp)
-                .glass(RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp), GlassLevel.Thick)
+                .glass(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp), GlassLevel.Thick)
                 .pointerInput(Unit) { detectTapGestures { } }
                 .navigationBarsPadding(),
         ) {
@@ -495,15 +496,15 @@ private fun TabChip(icon: ImageVector, label: String, selected: Boolean, onClick
     Row(
         Modifier
             .reactive(label, onClick = onClick)
-            .glass(RoundedCornerShape(50), active = selected)
+            .glass(BlockShape, active = selected)
             .animateContentSize(spring(dampingRatio = 0.8f, stiffness = 500f))
             .padding(horizontal = 11.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, null, tint = if (selected) Palette.Amber else Color.White, modifier = Modifier.size(18.dp))
+        Icon(icon, null, tint = if (selected) Palette.Ink else Color.White, modifier = Modifier.size(18.dp))
         if (selected) {
             Spacer(Modifier.width(6.dp))
-            Text(label, color = Palette.Amber, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Text(label, color = Palette.Ink, fontSize = 13.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -522,9 +523,8 @@ private fun Group(title: String, content: @Composable ColumnScope.() -> Unit) {
         Column(
             Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(20.dp))
+                .clip(RoundedCornerShape(14.dp))
                 .background(Color.White.copy(alpha = 0.06f))
-                .border(0.8.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(20.dp))
                 .padding(vertical = 4.dp),
             content = content,
         )

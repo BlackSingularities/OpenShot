@@ -1,5 +1,9 @@
 package com.blacksingularities.registrer.ui
 
+import com.blacksingularities.registrer.ui.theme.BlockShape
+import com.blacksingularities.registrer.ui.theme.GlassValueButton
+import com.blacksingularities.registrer.ui.theme.GlassToolbar
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.gestures.detectDragGestures
 import com.blacksingularities.registrer.ui.components.QuickControl
 import androidx.compose.material.icons.rounded.Layers
@@ -360,7 +364,7 @@ private fun TallLayout(ui: Ui, previewView: PreviewView) {
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .padding(start = 8.dp, end = 8.dp, bottom = insets.calculateBottomPadding() + 6.dp)
-                .glass(RoundedCornerShape(30.dp), GlassLevel.Regular)
+                .glass(RoundedCornerShape(20.dp), GlassLevel.Regular)
                 .padding(bottom = 8.dp, top = 10.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
@@ -406,7 +410,7 @@ private fun WideLayout(ui: Ui, previewView: PreviewView) {
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
                     .padding(horizontal = 12.dp, vertical = 10.dp)
-                    .glass(RoundedCornerShape(28.dp), GlassLevel.Regular)
+                    .glass(RoundedCornerShape(20.dp), GlassLevel.Regular)
                     .padding(top = 10.dp, bottom = 6.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
@@ -678,7 +682,7 @@ private fun BoxScope.FrameInfo(ui: Ui) {
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 14.dp)
-                .glass(RoundedCornerShape(50))
+                .glass(BlockShape)
                 .padding(horizontal = 14.dp, vertical = 6.dp),
         )
     }
@@ -975,22 +979,31 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
                 }
             } else {
                 if (vm.mode == CaptureMode.VIDEO) {
-                    TextChip(
-                        cfg.videoResolution.label,
+                    val (resValue, resUnit) = when (cfg.videoResolution) {
+                        com.blacksingularities.registrer.data.VideoResolution.UHD -> "4K" to "2160"
+                        com.blacksingularities.registrer.data.VideoResolution.FHD -> "FHD" to "1080"
+                        com.blacksingularities.registrer.data.VideoResolution.HD -> "HD" to "720"
+                    }
+                    GlassValueButton(
+                        resValue,
+                        resUnit,
+                        "Rozdzielczość ${cfg.videoResolution.label}",
                         rot,
-                        label = "Rozdzielczość ${cfg.videoResolution.label}",
+                        active = cfg.videoResolution == com.blacksingularities.registrer.data.VideoResolution.UHD,
                         enabled = !vm.busy && vm.caps.videoResolutions.size > 1,
                         onClick = vm::cycleVideoResolution,
                     )
                 }
                 val fpsChoices = if (vm.mode == CaptureMode.SLOWMO) vm.caps.slowMoRanges.size else vm.videoFpsOptions().size
-                TextChip(
-                    vm.fpsLabel.removeSuffix(" kl/s"),
+                val autoFps = vm.mode == CaptureMode.VIDEO && cfg.videoFps == com.blacksingularities.registrer.data.VideoFps.AUTO
+                val fpsNumber = vm.fpsLabel.removeSuffix(" kl/s").removePrefix("Auto").trim()
+                GlassValueButton(
+                    if (autoFps) (vm.session.fps.takeIf { it > 0 }?.toString() ?: "A") else fpsNumber,
+                    if (autoFps) "auto" else "kl/s",
+                    "Klatkaż ${vm.fpsLabel}",
                     rot,
-                    label = "Klatkaż ${vm.fpsLabel}",
-                    icon = Icons.Rounded.Speed,
+                    active = !autoFps,
                     enabled = !vm.busy && fpsChoices > 1,
-                    active = vm.mode == CaptureMode.VIDEO && cfg.videoFps != com.blacksingularities.registrer.data.VideoFps.AUTO,
                     onClick = vm::cycleVideoFps,
                 )
                 if (vm.mode == CaptureMode.VIDEO && vm.caps.videoHlg) {
@@ -1018,24 +1031,33 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
         } else {
             RoundIcon(Icons.Rounded.Mic, "Dyktafon", rot, active = true, onClick = {})
         }
+    }
+    val settings: @Composable () -> Unit = {
         RoundIcon(Icons.Rounded.Settings, "Ustawienia", rot, onClick = ui.onSettings)
     }
+    // Jeden szklany pasek z przyciskami + osobne kółko ustawień. Gdy przycisków jest więcej,
+    // niż mieści ekran (wąski ekran zewnętrzny folda), pasek się przewija.
     if (vertical) {
         Column(
             Modifier.fillMaxHeight(),
-            verticalArrangement = Arrangement.SpaceEvenly,
+            verticalArrangement = Arrangement.spacedBy(10.dp, Alignment.CenterVertically),
             horizontalAlignment = Alignment.CenterHorizontally,
-        ) { items() }
+        ) {
+            Box(Modifier.weight(1f, fill = false)) {
+                GlassToolbar(vertical = true, modifier = Modifier.verticalScroll(rememberScrollState())) { items() }
+            }
+            settings()
+        }
     } else {
-        // Równo rozłożone, a gdy przycisków jest więcej niż miejsca (wąski ekran) – przewijane.
-        BoxWithConstraints(Modifier.fillMaxWidth()) {
-            Row(
-                Modifier
-                    .horizontalScroll(rememberScrollState())
-                    .widthIn(min = maxWidth),
-                horizontalArrangement = SpreadOrPack,
-                verticalAlignment = Alignment.CenterVertically,
-            ) { items() }
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                GlassToolbar(vertical = false, modifier = Modifier.horizontalScroll(rememberScrollState())) { items() }
+            }
+            settings()
         }
     }
 }
@@ -1088,7 +1110,7 @@ private fun ExposureStrip(vm: CameraViewModel, modifier: Modifier = Modifier) {
     }
     Row(
         modifier
-            .glass(RoundedCornerShape(50))
+            .glass(BlockShape)
             .padding(horizontal = 12.dp, vertical = 5.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -1101,27 +1123,6 @@ private fun ExposureStrip(vm: CameraViewModel, modifier: Modifier = Modifier) {
                 }
                 Text(value, style = MonoDigits, fontSize = 12.sp, color = if (manual) Palette.Amber else Color.White)
             }
-        }
-    }
-}
-
-/** Rozkłada elementy na całą szerokość; gdy się nie mieszczą – ciasno, z odstępem 6 dp. */
-private object SpreadOrPack : Arrangement.Horizontal {
-    override val spacing = 6.dp
-
-    override fun androidx.compose.ui.unit.Density.arrange(
-        totalSize: Int,
-        sizes: IntArray,
-        layoutDirection: androidx.compose.ui.unit.LayoutDirection,
-        outPositions: IntArray,
-    ) {
-        val minGap = spacing.roundToPx()
-        val content = sizes.sum()
-        val gap = if (sizes.size > 1) maxOf(minGap, (totalSize - content) / (sizes.size - 1)) else 0
-        var x = 0
-        sizes.forEachIndexed { i, w ->
-            outPositions[i] = x
-            x += w + gap
         }
     }
 }
@@ -1141,7 +1142,7 @@ private fun RecordingClock(vm: CameraViewModel, rotation: Float) {
     Row(
         Modifier
             .graphicsLayer { rotationZ = rotation }
-            .glass(RoundedCornerShape(50))
+            .glass(BlockShape)
             .padding(horizontal = 14.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -1164,13 +1165,13 @@ private fun RecordingClock(vm: CameraViewModel, rotation: Float) {
 private fun Badge(text: String, mono: Boolean = false, color: Color = Color.White, onClick: (() -> Unit)? = null) {
     Text(
         text,
-        color = color,
+        color = if (color == Palette.Amber) Palette.Ink else color,
         fontSize = 11.sp,
         fontWeight = FontWeight.SemiBold,
         letterSpacing = 0.8.sp,
         style = if (mono) MonoDigits else TextStyle.Default,
         modifier = Modifier
-            .glass(RoundedCornerShape(50), active = color == Palette.Amber)
+            .glass(BlockShape, active = color == Palette.Amber)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(horizontal = 10.dp, vertical = 5.dp),
     )
@@ -1245,7 +1246,7 @@ private fun UpdateBanner(
         val (label, action, handler) = content ?: return@AnimatedVisibility
         Row(
             Modifier
-                .glass(RoundedCornerShape(50))
+                .glass(BlockShape)
                 .padding(start = 14.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {

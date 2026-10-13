@@ -1,5 +1,6 @@
 package com.blacksingularities.registrer.ui.components
 
+import com.blacksingularities.registrer.ui.theme.BlockShape
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -147,7 +148,7 @@ fun ProPanel(
         Row(
             Modifier
                 .padding(horizontal = 12.dp, vertical = 4.dp)
-                .glass(RoundedCornerShape(18.dp), GlassLevel.Regular)
+                .glass(RoundedCornerShape(16.dp), GlassLevel.Regular)
                 .padding(4.dp),
             horizontalArrangement = Arrangement.spacedBy(2.dp),
         ) {

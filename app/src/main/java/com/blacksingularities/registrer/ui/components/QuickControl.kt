@@ -1,5 +1,6 @@
 package com.blacksingularities.registrer.ui.components
 
+import com.blacksingularities.registrer.ui.theme.BlockShape
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -84,7 +85,7 @@ fun QuickControl(
     Row(
         modifier
             .graphicsLayer { alpha = if (enabled) 1f else 0.4f }
-            .glass(RoundedCornerShape(50), active = dragging)
+            .glass(BlockShape)
             .padding(start = 4.dp, end = 14.dp, top = 4.dp, bottom = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -92,13 +93,13 @@ fun QuickControl(
             Modifier
                 .size(34.dp)
                 .reactive(label, enabled) { defaultIndex?.let { if (it != current) select(it) } }
-                .glass(CircleShape, active = !isDefault),
+                .glass(BlockShape, active = !isDefault),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
                 icon,
                 null,
-                tint = if (isDefault) Color.White else Palette.Amber,
+                tint = if (isDefault) Color.White else Palette.Ink,
                 modifier = Modifier.size(18.dp).graphicsLayer { rotationZ = rotation },
             )
         }

@@ -74,6 +74,9 @@ val LocalHaze = staticCompositionLocalOf<HazeState?> { null }
 /** Czy wykonywać haptykę przy dotyku elementów interfejsu. */
 val LocalHaptics = staticCompositionLocalOf { true }
 
+/** Wewnątrz szklanego paska narzędzi przyciski są płaskie (bez własnego szkła). */
+val LocalToolbar = staticCompositionLocalOf { false }
+
 /** Dymki z nazwą elementu pokazywane po przytrzymaniu. */
 val LocalHints = staticCompositionLocalOf<HintState?> { null }
 
@@ -86,8 +89,11 @@ enum class GlassLevel(val tint: Color, val blur: Dp) {
     Thick(Color(0xB012141B), 34.dp),
 }
 
-/** Bursztynowe szkło dla aktywnych elementów. */
-private val ActiveTint = Color(0x66FFB547)
+/** Aktywny element to pełny bursztynowy blok z ciemną ikoną. */
+private val ActiveTint = Color(0xF2FFB547)
+
+/** Kształt bloków: prostokąt z małym zaokrągleniem zamiast kół i pigułek. */
+val BlockShape = RoundedCornerShape(12.dp)
 
 /**
  * Szkło: rozmyty obraz kamery pod spodem, delikatne zabarwienie, ziarno i obwódka ze
@@ -108,26 +114,13 @@ fun Modifier.glass(
             blurRadius = level.blur
             backgroundColor = Color.Black
             tints = listOf(HazeTint(tint))
-            noiseFactor = 0.06f
+            noiseFactor = 0f
         }
     } else {
         clipped.background(tint.copy(alpha = (tint.alpha + 0.35f).coerceAtMost(0.9f)))
     }
-    return if (border) {
-        blurred.border(
-            0.8.dp,
-            Brush.verticalGradient(
-                if (active) {
-                    listOf(Palette.Amber.copy(alpha = 0.75f), Palette.Amber.copy(alpha = 0.2f))
-                } else {
-                    listOf(Color.White.copy(alpha = 0.30f), Color.White.copy(alpha = 0.05f))
-                },
-            ),
-            shape,
-        )
-    } else {
-        blurred
-    }
+    // Surowe bloki – bez obwódek i podświetleń krawędzi.
+    return blurred
 }
 
 /** Stan dymków: tekst i prostokąt elementu (w układzie okna), przy którym dymek się pojawia. */
@@ -274,12 +267,12 @@ fun GlassIconButton(
     onLongPress: (() -> Unit)? = null,
     onClick: () -> Unit,
 ) {
-    val iconTint by animateColorAsState(tint ?: if (active) Palette.Amber else Color.White, tween(200), label = "iconTint")
+    val iconTint by animateColorAsState(tint ?: if (active) Palette.Ink else Color.White, tween(200), label = "iconTint")
     Box(
         modifier
             .reactive(label, enabled, onLongPress, onClick)
             .size(size)
-            .glass(CircleShape, level, active = active),
+            .buttonSurface(BlockShape, level, active),
         contentAlignment = Alignment.Center,
     ) {
         Box(Modifier.graphicsLayer { rotationZ = rotation }, contentAlignment = Alignment.Center) {
@@ -307,6 +300,99 @@ fun GlassIconButton(
     }
 }
 
+/** Tło przycisku: własne szkło, a w pasku narzędzi – płaskie, z bursztynem dla aktywnych. */
+@Composable
+private fun Modifier.buttonSurface(shape: Shape, level: GlassLevel, active: Boolean): Modifier {
+    if (!LocalToolbar.current) return glass(shape, level, active = active)
+    val bg by animateColorAsState(if (active) ActiveTint else Color.Transparent, tween(200), label = "flatBg")
+    return this.clip(shape).background(bg)
+}
+
+/**
+ * Okrągły przycisk z wartością (np. „4K” nad „2160”, „24” nad „kl/s”). Mieści się w kole,
+ * więc po obróceniu telefonu nic się nie obcina.
+ */
+@Composable
+fun GlassValueButton(
+    value: String,
+    unit: String?,
+    label: String,
+    rotation: Float,
+    modifier: Modifier = Modifier,
+    size: Dp = 44.dp,
+    active: Boolean = false,
+    enabled: Boolean = true,
+    onClick: () -> Unit,
+) {
+    val color by animateColorAsState(if (active) Palette.Ink else Color.White, tween(200), label = "valueColor")
+    Box(
+        modifier
+            .reactive(label, enabled, null, onClick)
+            .size(size)
+            .buttonSurface(BlockShape, GlassLevel.Thin, active),
+        contentAlignment = Alignment.Center,
+    ) {
+        androidx.compose.foundation.layout.Column(
+            Modifier.graphicsLayer { rotationZ = rotation },
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            AnimatedContent(
+                targetState = value,
+                transitionSpec = { (fadeIn(tween(150)) + scaleIn(initialScale = 0.7f)) togetherWith (fadeOut(tween(100)) + scaleOut(targetScale = 0.7f)) },
+                label = "value",
+            ) { v ->
+                Text(
+                    v,
+                    color = color,
+                    fontSize = if (v.length > 3) 11.sp else 14.sp,
+                    fontWeight = FontWeight.Black,
+                    maxLines = 1,
+                    style = androidx.compose.ui.text.TextStyle(lineHeight = 14.sp),
+                )
+            }
+            if (unit != null) {
+                Text(
+                    unit,
+                    color = color.copy(alpha = 0.7f),
+                    fontSize = 8.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.4.sp,
+                    maxLines = 1,
+                    style = androidx.compose.ui.text.TextStyle(lineHeight = 9.sp),
+                )
+            }
+        }
+    }
+}
+
+/** Szklany pasek narzędzi: jedna kapsuła z płaskimi przyciskami w środku. */
+@Composable
+fun GlassToolbar(
+    vertical: Boolean,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit,
+) {
+    CompositionLocalProvider(LocalToolbar provides true) {
+        if (vertical) {
+            androidx.compose.foundation.layout.Column(
+                modifier
+                    .glass(RoundedCornerShape(16.dp), GlassLevel.Regular)
+                    .padding(4.dp),
+                verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(2.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) { content() }
+        } else {
+            Row(
+                modifier
+                    .glass(RoundedCornerShape(16.dp), GlassLevel.Regular)
+                    .padding(4.dp),
+                horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) { content() }
+        }
+    }
+}
+
 /** Szklana pigułka z krótkim tekstem (np. „4K”, „60”), opcjonalnie z ikoną. */
 @Composable
 fun GlassChip(
@@ -319,12 +405,12 @@ fun GlassChip(
     enabled: Boolean = true,
     onClick: () -> Unit,
 ) {
-    val color by animateColorAsState(if (active) Palette.Amber else Color.White, tween(200), label = "chipText")
+    val color by animateColorAsState(if (active) Palette.Ink else Color.White, tween(200), label = "chipText")
     Box(
         modifier
             .reactive(label, enabled, null, onClick)
             .height(44.dp)
-            .glass(RoundedCornerShape(50), active = active)
+            .glass(BlockShape, active = active)
             .padding(horizontal = 12.dp),
         contentAlignment = Alignment.Center,
     ) {
