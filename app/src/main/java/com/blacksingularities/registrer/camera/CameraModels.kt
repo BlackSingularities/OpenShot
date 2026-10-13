@@ -77,8 +77,11 @@ data class CameraCaps(
     val portrait get() = bokehExtension || retouchExtension
 }
 
-/** Osobny aparat po tej samej stronie; [factor] to krotność względem 1× głównego aparatu. */
-data class AuxLens(val cameraId: String, val factor: Float)
+/**
+ * Osobny aparat po tej samej stronie; [factor] to krotność względem 1× głównego aparatu.
+ * [physical] – sensor wewnątrz aparatu logicznego, otwierany przez setPhysicalCameraId.
+ */
+data class AuxLens(val cameraId: String, val factor: Float, val physical: Boolean = false)
 
 /** Stan rzeczywiście aktywny po związaniu (może być skromniejszy niż żądany). */
 data class ActiveSession(

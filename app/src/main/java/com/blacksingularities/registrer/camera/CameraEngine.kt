@@ -129,7 +129,10 @@ class CameraEngine(private val context: Context) {
 
     private fun cameraIdOf(info: CameraInfo): String? = runCatching { Camera2CameraInfo.from(info).cameraId }.getOrNull()
 
-    private fun selectorFor(facing: Int, cameraId: String? = null): CameraSelector {
+    private fun selectorFor(facing: Int, cameraId: String? = null, physical: Boolean = false): CameraSelector {
+        if (cameraId != null && physical) {
+            return CameraSelector.Builder().requireLensFacing(facing).setPhysicalCameraId(cameraId).build()
+        }
         if (cameraId != null) {
             val match = runCatching { provider?.availableCameraInfos }.getOrNull()?.firstOrNull { cameraIdOf(it) == cameraId }
             if (match != null) return match.cameraSelector
@@ -188,6 +191,33 @@ class CameraEngine(private val context: Context) {
             if (presets.any { abs(it - factor) / factor < 0.1f }) continue
             if (aux.any { abs(it.factor - factor) / factor < 0.1f }) continue
             aux += AuxLens(id, factor)
+        }
+        // Sensory fizyczne wewnątrz aparatu logicznego (np. szeroki kąt bez zoomu < 1×).
+        val logicalSupported = runCatching { primary.isLogicalMultiCameraSupported }.getOrDefault(false)
+        if (logicalSupported && primaryFocal != null) {
+            for (phys in runCatching { primary.physicalCameraInfos }.getOrDefault(emptySet())) {
+                val id = cameraIdOf(phys) ?: continue
+                val focal = equivalentFocal(phys) ?: continue
+                summary.append("\n  └ fizyczny #").append(id).append(": ").append(focal.roundToInt()).append(" mm")
+                val factor = roundLens(focal / primaryFocal)
+                if (factor in 0.86f..1.3f) continue
+                if (presets.any { abs(it - factor) / factor < 0.1f }) continue
+                if (aux.any { abs(it.factor - factor) / factor < 0.1f }) continue
+                aux += AuxLens(id, factor, physical = true)
+            }
+        }
+        // Wszystkie identyfikatory zgłaszane przez system – także te, których CameraX nie widzi.
+        runCatching {
+            val cm = context.getSystemService(android.hardware.camera2.CameraManager::class.java)
+            val listed = cm.cameraIdList.toSet()
+            val known = all.mapNotNull { cameraIdOf(it) }.toSet()
+            summary.append("\nCamera2: ").append(listed.sorted().joinToString(", ") { "#$it" })
+            val hidden = (0..15).map { it.toString() }.filter { it !in listed }.filter { id ->
+                runCatching { cm.getCameraCharacteristics(id) }.isSuccess
+            }
+            if (hidden.isNotEmpty()) summary.append(" · ukryte: ").append(hidden.joinToString(", ") { "#$it" })
+            val unusable = listed - known
+            if (unusable.isNotEmpty()) summary.append(" · niedostępne w CameraX: ").append(unusable.joinToString(", ") { "#$it" })
         }
         return aux.sortedBy { it.factor } to summary.toString()
     }
@@ -353,7 +383,8 @@ class CameraEngine(private val context: Context) {
 
         val s = req.settings
         val auxId = req.cameraId.takeIf { req.mode != CaptureMode.SLOWMO }
-        val base = selectorFor(req.lensFacing, auxId)
+        val auxPhysical = caps.auxLenses.firstOrNull { it.cameraId == auxId }?.physical == true
+        val base = selectorFor(req.lensFacing, auxId, auxPhysical)
         val ext = extensions
         val wantedExtension = if (auxId != null) null else when (req.mode) {
             CaptureMode.NIGHT -> ExtensionMode.NIGHT.takeIf { caps.nightExtension }
