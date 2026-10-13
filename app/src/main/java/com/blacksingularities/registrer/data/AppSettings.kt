@@ -285,6 +285,8 @@ data class GlobalSettings(
     /** Pozycja automatycznego nawigatora zoomu >10×. */
     val zoomNavigatorX: Float = 0f,
     val zoomNavigatorY: Float = 0.18f,
+    /** Podgląd dla fotografowanego jak w lustrze. */
+    val subjectMirror: Boolean = true,
     /** Pływający wskaźnik poziomu dźwięku w trybie Wideo. */
     val audioMeter: Boolean = false,
     val audioMeterX: Float = 0f,
@@ -329,6 +331,7 @@ class SettingsStore(context: Context) {
             levelCalZ = prefs.getFloat("g.levelCalZ", d.levelCalZ),
             zoomNavigatorX = prefs.getFloat("g.zoomNavX", d.zoomNavigatorX),
             zoomNavigatorY = prefs.getFloat("g.zoomNavY", d.zoomNavigatorY),
+            subjectMirror = prefs.getBoolean("g.subjectMirror", d.subjectMirror),
             audioMeter = prefs.getBoolean("g.audioMeter", d.audioMeter),
             audioMeterX = prefs.getFloat("g.audioMeterX", d.audioMeterX),
             audioMeterY = prefs.getFloat("g.audioMeterY", d.audioMeterY),
@@ -368,6 +371,7 @@ class SettingsStore(context: Context) {
             .putFloat("g.levelCalZ", g.levelCalZ)
             .putFloat("g.zoomNavX", g.zoomNavigatorX)
             .putFloat("g.zoomNavY", g.zoomNavigatorY)
+            .putBoolean("g.subjectMirror", g.subjectMirror)
             .putBoolean("g.audioMeter", g.audioMeter)
             .putFloat("g.audioMeterX", g.audioMeterX)
             .putFloat("g.audioMeterY", g.audioMeterY)

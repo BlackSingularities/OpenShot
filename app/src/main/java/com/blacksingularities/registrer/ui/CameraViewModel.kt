@@ -1123,6 +1123,14 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    // ================================================================ podgląd dla fotografowanego
+
+    /** Drugi ekran (tylny ekran folda, ekran zewnętrzny) może pokazać podgląd fotografowanemu. */
+    var subjectPreviewAvailable by mutableStateOf(false)
+    var subjectPreviewActive by mutableStateOf(false)
+    /** Wykryte ekrany – do diagnostyki w ustawieniach. */
+    var displaySummary by mutableStateOf("")
+
     // ================================================================ fold: selfie głównym aparatem
 
     /** Czy system pozwala przenieść aplikację na ekran zewnętrzny (rozłożony fold). */

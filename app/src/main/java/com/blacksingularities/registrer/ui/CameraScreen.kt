@@ -112,6 +112,7 @@ import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.PresentToAll
 import androidx.compose.material.icons.rounded.Timelapse
 import androidx.compose.material.icons.rounded.Waves
 import androidx.compose.material.icons.rounded.Flare
@@ -216,7 +217,11 @@ private val SHUTTER_RAIL = 132.dp
  * okna, więc działa także na zewnętrznym i wewnętrznym ekranie folda.
  */
 @Composable
-fun CameraScreen(vm: CameraViewModel, onToggleRearDisplay: () -> Unit = {}) {
+fun CameraScreen(
+    vm: CameraViewModel,
+    onToggleRearDisplay: () -> Unit = {},
+    onToggleSubjectPreview: (source: () -> android.graphics.Bitmap?) -> Unit = {},
+) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val haptics = vm.global.haptics
@@ -333,6 +338,7 @@ fun CameraScreen(vm: CameraViewModel, onToggleRearDisplay: () -> Unit = {}) {
         vm, iconRotation, uprightTurn, displayDegrees, haptics,
         onSettings = { showSettings = true },
         onFold = onToggleRearDisplay,
+        onSubjectPreview = { onToggleSubjectPreview { runCatching { previewView.bitmap }.getOrNull() } },
         freeze = freezeFrame,
         controlsTop = controlsTop,
         onControlsTop = { controlsTop = it },
@@ -390,6 +396,7 @@ fun CameraScreen(vm: CameraViewModel, onToggleRearDisplay: () -> Unit = {}) {
             onDownloadUpdate = vm::downloadUpdate,
             onInstallUpdate = { vm.installUpdate() },
             onDismiss = { showSettings = false },
+            displaysInfo = vm.displaySummary,
             )
         }
     }
@@ -404,6 +411,7 @@ private class Ui(
     val haptics: Boolean,
     val onSettings: () -> Unit,
     val onFold: () -> Unit,
+    val onSubjectPreview: () -> Unit = {},
     val freeze: androidx.compose.ui.graphics.ImageBitmap? = null,
     /** Górna krawędź dolnego sterowania w układzie okna – nakładki pływające jej nie zasłaniają. */
     val controlsTop: Float = Float.MAX_VALUE,
@@ -1725,6 +1733,15 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
                 }
             }
             GridButton(vm, rot)
+            if (vm.subjectPreviewAvailable || vm.subjectPreviewActive) {
+                RoundIcon(
+                    Icons.Rounded.PresentToAll,
+                    if (vm.subjectPreviewActive) "Wyłącz podgląd dla fotografowanego" else "Podgląd dla fotografowanego na drugim ekranie",
+                    rot,
+                    active = vm.subjectPreviewActive,
+                    onClick = ui.onSubjectPreview,
+                )
+            }
             if (vm.rearDisplayAvailable || vm.rearDisplayActive) {
                 RoundIcon(
                     Icons.Rounded.FlipToBack,

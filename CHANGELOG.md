@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.12.0
+
+- **Podgląd dla fotografowanego na drugim ekranie**: przycisk na górnym pasku (pojawia się, gdy telefon ma dostępny drugi ekran) pokazuje obraz z aparatu na tylnym ekranie składanego telefonu albo na ekranie podłączonym lub przesyłanym. Fotografowany widzi kadr, a Ty fotografujesz dalej na głównym ekranie.
+- Korzysta z systemowego trybu „Dual Screen” (Jetpack WindowArea), a gdy go brak – z dowolnego dodatkowego ekranu widocznego w systemie. Domyślnie obraz jest lustrzany (przełącznik „Lustro na 2. ekranie” w Pomocach kadru).
+- „Informacje o sprzęcie” pokazują listę wykrytych ekranów i dostępność tylnego ekranu – pomocne, gdy przycisk się nie pojawia.
+
 ## 2.11.0
 
 - Nowy tryb **Poklatkowy** (między Wideo a Zwolnionym tempem): zdjęcia co kilka sekund składane na bieżąco w film MP4 **1080p, 4K albo 8K** (HEVC, a gdy go brak – H.264). Na dysku nie zostają setki zdjęć, a film jest gotowy zaraz po zatrzymaniu.

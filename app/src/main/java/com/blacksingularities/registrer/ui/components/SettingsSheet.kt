@@ -112,6 +112,7 @@ import androidx.compose.material.icons.rounded.Link
 import com.blacksingularities.registrer.data.SharedGroup
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.material.icons.rounded.PresentToAll
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Exposure
 import androidx.compose.material.icons.rounded.Timelapse
@@ -216,6 +217,7 @@ fun SettingsSheet(
     onDownloadUpdate: () -> Unit,
     onInstallUpdate: () -> Unit,
     onDismiss: () -> Unit,
+    displaysInfo: String = "",
 ) {
     var tab by remember { mutableStateOf<CaptureMode?>(initialMode) }
 
@@ -257,7 +259,7 @@ fun SettingsSheet(
             ) {
                 if (locked) Text("Część opcji jest zablokowana podczas nagrywania lub przetwarzania.", color = Palette.Amber, fontSize = 12.sp)
                 if (current == null) {
-                    GeneralTab(global, caps, update, onGlobal, onCheckUpdate, onDownloadUpdate, onInstallUpdate)
+                    GeneralTab(global, caps, update, onGlobal, onCheckUpdate, onDownloadUpdate, onInstallUpdate, displaysInfo)
                 } else {
                     ModeTab(current, profiles.getValue(current), caps, !locked) { t -> onProfile(current, t) }
                     Row(
@@ -579,6 +581,7 @@ private fun GeneralTab(
     onCheck: () -> Unit,
     onDownload: () -> Unit,
     onInstall: () -> Unit,
+    displaysInfo: String = "",
 ) {
     Group(null) {
         Column(
@@ -657,7 +660,8 @@ private fun GeneralTab(
             Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 4.dp, bottom = 2.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            PillToggle(Icons.Rounded.GraphicEq, "Poziom dźwięku w wideo", g.audioMeter, Modifier.weight(1f)) { v -> onGlobal { it.copy(audioMeter = v) } }
+            PillToggle(Icons.Rounded.GraphicEq, "Dźwięk w wideo", g.audioMeter, Modifier.weight(1f)) { v -> onGlobal { it.copy(audioMeter = v) } }
+            PillToggle(Icons.Rounded.Flip, "Lustro na 2. ekranie", g.subjectMirror, Modifier.weight(1f)) { v -> onGlobal { it.copy(subjectMirror = v) } }
         }
         CompactChoice(
             Icons.Rounded.Gradient,
@@ -719,6 +723,7 @@ private fun GeneralTab(
             .joinToString(" · ") { formatZoom(it) + "×" }.ifEmpty { "1×" }
         InfoRow(Icons.Rounded.ZoomIn, "Obiektywy: $lenses")
         if (caps.cameraSummary.isNotEmpty()) ExpandableInfoRow(Icons.Rounded.CameraAlt, "Wykryte aparaty", caps.cameraSummary)
+        if (displaysInfo.isNotEmpty()) ExpandableInfoRow(Icons.Rounded.PresentToAll, "Wykryte ekrany", displaysInfo)
         InfoRow(Icons.Rounded.Image, "Formaty: " + caps.photoFormats.sortedBy { it.ordinal }.joinToString { it.label })
         InfoRow(Icons.Rounded.Movie, "Wideo: " + caps.videoResolutions.joinToString { it.label } + (if (caps.fps60) " · 60 kl/s" else "") + (if (caps.videoHlg) " · HLG" else ""))
         if (caps.slowMo) InfoRow(Icons.Rounded.SlowMotionVideo, "Zwolnione tempo: " + caps.slowMoProfiles.joinToString { "${it.resolution.label} ${it.fps} kl/s" })

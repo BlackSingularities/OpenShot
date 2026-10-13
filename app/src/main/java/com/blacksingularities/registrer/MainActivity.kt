@@ -31,6 +31,7 @@ import com.blacksingularities.registrer.ui.theme.OpenShotTheme
 class MainActivity : ComponentActivity() {
     private val vm: CameraViewModel by viewModels()
     private lateinit var rearDisplay: RearDisplay
+    private lateinit var subjectPreview: com.blacksingularities.registrer.fold.SubjectPreview
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -48,6 +49,12 @@ class MainActivity : ComponentActivity() {
             onActive = { vm.onRearDisplayChanged(it) },
         )
         rearDisplay.observe(this)
+        subjectPreview = com.blacksingularities.registrer.fold.SubjectPreview(
+            activity = this,
+            onAvailable = { vm.subjectPreviewAvailable = it },
+            onActive = { vm.subjectPreviewActive = it },
+        )
+        subjectPreview.observe(this)
 
         setContent {
             OpenShotTheme {
@@ -88,7 +95,15 @@ class MainActivity : ComponentActivity() {
                         else -> ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
                     }
                 }
-                if (cameraGranted) CameraScreen(vm, onToggleRearDisplay = rearDisplay::toggle) else PermissionScreen(onRequest = request)
+                if (cameraGranted) {
+                    CameraScreen(
+                        vm,
+                        onToggleRearDisplay = rearDisplay::toggle,
+                        onToggleSubjectPreview = { source -> subjectPreview.toggle(source, vm.global.subjectMirror) },
+                    )
+                } else {
+                    PermissionScreen(onRequest = request)
+                }
             }
         }
     }
@@ -109,11 +124,18 @@ class MainActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
+        if (::subjectPreview.isInitialized) vm.displaySummary = subjectPreview.summary()
         com.blacksingularities.registrer.update.UpdateManager.clearUpdatedNotification(this)
+    }
+
+    override fun onDestroy() {
+        if (::subjectPreview.isInitialized) subjectPreview.release()
+        super.onDestroy()
     }
 
     override fun onStop() {
         super.onStop()
+        if (::subjectPreview.isInitialized) subjectPreview.stop()
         vm.onBackground()
     }
 }
