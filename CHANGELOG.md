@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.14.0
+
+- **Skróty z ikony aplikacji** (przytrzymaj ikonę OpenShot): *Nagraj dźwięk* – od razu zaczyna nagrywać dyktafonem, *Wideo*, *Autoportret* – przedni aparat w trybie zdjęć.
+- **Kafelek „Dyktafon” w szybkich ustawieniach**: dotknięcie otwiera aplikację i startuje nagrywanie, a podczas nagrywania kończy je bez otwierania aplikacji. Kafelek pokazuje, czy nagranie trwa.
+
 ## 2.13.0
 
 - **Nowy układ ustawień ogólnych**, pogrupowany według tego, czego się szuka: szybkie przełączniki (wibracje, migawka, odliczanie, lokalizacja), „Na ekranie” – wszystkie nakładki jako kafelki (parametry, kompas, obrys ostrości, zebra, dźwięk) z histogramem, „Sterowanie” (obrót, klawisze głośności, podgląd na drugim ekranie), zwinięte „Poziomica” i „Informacje o sprzęcie”, na dole „Aplikacja” z aktualizacjami i autorem. Próg zebry pojawia się dopiero po jej włączeniu.

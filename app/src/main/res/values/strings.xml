@@ -1,4 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">OpenShot</string>
+    <string name="shortcut_audio">Nagraj dźwięk</string>
+    <string name="shortcut_audio_long">Zacznij nagrywać dyktafonem</string>
+    <string name="shortcut_video">Wideo</string>
+    <string name="shortcut_video_long">Otwórz kamerę wideo</string>
+    <string name="shortcut_selfie">Autoportret</string>
+    <string name="shortcut_selfie_long">Zdjęcie przednim aparatem</string>
+    <string name="tile_audio">Dyktafon</string>
 </resources>

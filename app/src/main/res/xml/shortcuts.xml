@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_mic"
+        android:shortcutId="audio"
+        android:shortcutLongLabel="@string/shortcut_audio_long"
+        android:shortcutShortLabel="@string/shortcut_audio">
+        <intent
+            android:action="com.blacksingularities.registrer.action.RECORD_AUDIO"
+            android:targetClass="com.blacksingularities.registrer.MainActivity"
+            android:targetPackage="com.blacksingularities.registrer" />
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_video"
+        android:shortcutId="video"
+        android:shortcutLongLabel="@string/shortcut_video_long"
+        android:shortcutShortLabel="@string/shortcut_video">
+        <intent
+            android:action="com.blacksingularities.registrer.action.VIDEO"
+            android:targetClass="com.blacksingularities.registrer.MainActivity"
+            android:targetPackage="com.blacksingularities.registrer" />
+    </shortcut>
+    <shortcut
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_selfie"
+        android:shortcutId="selfie"
+        android:shortcutLongLabel="@string/shortcut_selfie_long"
+        android:shortcutShortLabel="@string/shortcut_selfie">
+        <intent
+            android:action="com.blacksingularities.registrer.action.SELFIE"
+            android:targetClass="com.blacksingularities.registrer.MainActivity"
+            android:targetPackage="com.blacksingularities.registrer" />
+    </shortcut>
+</shortcuts>

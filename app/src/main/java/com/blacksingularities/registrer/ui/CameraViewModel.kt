@@ -473,6 +473,33 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         updateGlobal { it.copy(lastMode = m) }
     }
 
+    /** Skróty z ikony aplikacji i kafelek dyktafonu. */
+    fun handleShortcut(action: String?) {
+        when (action) {
+            com.blacksingularities.registrer.MainActivity.ACTION_RECORD_AUDIO -> {
+                if (audio.isActive) {
+                    mode = CaptureMode.AUDIO
+                    return
+                }
+                if (busy) return
+                stopPlayback()
+                mode = CaptureMode.AUDIO
+                updateGlobal { it.copy(lastMode = CaptureMode.AUDIO) }
+                startAudio()
+            }
+            com.blacksingularities.registrer.MainActivity.ACTION_VIDEO -> selectMode(CaptureMode.VIDEO)
+            com.blacksingularities.registrer.MainActivity.ACTION_SELFIE -> {
+                selectMode(CaptureMode.PHOTO)
+                if (!busy && lensFacing != CameraSelector.LENS_FACING_FRONT) {
+                    lensFacing = CameraSelector.LENS_FACING_FRONT
+                    activeCameraId = null
+                    zoomTarget = 1f
+                    pro = ProSettings()
+                }
+            }
+        }
+    }
+
     fun switchLens() {
         if (busy || mode == CaptureMode.SLOWMO) return
         val next = if (lensFacing == CameraSelector.LENS_FACING_BACK) CameraSelector.LENS_FACING_FRONT else CameraSelector.LENS_FACING_BACK

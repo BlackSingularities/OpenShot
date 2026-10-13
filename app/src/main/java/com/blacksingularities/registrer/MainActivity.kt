@@ -55,6 +55,7 @@ class MainActivity : ComponentActivity() {
             onActive = { vm.subjectPreviewActive = it },
         )
         subjectPreview.observe(this)
+        if (savedInstanceState == null) vm.handleShortcut(intent?.action)
 
         setContent {
             OpenShotTheme {
@@ -108,6 +109,12 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        vm.handleShortcut(intent.action)
+    }
+
     private fun isGranted(permission: String) =
         ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_GRANTED
 
@@ -137,5 +144,11 @@ class MainActivity : ComponentActivity() {
         super.onStop()
         if (::subjectPreview.isInitialized) subjectPreview.stop()
         vm.onBackground()
+    }
+
+    companion object {
+        const val ACTION_RECORD_AUDIO = "com.blacksingularities.registrer.action.RECORD_AUDIO"
+        const val ACTION_VIDEO = "com.blacksingularities.registrer.action.VIDEO"
+        const val ACTION_SELFIE = "com.blacksingularities.registrer.action.SELFIE"
     }
 }
