@@ -613,7 +613,22 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
         )
 
         GridOverlay(vm.cfg.grids, ratio, Modifier.fillMaxSize(), centered)
-        if (vm.cfg.level && vm.mode != CaptureMode.AUDIO) LevelOverlay(ratio, ui.haptics, Modifier.fillMaxSize(), centered, ui.displayDegrees)
+        if (vm.cfg.level && vm.mode != CaptureMode.AUDIO) {
+            val gl = vm.global
+            val calibration = remember(gl.levelCalX, gl.levelCalY, gl.levelCalZ) { floatArrayOf(gl.levelCalX, gl.levelCalY, gl.levelCalZ) }
+            LevelOverlay(
+                ratio,
+                ui.haptics,
+                Modifier.fillMaxSize(),
+                centered,
+                ui.displayDegrees,
+                style = gl.levelStyle,
+                tolerance = gl.levelTolerance,
+                showPitch = gl.levelPitch,
+                fadeWhenLevel = gl.levelFade,
+                calibration = calibration,
+            )
+        }
 
         focusPoint?.let { p ->
             FocusRing(

@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.7.0
+
+- **Rozbudowana poziomica** z czterema wyglądami do wyboru w ustawieniach ogólnych:
+  - *Horyzont* – linia z przerwą, stałe znaczniki ekranu i punkt pochylenia,
+  - *Lotniczy* – sztuczny horyzont z drabinką pochylenia co 5° i łukiem przechyłu ze wskaźnikiem,
+  - *Libelle* – dwie poziomice rurkowe: przechył na dole kadru, pochylenie z boku,
+  - *Krzyż* – obracany celownik względem stałego koła.
+- Odczyt przechyłu i pochylenia w stopniach; zdjęcie z góry zawsze pokazuje libellę okrągłą z odczytem obu osi.
+- Dokładność „prosto” do wyboru (±0,5°, ±1°, ±2°), opcjonalne ukrycie pochylenia i przygaszanie poziomicy po wypoziomowaniu.
+- **Kalibracja**: połóż telefon na płaskim stole i dotknij „Kalibruj” – zmierzone przesunięcie czujnika jest zapisywane i odejmowane od odczytów („Zeruj” je usuwa).
+
 ## 2.6.0
 
 - Nowy tryb **Długi czas** (na karuzeli między Ręcznym a Nocą): seria klatek przez 1–15 s łączona w jedno zdjęcie, jak z filtrem ND lub statywem.

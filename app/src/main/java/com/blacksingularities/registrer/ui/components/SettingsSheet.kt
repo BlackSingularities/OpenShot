@@ -112,6 +112,12 @@ import androidx.compose.material.icons.rounded.Link
 import com.blacksingularities.registrer.data.SharedGroup
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.material.icons.rounded.Opacity
+import androidx.compose.material.icons.rounded.SwapVert
+import androidx.compose.material.icons.rounded.LinearScale
+import androidx.compose.material.icons.rounded.Flight
+import androidx.compose.material.icons.rounded.HorizontalRule
+import com.blacksingularities.registrer.data.LevelStyle
 import androidx.compose.material.icons.rounded.ShutterSpeed
 import androidx.compose.material.icons.rounded.LocationOn
 import androidx.compose.material.icons.rounded.ScreenLockRotation
@@ -576,6 +582,44 @@ private fun GeneralTab(
             short = { it.label.take(1) },
         ) { v -> onGlobal { it.copy(histogramSize = v) } }
     }
+    Group("Poziomica") {
+        CompactChoice(
+            Icons.Rounded.Straighten,
+            "Wygląd",
+            LevelStyle.entries,
+            g.levelStyle,
+            label = { it.label },
+            icon = {
+                when (it) {
+                    LevelStyle.HORIZON -> Icons.Rounded.HorizontalRule
+                    LevelStyle.AVIATION -> Icons.Rounded.Flight
+                    LevelStyle.TUBES -> Icons.Rounded.LinearScale
+                    LevelStyle.CROSS -> Icons.Rounded.CenterFocusStrong
+                }
+            },
+            hint = "Włączasz ją w ustawieniach trybu (Kadr)",
+        ) { v -> onGlobal { it.copy(levelStyle = v) } }
+        CompactChoice(
+            Icons.Rounded.Tune,
+            "Dokładność",
+            listOf(0.5f, 1f, 2f),
+            g.levelTolerance,
+            label = { "±" + (if (it < 1f) "0,5" else it.toInt().toString()) + "°" },
+            short = { if (it < 1f) "0,5°" else "${it.toInt()}°" },
+        ) { v -> onGlobal { it.copy(levelTolerance = v) } }
+        Row(
+            Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 2.dp, bottom = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            PillToggle(Icons.Rounded.SwapVert, "Pochylenie", g.levelPitch, Modifier.weight(1f)) { v -> onGlobal { it.copy(levelPitch = v) } }
+            PillToggle(Icons.Rounded.Opacity, "Przygaszaj", g.levelFade, Modifier.weight(1f)) { v -> onGlobal { it.copy(levelFade = v) } }
+        }
+        LevelCalibrationRow(
+            calibrated = g.levelCalX != 0f || g.levelCalY != 0f || g.levelCalZ != 0f,
+            onCalibrate = { x, y, z -> onGlobal { it.copy(levelCalX = x, levelCalY = y, levelCalZ = z) } },
+            onReset = { onGlobal { it.copy(levelCalX = 0f, levelCalY = 0f, levelCalZ = 0f) } },
+        )
+    }
     Group("Informacje o sprzęcie", collapsible = true, initiallyExpanded = false) {
         val lenses = (caps.lensZooms + caps.auxLenses.map { it.factor }).distinct().sorted()
             .joinToString(" · ") { formatZoom(it) + "×" }.ifEmpty { "1×" }
@@ -602,6 +646,64 @@ private fun GeneralTab(
         }
         Credits()
         Spacer(Modifier.height(6.dp))
+    }
+}
+
+/**
+ * Kalibracja poziomicy: telefon leżący ekranem do góry na płaskiej powierzchni powinien
+ * wskazywać 0° w obu osiach; zmierzona różnica jest zapisywana i odejmowana od odczytów.
+ */
+@Composable
+private fun LevelCalibrationRow(calibrated: Boolean, onCalibrate: (Float, Float, Float) -> Unit, onReset: () -> Unit) {
+    val gravity = rememberGravity(smoothing = 0.08f)
+    var note by remember { mutableStateOf<String?>(null) }
+    val tiltX = Math.toDegrees(kotlin.math.asin((gravity.x / 9.80665f).coerceIn(-1f, 1f)).toDouble()).toFloat()
+    val tiltY = Math.toDegrees(kotlin.math.asin((gravity.y / 9.80665f).coerceIn(-1f, 1f)).toDouble()).toFloat()
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Rounded.Straighten, null, tint = Palette.TextDim, modifier = Modifier.size(18.dp))
+        Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
+            Text("Kalibracja", fontSize = 13.sp)
+            Text(
+                note ?: String.format(Locale("pl", "PL"), "%s · teraz %.1f° / %.1f°", if (calibrated) "skalibrowana" else "połóż telefon płasko ekranem do góry", tiltX, tiltY),
+                fontSize = 10.sp,
+                lineHeight = 12.sp,
+                color = Palette.TextDim,
+                maxLines = 2,
+            )
+        }
+        if (calibrated) {
+            Text(
+                "Zeruj",
+                fontSize = 12.sp,
+                color = Palette.TextDim,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .clickable { onReset(); note = "Kalibracja usunięta" }
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+            )
+        }
+        Text(
+            "Kalibruj",
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold,
+            color = Palette.Ink,
+            modifier = Modifier
+                .clip(RoundedCornerShape(50))
+                .background(Color.White)
+                .clickable {
+                    val ok = gravity.z > 8.5f && kotlin.math.abs(gravity.x) < 1.6f && kotlin.math.abs(gravity.y) < 1.6f
+                    note = if (ok) {
+                        onCalibrate(gravity.x, gravity.y, gravity.z - 9.80665f)
+                        "Zapisano – teraz telefon na tej powierzchni pokazuje 0°"
+                    } else {
+                        "Połóż telefon ekranem do góry na płaskim stole i spróbuj ponownie"
+                    }
+                }
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+        )
     }
 }
 

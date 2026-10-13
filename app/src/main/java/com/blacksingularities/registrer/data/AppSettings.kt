@@ -63,6 +63,13 @@ enum class VideoBitrate(val label: String) {
     MAX("Maks."),
 }
 
+enum class LevelStyle(val label: String) {
+    HORIZON("Horyzont"),
+    AVIATION("Lotniczy"),
+    TUBES("Libelle"),
+    CROSS("Krzyż"),
+}
+
 enum class LongBlend(val label: String, val description: String) {
     MOTION("Rozmycie ruchu", "Średnia klatek: gładka woda, chmury, znikający przechodnie"),
     TRAILS("Smugi światła", "Najjaśniejsze piksele: światła aut, gwiazdy, ogień"),
@@ -237,6 +244,15 @@ data class GlobalSettings(
     val histogramSize: HistogramSize = HistogramSize.MEDIUM,
     val compassX: Float = 0.5f,
     val compassY: Float = 0.1f,
+    val levelStyle: LevelStyle = LevelStyle.HORIZON,
+    /** Granica „prosto” w stopniach. */
+    val levelTolerance: Float = 1f,
+    val levelPitch: Boolean = true,
+    val levelFade: Boolean = false,
+    /** Przesunięcie czujnika grawitacji (m/s²) zmierzone na płaskiej powierzchni. */
+    val levelCalX: Float = 0f,
+    val levelCalY: Float = 0f,
+    val levelCalZ: Float = 0f,
     /** Pozycja automatycznego nawigatora zoomu >10×. */
     val zoomNavigatorX: Float = 0f,
     val zoomNavigatorY: Float = 0.18f,
@@ -268,6 +284,13 @@ class SettingsStore(context: Context) {
             histogramSize = enumOr(prefs.getString("g.histSize", null), d.histogramSize),
             compassX = prefs.getFloat("g.compassX", d.compassX),
             compassY = prefs.getFloat("g.compassY", d.compassY),
+            levelStyle = enumOr(prefs.getString("g.levelStyle", null), d.levelStyle),
+            levelTolerance = prefs.getFloat("g.levelTol", d.levelTolerance),
+            levelPitch = prefs.getBoolean("g.levelPitch", d.levelPitch),
+            levelFade = prefs.getBoolean("g.levelFade", d.levelFade),
+            levelCalX = prefs.getFloat("g.levelCalX", d.levelCalX),
+            levelCalY = prefs.getFloat("g.levelCalY", d.levelCalY),
+            levelCalZ = prefs.getFloat("g.levelCalZ", d.levelCalZ),
             zoomNavigatorX = prefs.getFloat("g.zoomNavX", d.zoomNavigatorX),
             zoomNavigatorY = prefs.getFloat("g.zoomNavY", d.zoomNavigatorY),
             autoCheckUpdates = prefs.getBoolean("g.autoCheck", d.autoCheckUpdates),
@@ -294,6 +317,13 @@ class SettingsStore(context: Context) {
             .putString("g.histSize", g.histogramSize.name)
             .putFloat("g.compassX", g.compassX)
             .putFloat("g.compassY", g.compassY)
+            .putString("g.levelStyle", g.levelStyle.name)
+            .putFloat("g.levelTol", g.levelTolerance)
+            .putBoolean("g.levelPitch", g.levelPitch)
+            .putBoolean("g.levelFade", g.levelFade)
+            .putFloat("g.levelCalX", g.levelCalX)
+            .putFloat("g.levelCalY", g.levelCalY)
+            .putFloat("g.levelCalZ", g.levelCalZ)
             .putFloat("g.zoomNavX", g.zoomNavigatorX)
             .putFloat("g.zoomNavY", g.zoomNavigatorY)
             .putBoolean("g.autoCheck", g.autoCheckUpdates)
