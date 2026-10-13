@@ -244,8 +244,7 @@ fun SettingsSheet(
                         Text("Przywróć domyślne: ${current.title}", color = Palette.TextDim, fontSize = 13.sp)
                     }
                 }
-                Credits()
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(20.dp))
             }
         }
     }
@@ -556,6 +555,17 @@ private fun GeneralTab(
             short = { it.label.take(1) },
         ) { v -> onGlobal { it.copy(histogramSize = v) } }
     }
+    Group("Informacje o sprzęcie", collapsible = true, initiallyExpanded = false) {
+        val lenses = (caps.lensZooms + caps.auxLenses.map { it.factor }).distinct().sorted()
+            .joinToString(" · ") { formatZoom(it) + "×" }.ifEmpty { "1×" }
+        InfoRow(Icons.Rounded.ZoomIn, "Obiektywy: $lenses")
+        if (caps.cameraSummary.isNotEmpty()) ExpandableInfoRow(Icons.Rounded.CameraAlt, "Wykryte aparaty", caps.cameraSummary)
+        InfoRow(Icons.Rounded.Image, "Formaty: " + caps.photoFormats.sortedBy { it.ordinal }.joinToString { it.label })
+        InfoRow(Icons.Rounded.Movie, "Wideo: " + caps.videoResolutions.joinToString { it.label } + (if (caps.fps60) " · 60 kl/s" else "") + (if (caps.videoHlg) " · HLG" else ""))
+        if (caps.slowMo) InfoRow(Icons.Rounded.SlowMotionVideo, "Zwolnione tempo: " + caps.slowMoProfiles.joinToString { "${it.resolution.label} ${it.fps} kl/s" })
+        InfoRow(Icons.Rounded.Tune, if (caps.manualSensor) "Pełne sterowanie ręczne sensora" else "Ograniczone sterowanie ręczne")
+        InfoRow(Icons.Rounded.Info, "Pliki: DCIM/OpenShot · Recordings/OpenShot")
+    }
     Group("Aktualizacje") {
         UpdateRow(update, onCheck, onDownload, onInstall)
         Row(
@@ -569,17 +579,8 @@ private fun GeneralTab(
                 onGlobal { it.copy(autoDownloadUpdates = v) }
             }
         }
-    }
-    Group("Informacje o sprzęcie", collapsible = true, initiallyExpanded = false) {
-        val lenses = (caps.lensZooms + caps.auxLenses.map { it.factor }).distinct().sorted()
-            .joinToString(" · ") { formatZoom(it) + "×" }.ifEmpty { "1×" }
-        InfoRow(Icons.Rounded.ZoomIn, "Obiektywy: $lenses")
-        if (caps.cameraSummary.isNotEmpty()) ExpandableInfoRow(Icons.Rounded.CameraAlt, "Wykryte aparaty", caps.cameraSummary)
-        InfoRow(Icons.Rounded.Image, "Formaty: " + caps.photoFormats.sortedBy { it.ordinal }.joinToString { it.label })
-        InfoRow(Icons.Rounded.Movie, "Wideo: " + caps.videoResolutions.joinToString { it.label } + (if (caps.fps60) " · 60 kl/s" else "") + (if (caps.videoHlg) " · HLG" else ""))
-        if (caps.slowMo) InfoRow(Icons.Rounded.SlowMotionVideo, "Zwolnione tempo: " + caps.slowMoProfiles.joinToString { "${it.resolution.label} ${it.fps} kl/s" })
-        InfoRow(Icons.Rounded.Tune, if (caps.manualSensor) "Pełne sterowanie ręczne sensora" else "Ograniczone sterowanie ręczne")
-        InfoRow(Icons.Rounded.Info, "Pliki: DCIM/OpenShot · Recordings/OpenShot")
+        Credits()
+        Spacer(Modifier.height(6.dp))
     }
 }
 
@@ -689,12 +690,12 @@ private fun <T> CompactChoice(
     }
 }
 
-/** Stopka każdej zakładki: wersja i autor (adres otwiera się po dotknięciu). */
+/** Podpis w sekcji Aktualizacje: wersja i autor (adres otwiera się po dotknięciu). */
 @Composable
 private fun Credits() {
     val uriHandler = LocalUriHandler.current
     Column(
-        Modifier.fillMaxWidth().padding(top = 10.dp),
+        Modifier.fillMaxWidth().padding(top = 2.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text("OpenShot ${UpdateManager.currentVersion}", fontSize = 11.sp, color = Palette.TextDim)

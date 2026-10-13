@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.4.6
+
+- Sekcja Aktualizacje jest na dole ustawień ogólnych, a podpis „Pomysł i wykonanie: redzikowski.com” z numerem wersji znajduje się w jej wnętrzu.
+
 ## 2.4.5
 
 - Sekcja „Ten aparat” w ustawieniach ogólnych nazywa się teraz „Informacje o sprzęcie”.
