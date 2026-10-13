@@ -7,18 +7,19 @@ import com.blacksingularities.registrer.data.PhotoFormat
 import com.blacksingularities.registrer.data.VideoResolution
 
 enum class CaptureMode(val label: String, val isPhoto: Boolean, val isVideo: Boolean) {
-    NIGHT("Noc", true, false),
-    PORTRAIT("Portret", true, false),
-    PHOTO("Foto", true, false),
-    /** Zdjęcie ruchome (Motion Photo): zdjęcie + ~3 s klip wokół naciśnięcia migawki. */
-    MOTION("Ruchome", true, false),
     HDR("HDR", true, false),
-    PRO("Pro", true, false),
+    PORTRAIT("Portret", true, false),
+    NIGHT("Noc", true, false),
+    PHOTO("Foto", true, false),
     VIDEO("Wideo", false, true),
+    SLOWMO("Slow-mo", false, true),
     /** Klip HEVC: każde naciśnięcie migawki zapisuje ~3 s film (1,5 s przed i 1,5 s po). */
     CLIP("Klip", false, false),
-    SLOWMO("Slow-mo", false, true),
+    /** Odpowiednik Live Photo: zdjęcie + ~3 s ruchu wokół naciśnięcia migawki. */
+    MOTION("Live", true, false),
     AUDIO("Audio", false, false),
+    /** Ręczne ISO, czas, ostrość i balans bieli dla fotografii. */
+    PRO("Pro Foto", true, false),
 }
 
 enum class FlashSetting { OFF, AUTO, ON, TORCH }
@@ -67,6 +68,8 @@ data class CameraCaps(
     val fps60: Boolean = false,
     val fps24: Boolean = false,
     val slowMoRanges: List<Range<Int>> = emptyList(),
+    /** Wszystkie kombinacje rozdzielczości i klatkażu szybkiego nagrywania głównego aparatu. */
+    val slowMoProfiles: List<SlowMoProfile> = emptyList(),
     val lowLightBoost: Boolean = false,
     /** Krotności odpowiadające fizycznym obiektywom (np. 0.6 szeroki kąt, 1, 3 tele). */
     val lensZooms: List<Float> = emptyList(),
@@ -76,8 +79,6 @@ data class CameraCaps(
     val auxLenses: List<AuxLens> = emptyList(),
     /** Opis wszystkich wykrytych aparatów – do diagnostyki w ustawieniach. */
     val cameraSummary: String = "",
-    /** Co o formatach RAW / Ultra HDR mówi Camera2, a co udostępnia CameraX – diagnostyka. */
-    val formatSummary: String = "",
     /** Alternatywny sensor, który CameraX udostępnia w RAW, gdy aparat logiczny pokazuje tylko JPEG. */
     val rawCameraId: String? = null,
     val rawCameraPhysical: Boolean = false,
@@ -85,6 +86,14 @@ data class CameraCaps(
 ) {
     val slowMo get() = slowMoRanges.isNotEmpty()
     val portrait get() = bokehExtension || retouchExtension
+}
+
+data class SlowMoProfile(
+    val resolution: VideoResolution,
+    val frameRate: Range<Int>,
+) {
+    val fps: Int get() = frameRate.upper
+    val slowdown: Int get() = (fps / 30).coerceAtLeast(1)
 }
 
 /**

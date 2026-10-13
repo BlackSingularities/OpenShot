@@ -149,7 +149,8 @@ data class ModeSettings(
     val videoAudio: Boolean = true,
     val bitrate: VideoBitrate = VideoBitrate.AUTO,
     val cinematicZoom: Boolean = true,
-    val slowMoFps: Int = 0, // 0 = najwyższy dostępny
+    val slowMoResolution: VideoResolution = VideoResolution.HD,
+    val slowMoFps: Int = 0, // 0 = najniższy dostępny high-speed (najstabilniejszy podgląd)
     // audio
     val audioPreset: AudioPreset = AudioPreset.MUSIC,
     val audioSource: AudioSourceType = AudioSourceType.STANDARD,
@@ -169,6 +170,7 @@ data class ModeSettings(
         videoHdr = videoHdr,
         stabilization = stabilization,
         bitrate = bitrate,
+        slowMoResolution = slowMoResolution,
         slowMoFps = slowMoFps,
         lowLightBoost = lowLightBoost,
     )
@@ -301,6 +303,7 @@ class SettingsStore(context: Context) {
             videoAudio = prefs.getBoolean(k + "videoAudio", d.videoAudio),
             bitrate = enumOr(prefs.getString(k + "bitrate", null), d.bitrate),
             cinematicZoom = prefs.getBoolean(k + "cineZoom", d.cinematicZoom),
+            slowMoResolution = enumOr(prefs.getString(k + "slowRes", null), d.slowMoResolution),
             slowMoFps = prefs.getInt(k + "slowFps", d.slowMoFps),
             audioPreset = enumOr(prefs.getString(k + "audioPreset", null), d.audioPreset),
             audioSource = enumOr(prefs.getString(k + "audioSource", null), d.audioSource),
@@ -337,6 +340,7 @@ class SettingsStore(context: Context) {
             .putBoolean(k + "videoAudio", s.videoAudio)
             .putString(k + "bitrate", s.bitrate.name)
             .putBoolean(k + "cineZoom", s.cinematicZoom)
+            .putString(k + "slowRes", s.slowMoResolution.name)
             .putInt(k + "slowFps", s.slowMoFps)
             .putString(k + "audioPreset", s.audioPreset.name)
             .putString(k + "audioSource", s.audioSource.name)

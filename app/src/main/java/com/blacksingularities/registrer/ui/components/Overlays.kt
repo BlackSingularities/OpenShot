@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.RectangleShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -138,7 +139,7 @@ fun HistogramView(
     Canvas(
         modifier
             .size(width = histogramSize.widthDp.dp, height = histogramSize.heightDp.dp)
-            .glass(RoundedCornerShape(12.dp)),
+            .glass(RectangleShape),
     ) {
         fun channel(offset: Int): IntArray =
             if (bins.size >= offset + 64) bins.copyOfRange(offset, offset + 64) else bins.copyOfRange(0, minOf(64, bins.size))

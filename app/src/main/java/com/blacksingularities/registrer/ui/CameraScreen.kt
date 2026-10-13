@@ -24,7 +24,7 @@ import com.blacksingularities.registrer.ui.theme.BlockShape
 import com.blacksingularities.registrer.ui.theme.GlassValueButton
 import com.blacksingularities.registrer.ui.theme.GlassToolbar
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import com.blacksingularities.registrer.ui.components.QuickControl
 import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.GraphicEq
@@ -112,6 +112,7 @@ import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material.icons.rounded.Timer
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -353,6 +354,8 @@ fun CameraScreen(vm: CameraViewModel, onToggleRearDisplay: () -> Unit = {}) {
             caps = vm.caps,
             locked = vm.busy,
             update = vm.update,
+            landscape = vm.deviceRotation % 180 != 0,
+            rotation = iconRotation,
             onProfile = { m, t -> vm.updateProfile(m, t) },
             onGlobal = vm::updateGlobal,
             onReset = vm::resetProfile,
@@ -597,7 +600,13 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
             FrameInfo(ui)
         }
 
-        // Przeciągane nakładki: histogram, pasek parametrów, kompas – pozycje zapamiętywane.
+        // Przytrzymanie pozwala przeciągnąć nakładkę; kosz usuwa ją z kadru.
+        var overlayDragging by remember { mutableStateOf(false) }
+        var overlayOverTrash by remember { mutableStateOf(false) }
+        val dragState: (Boolean, Boolean) -> Unit = { dragging, overTrash ->
+            overlayDragging = dragging
+            overlayOverTrash = overTrash
+        }
         val bins = vm.histogram
         if (bins != null && vm.cfg.histogram && vm.mode.isPhoto) {
             DraggableOverlay(
@@ -607,6 +616,8 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
                 rotation = ui.iconRotation,
                 haptics = ui.haptics,
                 onCommit = { p -> vm.updateGlobal { it.copy(histogramX = p.x, histogramY = p.y) } },
+                onDragState = dragState,
+                onDelete = { vm.updateProfile { it.copy(histogram = false) } },
             ) {
                 // Dotknięcie przełącza tryb: jasność ↔ RGB.
                 HistogramView(
@@ -632,6 +643,8 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
                 rotation = ui.iconRotation,
                 haptics = ui.haptics,
                 onCommit = { p -> vm.updateGlobal { it.copy(stripX = p.x, stripY = p.y) } },
+                onDragState = dragState,
+                onDelete = { vm.updateGlobal { it.copy(exposureInfo = false) } },
             ) { ExposureStrip(vm) }
         }
         if (vm.global.compass && vm.mode != CaptureMode.AUDIO) {
@@ -642,7 +655,35 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
                 rotation = ui.iconRotation,
                 haptics = ui.haptics,
                 onCommit = { p -> vm.updateGlobal { it.copy(compassX = p.x, compassY = p.y) } },
+                onDragState = dragState,
+                onDelete = { vm.updateGlobal { it.copy(compass = false) } },
             ) { CompassTape() }
+        }
+
+        AnimatedVisibility(
+            visible = overlayDragging,
+            enter = fadeIn(tween(100)) + scaleIn(initialScale = 0.8f),
+            exit = fadeOut(tween(120)) + scaleOut(targetScale = 0.8f),
+            modifier = Modifier.offset {
+                IntOffset(
+                    (overlayArea.center.x - with(density) { 27.dp.toPx() }).roundToInt(),
+                    (overlayArea.bottom - with(density) { 66.dp.toPx() }).roundToInt(),
+                )
+            },
+        ) {
+            Box(
+                Modifier
+                    .size(54.dp)
+                    .graphicsLayer {
+                        rotationZ = ui.iconRotation
+                        scaleX = if (overlayOverTrash) 1.16f else 1f
+                        scaleY = if (overlayOverTrash) 1.16f else 1f
+                    }
+                    .glass(CircleShape, active = overlayOverTrash),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(Icons.Rounded.Delete, "Usuń nakładkę", tint = if (overlayOverTrash) Palette.Ink else Color.White)
+            }
         }
 
         Box(Modifier.fillMaxSize().graphicsLayer { alpha = flashAlpha.value }.background(Color.Black))
@@ -662,6 +703,8 @@ private fun DraggableOverlay(
     rotation: Float,
     haptics: Boolean,
     onCommit: (Offset) -> Unit,
+    onDragState: (Boolean, Boolean) -> Unit,
+    onDelete: () -> Unit,
     content: @Composable () -> Unit,
 ) {
     val density = LocalDensity.current
@@ -675,6 +718,8 @@ private fun DraggableOverlay(
     val availW by rememberUpdatedState((rect.width - boxW - 2 * margin).coerceAtLeast(1f))
     val availH by rememberUpdatedState((rect.height - boxH - 2 * margin).coerceAtLeast(1f))
     val commit by rememberUpdatedState(onCommit)
+    val dragState by rememberUpdatedState(onDragState)
+    val delete by rememberUpdatedState(onDelete)
     val turnNow by rememberUpdatedState(turn)
     var upright by remember { mutableStateOf(start) }
     var dragPos by remember { mutableStateOf<Offset?>(null) }
@@ -695,27 +740,40 @@ private fun DraggableOverlay(
             }
             .size(with(density) { boxW.toDp() }, with(density) { boxH.toDp() })
             .pointerInput(Unit) {
-                detectDragGestures(
+                detectDragGesturesAfterLongPress(
                     onDragStart = {
                         dragPos = uprightToScreen(upright, turnNow)
+                        dragState(true, false)
                         if (haptics) haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                     },
                     onDragEnd = {
-                        val p = dragPos ?: return@detectDragGestures
+                        val p = dragPos ?: return@detectDragGesturesAfterLongPress
+                        if (isOverOverlayTrash(p, rect, margin, availW, availH, boxW, boxH, density)) {
+                            dragPos = null
+                            dragState(false, false)
+                            if (haptics) haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                            delete()
+                            return@detectDragGesturesAfterLongPress
+                        }
                         val snapped = snapUpright(screenToUpright(p, turnNow))
                         upright = snapped
                         dragPos = null
+                        dragState(false, false)
                         if (haptics) haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
                         commit(snapped)
                     },
-                    onDragCancel = { dragPos = null },
+                    onDragCancel = {
+                        dragPos = null
+                        dragState(false, false)
+                    },
                 ) { change, drag ->
                     change.consume()
-                    val p = dragPos ?: return@detectDragGestures
+                    val p = dragPos ?: return@detectDragGesturesAfterLongPress
                     dragPos = Offset(
                         (p.x + drag.x / availW).coerceIn(0f, 1f),
                         (p.y + drag.y / availH).coerceIn(0f, 1f),
                     )
+                    dragState(true, isOverOverlayTrash(dragPos!!, rect, margin, availW, availH, boxW, boxH, density))
                 }
             },
         contentAlignment = Alignment.Center,
@@ -731,6 +789,21 @@ private fun DraggableOverlay(
                 },
         ) { content() }
     }
+}
+
+private fun isOverOverlayTrash(
+    p: Offset,
+    rect: Rect,
+    margin: Float,
+    availW: Float,
+    availH: Float,
+    boxW: Float,
+    boxH: Float,
+    density: androidx.compose.ui.unit.Density,
+): Boolean {
+    val center = Offset(rect.left + margin + p.x * availW + boxW / 2f, rect.top + margin + p.y * availH + boxH / 2f)
+    val trash = Offset(rect.center.x, rect.bottom - with(density) { 39.dp.toPx() })
+    return (center - trash).getDistance() <= with(density) { 48.dp.toPx() }
 }
 
 /** Obrót punktu (0–1) wokół środka o wielokrotność 90° (zgodnie z ruchem wskazówek). */
@@ -915,6 +988,11 @@ private fun CaptureTools(ui: Ui) {
             focusLabel = vm.pro.focusDiopters?.let { com.blacksingularities.registrer.ui.components.formatFocus(it) },
             onToggleFocus = vm::toggleRockerFocus,
             onFocusRate = vm::nudgeFocus,
+            evAvailable = vm.mode == CaptureMode.PRO && vm.evMax > vm.evMin,
+            evMode = vm.rockerEv,
+            evLabel = String.format(java.util.Locale.US, "%+.1f EV", vm.evIndex * vm.evStep).replace('.', ','),
+            onToggleEv = vm::toggleRockerEv,
+            onEvRate = vm::nudgeEv,
         )
     }
     ModeDial(
@@ -1083,7 +1161,7 @@ private fun ShutterCluster(ui: Ui) {
             size = 48.dp,
             onClick = vm::togglePause,
         )
-        !isAudio && vm.caps.hasFront && vm.caps.hasBack && !vm.rearDisplayActive -> {
+        !isAudio && vm.mode != CaptureMode.SLOWMO && vm.caps.hasFront && vm.caps.hasBack && !vm.rearDisplayActive -> {
             val spin by animateFloatAsState(
                 if (vm.lensFacing == CameraSelector.LENS_FACING_FRONT) 180f else 0f,
                 tween(420),
@@ -1201,8 +1279,27 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
                         onPick = { i -> vm.setVideoResolution(vm.caps.videoResolutions[i]) },
                         onClick = vm::cycleVideoResolution,
                     )
+                } else {
+                    val resolutions = vm.slowMoResolutions()
+                    val current = vm.effectiveSlowMoResolution
+                    val (resValue, resUnit) = resolutionGlyph(current)
+                    GlassValueButton(
+                        resValue,
+                        resUnit,
+                        "Slow-motion ${current.label}",
+                        rot,
+                        active = true,
+                        enabled = !vm.busy && resolutions.size > 1,
+                        options = resolutions.map { r ->
+                            val (v, u) = resolutionGlyph(r)
+                            PickerOption("Slow-motion ${r.label}", value = v, caption = u)
+                        },
+                        selected = resolutions.indexOf(current),
+                        onPick = { i -> vm.setSlowMoResolution(resolutions[i]) },
+                        onClick = vm::cycleVideoResolution,
+                    )
                 }
-                val slowFps = vm.caps.slowMoRanges.map { it.upper }.distinct().sorted()
+                val slowFps = vm.slowMoFpsOptions()
                 val fpsChoices = if (vm.mode == CaptureMode.SLOWMO) slowFps.size else vm.videoFpsOptions().size
                 val autoFps = vm.mode == CaptureMode.VIDEO && cfg.videoFps == com.blacksingularities.registrer.data.VideoFps.AUTO
                 val fpsNumber = vm.fpsLabel.removeSuffix(" kl/s").removePrefix("Auto").trim()
@@ -1221,7 +1318,7 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
                             else PickerOption("Klatkaż ${f.fps} kl/s", value = "${f.fps}", caption = "kl/s")
                         }
                     },
-                    selected = if (vm.mode == CaptureMode.SLOWMO) slowFps.indexOf(cfg.slowMoFps).let { if (it < 0) slowFps.lastIndex else it }
+                    selected = if (vm.mode == CaptureMode.SLOWMO) slowFps.indexOf(cfg.slowMoFps).coerceAtLeast(0)
                         else vm.videoFpsOptions().indexOf(cfg.videoFps),
                     onPick = { i ->
                         if (vm.mode == CaptureMode.SLOWMO) vm.setSlowMoFps(slowFps[i]) else vm.setVideoFps(vm.videoFpsOptions()[i])
@@ -1391,7 +1488,8 @@ private fun ExposureStrip(vm: CameraViewModel, modifier: Modifier = Modifier) {
 private fun resolutionText(vm: CameraViewModel): String {
     val size = vm.session.outputSize
     return if (vm.mode.isVideo) {
-        val lines = size?.let { minOf(it.width, it.height) } ?: when (vm.cfg.videoResolution) {
+        val requested = if (vm.mode == CaptureMode.SLOWMO) vm.effectiveSlowMoResolution else vm.cfg.videoResolution
+        val lines = size?.let { minOf(it.width, it.height) } ?: when (requested) {
             com.blacksingularities.registrer.data.VideoResolution.UHD -> 2160
             com.blacksingularities.registrer.data.VideoResolution.FHD -> 1080
             com.blacksingularities.registrer.data.VideoResolution.HD -> 720
@@ -1476,12 +1574,13 @@ private fun GridButton(vm: CameraViewModel, rotation: Float) {
             expanded = open,
             onDismissRequest = { open = false },
             modifier = Modifier.rotatedLayout(rotation),
-            containerColor = Palette.PanelHigh.copy(alpha = 0.9f),
-            shape = RoundedCornerShape(18.dp),
+            containerColor = Color.Transparent,
+            shape = RoundedCornerShape(14.dp),
         ) {
             GridType.entries.forEach { g ->
                 val on = g in grids
                 DropdownMenuItem(
+                    modifier = Modifier.padding(vertical = 1.dp).clip(RoundedCornerShape(14.dp)).background(Color.Black.copy(alpha = 0.58f)),
                     text = { Text(g.label, color = if (on) Palette.Amber else Color.White, fontWeight = if (on) FontWeight.Bold else FontWeight.Normal) },
                     leadingIcon = {
                         Icon(
@@ -1495,6 +1594,7 @@ private fun GridButton(vm: CameraViewModel, rotation: Float) {
             }
             if (grids.isNotEmpty()) {
                 DropdownMenuItem(
+                    modifier = Modifier.padding(vertical = 1.dp).clip(RoundedCornerShape(14.dp)).background(Color.Black.copy(alpha = 0.58f)),
                     text = { Text("Wyłącz wszystkie", color = Palette.TextDim) },
                     leadingIcon = { Icon(Icons.Rounded.Close, null, tint = Palette.TextDim) },
                     onClick = {

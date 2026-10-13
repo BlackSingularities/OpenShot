@@ -55,8 +55,8 @@ import kotlin.math.roundToInt
 
 /**
  * Najważniejsze ustawienie bieżącego trybu – zawsze na ekranie. Szklana kapsuła z ikoną,
- * wartością i podziałką: przeciągnij lub dotknij podziałki, by wybrać wartość. Przytrzymanie
- * ikony pokazuje nazwę, dotknięcie ikony przywraca wartość domyślną ([defaultIndex]).
+ * Domyślnie pokazuje samą ikonę; dotknięcie rozwija wartość i podziałkę. Ponowne dotknięcie
+ * ikony zwija regulator.
  */
 @Composable
 fun QuickControl(
@@ -83,6 +83,17 @@ fun QuickControl(
     )
     val glow by animateFloatAsState(if (dragging) 1f else 0f, tween(160), label = "quickGlow")
     val isDefault = defaultIndex != null && current == defaultIndex
+    var expanded by remember { mutableStateOf(false) }
+
+    if (!expanded) {
+        Box(
+            modifier.size(42.dp).reactive(label, enabled, onClick = { expanded = true }).glass(BlockShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(icon, label, tint = if (isDefault) Color.White else Palette.Amber, modifier = Modifier.size(19.dp).graphicsLayer { rotationZ = rotation })
+        }
+        return
+    }
 
     Row(
         modifier
@@ -94,7 +105,7 @@ fun QuickControl(
         Box(
             Modifier
                 .size(34.dp)
-                .reactive(label, enabled) { defaultIndex?.let { if (it != current) select(it) } }
+                .reactive("Zwiń: $label", enabled) { expanded = false }
                 .glass(BlockShape, active = !isDefault),
             contentAlignment = Alignment.Center,
         ) {

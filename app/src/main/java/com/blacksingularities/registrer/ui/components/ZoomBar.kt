@@ -33,6 +33,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Exposure
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -281,15 +282,21 @@ fun ZoomControls(
     focusLabel: String? = null,
     onToggleFocus: () -> Unit = {},
     onFocusRate: (rate: Float, dt: Float) -> Unit = { _, _ -> },
+    evAvailable: Boolean = false,
+    evMode: Boolean = false,
+    evLabel: String = "0,0 EV",
+    onToggleEv: () -> Unit = {},
+    onEvRate: (rate: Float, dt: Float) -> Unit = { _, _ -> },
 ) {
     val focusing = focusAvailable && focusMode
+    val adjustingEv = evAvailable && evMode
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         AnimatedContent(
-            targetState = focusing,
+            targetState = when { focusing -> 1; adjustingEv -> 2; else -> 0 },
             transitionSpec = { (fadeIn(tween(160)) + scaleIn(initialScale = 0.9f)) togetherWith fadeOut(tween(120)) },
             label = "zoomOrFocus",
-        ) { f ->
-            if (f) {
+        ) { control ->
+            if (control != 0) {
                 Row(
                     Modifier
                         .heightIn(min = 48.dp)
@@ -297,9 +304,9 @@ fun ZoomControls(
                         .padding(horizontal = 16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Icon(Icons.Rounded.CenterFocusStrong, null, tint = activeContent(), modifier = Modifier.size(18.dp).graphicsLayer { rotationZ = iconRotation })
+                    Icon(if (control == 1) Icons.Rounded.CenterFocusStrong else Icons.Rounded.Exposure, null, tint = activeContent(), modifier = Modifier.size(18.dp).graphicsLayer { rotationZ = iconRotation })
                     Text(
-                        "  Ostrość  " + (focusLabel ?: "AF"),
+                        if (control == 1) "  Ostrość  " + (focusLabel ?: "AF") else "  Ekspozycja  $evLabel",
                         color = activeContent(),
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
@@ -310,7 +317,7 @@ fun ZoomControls(
                 LensSelector(presets, current, iconRotation, haptics, onPreset)
             }
         }
-        if (max - min > 0.05f || focusAvailable) {
+        if (max - min > 0.05f || focusAvailable || evAvailable) {
             Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (focusing) {
                     ZoomRocker(
@@ -321,6 +328,14 @@ fun ZoomControls(
                         leftLabel = "Bliżej",
                         rightIcon = Icons.Rounded.Landscape,
                         rightLabel = "Dalej",
+                    )
+                } else if (adjustingEv) {
+                    ZoomRocker(
+                        enabled = true,
+                        haptics = haptics,
+                        onRate = onEvRate,
+                        leftLabel = "Ciemniej",
+                        rightLabel = "Jaśniej",
                     )
                 } else {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -344,6 +359,17 @@ fun ZoomControls(
                         size = 36.dp,
                         active = focusMode,
                         onClick = onToggleFocus,
+                    )
+                }
+                if (evAvailable) {
+                    Spacer(Modifier.width(6.dp))
+                    GlassIconButton(
+                        Icons.Rounded.Exposure,
+                        if (evMode) "Suwak EV – dotknij, by wrócić do zoomu" else "Suwak steruje EV",
+                        iconRotation,
+                        size = 36.dp,
+                        active = evMode,
+                        onClick = onToggleEv,
                     )
                 }
             }

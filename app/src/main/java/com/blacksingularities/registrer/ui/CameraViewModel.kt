@@ -189,7 +189,11 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     private val cropAllowed get() = (mode == CaptureMode.PHOTO || mode == CaptureMode.PRO) && session.extension == null
     val displayZoom: Float get() = zoomCurrent * zoomScale * cropZoom
     val displayZoomMin: Float
-        get() = minOf(zoomMin * zoomScale, caps.auxLenses.minOfOrNull { it.factor } ?: Float.MAX_VALUE, caps.lensZooms.minOrNull() ?: 1f)
+        get() = if (mode == CaptureMode.SLOWMO) zoomMin else minOf(
+            zoomMin * zoomScale,
+            caps.auxLenses.minOfOrNull { it.factor } ?: Float.MAX_VALUE,
+            caps.lensZooms.minOrNull() ?: 1f,
+        )
     val displayZoomMax: Float get() = if (cropAllowed) MAX_DIGITAL_ZOOM else maxOf(zoomMax * zoomScale, caps.maxZoom)
 
     val effectiveAspect: AspectRatioMode
@@ -198,7 +202,8 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     val availableModes: List<CaptureMode>
         get() = CaptureMode.entries.filter {
             when (it) {
-                CaptureMode.SLOWMO -> caps.slowMo
+                CaptureMode.SLOWMO -> capsCache[CameraSelector.LENS_FACING_BACK]?.slowMo
+                    ?: (lensFacing == CameraSelector.LENS_FACING_BACK && caps.slowMo)
                 CaptureMode.PORTRAIT -> true // bez rozszerzenia producenta działa programowy bokeh
                 else -> true
             }
@@ -207,7 +212,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     /** Presety zoomu odpowiadające obiektywom (+ cyfrowe 2× i 10×, jeśli brak tele). */
     val zoomPresets: List<Float>
         get() {
-            val lenses = caps.lensZooms.ifEmpty { listOf(1f) }.toMutableList()
+            val lenses = if (mode == CaptureMode.SLOWMO) mutableListOf(1f) else caps.lensZooms.ifEmpty { listOf(1f) }.toMutableList()
             if (mode != CaptureMode.SLOWMO) lenses += caps.auxLenses.map { it.factor }
             val max = caps.maxZoom
             if (lenses.none { it > 1.4f } && max >= 2f) lenses += 2f
@@ -238,6 +243,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     suspend fun bind(owner: LifecycleOwner, surfaceProvider: Preview.SurfaceProvider) {
         stopMomentBuffer()
         cameraReady = false
+        session = ActiveSession()
         cropZoom = 1f
         hud = null
         histogram = null
@@ -272,9 +278,9 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
             }
             val cam = engine.camera ?: return
             val zs = cam.cameraInfo.zoomState.value
-            zoomMin = zs?.minZoomRatio ?: 1f
+            zoomMin = if (mode == CaptureMode.SLOWMO) maxOf(1f, zs?.minZoomRatio ?: 1f) else zs?.minZoomRatio ?: 1f
             zoomMax = zs?.maxZoomRatio ?: 1f
-            zoomTarget = zoomTarget.coerceIn(zoomMin, zoomMax)
+            zoomTarget = if (mode == CaptureMode.SLOWMO) 1f.coerceIn(zoomMin, zoomMax) else zoomTarget.coerceIn(zoomMin, zoomMax)
             zoomCurrent = zoomTarget
             engine.setZoom(zoomCurrent)
             val es = cam.cameraInfo.exposureState
@@ -329,13 +335,19 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         stopPlayback()
         timerJob?.cancel()
         countdown = null
+        if (m == CaptureMode.SLOWMO) {
+            lensFacing = CameraSelector.LENS_FACING_BACK
+            activeCameraId = null
+            zoomTarget = 1f
+            cropZoom = 1f
+        }
         mode = m
         if (m == CaptureMode.AUDIO) refreshRecordings()
         updateGlobal { it.copy(lastMode = m) }
     }
 
     fun switchLens() {
-        if (busy) return
+        if (busy || mode == CaptureMode.SLOWMO) return
         val next = if (lensFacing == CameraSelector.LENS_FACING_BACK) CameraSelector.LENS_FACING_FRONT else CameraSelector.LENS_FACING_BACK
         if (next == CameraSelector.LENS_FACING_FRONT && !caps.hasFront) return
         if (next == CameraSelector.LENS_FACING_BACK && !caps.hasBack) return
@@ -373,7 +385,17 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         if (!busy) updateProfile { it.copy(videoFps = f) }
     }
     fun setSlowMoFps(fps: Int) {
-        if (!busy) updateProfile { it.copy(slowMoFps = fps) }
+        if (!busy && fps in slowMoFpsOptions()) updateProfile { it.copy(slowMoFps = fps) }
+    }
+    fun setSlowMoResolution(resolution: com.blacksingularities.registrer.data.VideoResolution) {
+        if (busy || resolution !in slowMoResolutions()) return
+        val fps = slowMoFpsOptions(resolution)
+        updateProfile { current ->
+            current.copy(
+                slowMoResolution = resolution,
+                slowMoFps = current.slowMoFps.takeIf { it in fps } ?: fps.minOrNull() ?: current.slowMoFps,
+            )
+        }
     }
     fun setVideoHdr(on: Boolean) {
         if (!busy) updateProfile { it.copy(videoHdr = on) }
@@ -391,18 +413,25 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
 
     fun cycleVideoResolution() {
         if (busy) return
-        val all = caps.videoResolutions
-        updateProfile { s -> s.copy(videoResolution = all[(all.indexOf(s.videoResolution) + 1).mod(all.size)]) }
+        if (mode == CaptureMode.SLOWMO) {
+            val all = slowMoResolutions()
+            if (all.isEmpty()) return
+            val current = effectiveSlowMoResolution
+            setSlowMoResolution(all[(all.indexOf(current).coerceAtLeast(0) + 1).mod(all.size)])
+        } else {
+            val all = caps.videoResolutions
+            updateProfile { s -> s.copy(videoResolution = all[(all.indexOf(s.videoResolution) + 1).mod(all.size)]) }
+        }
     }
 
     /** Klatkaż: w Wideo Auto/24/30/60 (obsługiwane), w Slow-mo dostępne prędkości wysokoklatkowe. */
     fun cycleVideoFps() {
         if (busy) return
         if (mode == CaptureMode.SLOWMO) {
-            val all = caps.slowMoRanges.map { it.upper }.distinct().sorted()
+            val all = slowMoFpsOptions()
             if (all.isEmpty()) return
             updateProfile { s ->
-                val current = if (s.slowMoFps in all) s.slowMoFps else all.last()
+                val current = if (s.slowMoFps in all) s.slowMoFps else all.first()
                 s.copy(slowMoFps = all[(all.indexOf(current) + 1).mod(all.size)])
             }
         } else {
@@ -419,12 +448,25 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    fun slowMoResolutions(): List<com.blacksingularities.registrer.data.VideoResolution> = caps.slowMoProfiles
+        .map { it.resolution }
+        .distinct()
+        .sortedBy { it.ordinal }
+
+    val effectiveSlowMoResolution: com.blacksingularities.registrer.data.VideoResolution
+        get() = cfg.slowMoResolution.takeIf { it in slowMoResolutions() }
+            ?: slowMoResolutions().firstOrNull()
+            ?: cfg.slowMoResolution
+
+    fun slowMoFpsOptions(resolution: com.blacksingularities.registrer.data.VideoResolution = effectiveSlowMoResolution): List<Int> =
+        caps.slowMoProfiles.filter { it.resolution == resolution }.map { it.fps }.distinct().sorted()
+
     /** Etykieta klatkażu na pasku: rzeczywista wartość po związaniu albo wybór użytkownika. */
     val fpsLabel: String
         get() = when {
             mode == CaptureMode.SLOWMO -> {
-                val all = caps.slowMoRanges.map { it.upper }
-                val fps = if (cfg.slowMoFps in all) cfg.slowMoFps else all.maxOrNull() ?: 0
+                val all = slowMoFpsOptions()
+                val fps = if (cfg.slowMoFps in all) cfg.slowMoFps else all.minOrNull() ?: 0
                 "$fps kl/s"
             }
             cfg.videoFps == VideoFps.AUTO -> if (session.fps > 0) "${session.fps} kl/s" else "Auto kl/s"
@@ -444,17 +486,36 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Pro: suwak pod obiektywami steruje ręczną ostrością zamiast zoomem. */
     var rockerFocus by mutableStateOf(false); private set
+    var rockerEv by mutableStateOf(false); private set
+    private var rockerEvValue = 0f
     private var lastFocusApply = 0L
 
     val focusAvailable: Boolean get() = mode == CaptureMode.PRO && caps.minFocusDistance > 0f && session.extension == null
 
     fun toggleRockerFocus() {
         rockerFocus = !rockerFocus && focusAvailable
+        if (rockerFocus) rockerEv = false
         if (rockerFocus && pro.focusDiopters == null) {
             // Start od bieżącej odległości ostrzenia z autofokusa, by obraz nie „skoczył”.
             val start = (hud?.focusDiopters ?: 0f).coerceIn(0f, caps.minFocusDistance)
             updatePro(pro.copy(focusDiopters = start))
         }
+    }
+
+    fun toggleRockerEv() {
+        if (mode != CaptureMode.PRO || evMax <= evMin) return
+        rockerEv = !rockerEv
+        if (rockerEv) {
+            rockerFocus = false
+            rockerEvValue = evIndex.toFloat()
+        }
+    }
+
+    fun nudgeEv(rate: Float, dtSeconds: Float) {
+        if (rate == 0f || evMax <= evMin) return
+        rockerEvValue = (rockerEvValue + rate * dtSeconds * (evMax - evMin) * 0.7f).coerceIn(evMin.toFloat(), evMax.toFloat())
+        val target = rockerEvValue.roundToInt().coerceIn(evMin, evMax)
+        if (target != evIndex) setEv(target)
     }
 
     /**

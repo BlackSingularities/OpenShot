@@ -178,7 +178,10 @@ class CameraEngine(private val context: Context) {
      */
     private fun auxLenses(p: ProcessCameraProvider, primary: CameraInfo, facing: Int): Pair<List<AuxLens>, String> {
         val primaryId = cameraIdOf(primary)
-        val primaryFocal = equivalentFocal(primary)
+        // Aparat logiczny często zwraca listę ogniskowych wszystkich sensorów, ale rozmiar
+        // matrycy tylko głównego. Jego „najkrótsza ogniskowa” daje wtedy fałszywe 0,6×.
+        // Za punkt 1× bierzemy fizyczny sensor najbliższy typowemu głównemu obiektywowi 24 mm.
+        val primaryFocal = primaryReferenceFocal(primary)
         val physicalIds = runCatching { primary.physicalCameraInfos.mapNotNull { cameraIdOf(it) } }.getOrDefault(emptyList()).toSet()
         val all = runCatching { p.availableCameraInfos }.getOrDefault(emptyList())
             .filter { runCatching { it.lensFacing }.getOrNull() == facing }
@@ -264,14 +267,13 @@ class CameraEngine(private val context: Context) {
         val c2 = Camera2CameraInfo.from(info)
         fun <T> ch(key: CameraCharacteristics.Key<T>): T? = runCatching { c2.getCameraCharacteristic(key) }.getOrNull()
 
-        val formats = runCatching { ImageCapture.getImageCaptureCapabilities(info).supportedOutputFormats }.getOrDefault(emptySet())
         val primaryFormats = photoFormatsOf(info)
 
         // Część telefonów zgłasza RAW dopiero dla fizycznego sensora aparatu logicznego albo
         // dla osobnego CameraId. Szukamy takiej trasy i preferujemy sensor o ogniskowej 1×.
         data class RawRoute(val id: String, val physical: Boolean, val factor: Float, val formats: Set<PhotoFormat>)
         val primaryId = cameraIdOf(info)
-        val primaryFocal = equivalentFocal(info)
+        val primaryFocal = primaryReferenceFocal(info)
         val physicalIds = runCatching { info.physicalCameraInfos.mapNotNull { cameraIdOf(it) } }.getOrDefault(emptyList()).toSet()
         val rawRoutes = mutableListOf<RawRoute>()
         runCatching { info.physicalCameraInfos }.getOrDefault(emptySet()).forEach { candidate ->
@@ -303,21 +305,29 @@ class CameraEngine(private val context: Context) {
         val stab = runCatching { videoCaps?.isStabilizationSupported == true }.getOrDefault(false)
         val fpsRanges = runCatching { info.supportedFrameRateRanges }.getOrDefault(emptySet())
 
-        val slowRanges = runCatching {
-            if (Recorder.getHighSpeedVideoCapabilities(info) == null) {
-                emptyList()
-            } else {
-                val probeVc = VideoCapture.withOutput(Recorder.Builder().build())
-                val cfg = HighSpeedVideoSessionConfig(probeVc, Preview.Builder().build())
-                info.getSupportedFrameRateRanges(cfg)
-                    .filter { it.lower == it.upper && it.upper >= 120 }
-                    .distinctBy { it.upper }
-                    .sortedBy { it.upper }
+        // High-speed capabilities depend on the selected quality. Query every advertised quality;
+        // asking only with Recorder's default quality hides valid 120/240-fps combinations.
+        val slowProfiles = runCatching {
+            val hsCaps = Recorder.getHighSpeedVideoCapabilities(info) ?: return@runCatching emptyList()
+            val candidates = mutableListOf<SlowMoProfile>()
+            hsCaps.getSupportedQualities(DynamicRange.SDR).forEach { quality ->
+                val resolution = videoResolutionOf(quality) ?: return@forEach
+                runCatching {
+                    val recorder = Recorder.Builder().setQualitySelector(QualitySelector.from(quality)).build()
+                    val capture = VideoCapture.withOutput(recorder)
+                    val config = HighSpeedVideoSessionConfig(capture, Preview.Builder().build(), isSlowMotionEnabled = true)
+                    info.getSupportedFrameRateRanges(config)
+                }.getOrDefault(emptySet())
+                    .filter { it.upper >= 120 }
+                    .forEach { candidates += SlowMoProfile(resolution, it) }
             }
+            candidates
+                .groupBy { it.resolution to it.fps }
+                .values
+                .mapNotNull { group -> group.minByOrNull { it.frameRate.upper - it.frameRate.lower } }
+                .sortedWith(compareBy<SlowMoProfile>({ it.resolution.ordinal }, { it.fps }))
         }.getOrDefault(emptyList())
-
-        val formatSummary = runCatching { formatDiagnostics(info, formats) }.getOrDefault("") +
-            (rawRoute?.let { "\nTrasa RAW CameraX: #${it.id}${if (it.physical) " (sensor fizyczny)" else ""} · ${String.format(java.util.Locale.US, "%.1f", it.factor)}×" } ?: "")
+        val slowRanges = slowProfiles.map { it.frameRate }.distinct()
         val presets = lensZooms(info)
         val aux = runCatching { auxLenses(p, info, facing) }.getOrDefault(emptyList<AuxLens>() to "")
 
@@ -355,58 +365,29 @@ class CameraEngine(private val context: Context) {
             fps60 = fpsRanges.any { it.upper >= 60 },
             fps24 = fpsRanges.any { it.lower <= 24 && it.upper >= 24 },
             slowMoRanges = slowRanges,
+            slowMoProfiles = slowProfiles,
             lowLightBoost = runCatching { info.isLowLightBoostSupported }.getOrDefault(false),
             lensZooms = presets,
             maxZoom = zoomRange(info).second,
             auxLenses = aux.first,
             cameraSummary = aux.second,
-            formatSummary = formatSummary,
             rawCameraId = rawRoute?.id,
             rawCameraPhysical = rawRoute?.physical == true,
             rawCameraFactor = rawRoute?.factor ?: 1f,
         )
     }
 
-    /**
-     * Diagnostyka formatów prosto z Camera2 (aparat główny i jego sensory fizyczne):
-     * zdolność RAW, strumienie RAW_SENSOR / RAW10 / RAW12, JPEG_R (Ultra HDR, Android 14+)
-     * i poziom sprzętowy – zestawione z tym, co faktycznie udostępnia CameraX.
-     */
-    private fun formatDiagnostics(info: CameraInfo, cameraXFormats: Set<Int>): String {
-        fun describe(c2: Camera2CameraInfo): String {
-            val caps = runCatching { c2.getCameraCharacteristic(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES) }.getOrNull()
-            val rawCap = caps?.contains(CameraCharacteristics.REQUEST_AVAILABLE_CAPABILITIES_RAW) == true
-            val map = runCatching { c2.getCameraCharacteristic(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP) }.getOrNull()
-            val out = runCatching { map?.outputFormats?.toSet() }.getOrNull().orEmpty()
-            val raws = buildList {
-                if (ImageFormat.RAW_SENSOR in out) add("RAW_SENSOR")
-                if (ImageFormat.RAW10 in out) add("RAW10")
-                if (ImageFormat.RAW12 in out) add("RAW12")
-                if (ImageFormat.RAW_PRIVATE in out) add("RAW_PRIVATE")
-            }
-            val jpegR = Build.VERSION.SDK_INT >= 34 && ImageFormat.JPEG_R in out
-            val level = when (runCatching { c2.getCameraCharacteristic(CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL) }.getOrNull()) {
-                CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_LEGACY -> "LEGACY"
-                CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_LIMITED -> "LIMITED"
-                CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_FULL -> "FULL"
-                CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_3 -> "LEVEL_3"
-                CameraCharacteristics.INFO_SUPPORTED_HARDWARE_LEVEL_EXTERNAL -> "EXTERNAL"
-                else -> "?"
-            }
-            return "poziom $level · zdolność RAW: ${if (rawCap) "tak" else "nie"} · strumienie RAW: " +
-                (raws.joinToString("/").ifEmpty { "brak" }) + " · JPEG_R: " + (if (jpegR) "tak" else "nie")
-        }
-        val sb = StringBuilder()
-        val main = Camera2CameraInfo.from(info)
-        sb.append("#").append(main.cameraId).append(": ").append(describe(main))
-        for (phys in runCatching { info.physicalCameraInfos }.getOrDefault(emptySet())) {
-            val c2 = runCatching { Camera2CameraInfo.from(phys) }.getOrNull() ?: continue
-            sb.append("\n  └ #").append(c2.cameraId).append(": ").append(describe(c2))
-        }
-        sb.append("\nCameraX: RAW ").append(if (ImageCapture.OUTPUT_FORMAT_RAW in cameraXFormats) "tak" else "nie")
-        sb.append(" · Ultra HDR ").append(if (ImageCapture.OUTPUT_FORMAT_JPEG_ULTRA_HDR in cameraXFormats) "tak" else "nie")
-        if (Build.VERSION.SDK_INT < 34) sb.append(" (Ultra HDR wymaga Androida 14, ten ma API ").append(Build.VERSION.SDK_INT).append(")")
-        return sb.toString()
+    private fun videoResolutionOf(quality: Quality): VideoResolution? = when (quality) {
+        Quality.UHD -> VideoResolution.UHD
+        Quality.FHD -> VideoResolution.FHD
+        Quality.HD -> VideoResolution.HD
+        else -> null
+    }
+
+    private fun qualityOf(resolution: VideoResolution): Quality = when (resolution) {
+        VideoResolution.UHD -> Quality.UHD
+        VideoResolution.FHD -> Quality.FHD
+        VideoResolution.HD -> Quality.HD
     }
 
     /** Ekwiwalent ogniskowej 35 mm dla danego obiektywu. */
@@ -421,6 +402,11 @@ class CameraEngine(private val context: Context) {
         return focal * 43.27f / diagonal
     }
 
+    /** Ogniskowa sensora odpowiadającego 1×; aparat logiczny sam bywa opisany ogniskową ultra-wide. */
+    private fun primaryReferenceFocal(info: CameraInfo): Float? =
+        runCatching { info.physicalCameraInfos.mapNotNull(::equivalentFocal) }.getOrDefault(emptyList())
+            .minByOrNull { abs(it - 24f) } ?: equivalentFocal(info)
+
     /**
      * Krotności odpowiadające fizycznym obiektywom (szeroki kąt < 1×, główny 1×, tele > 1×).
      * Szeroki kąt nie jest „1”, tylko np. 0,6× – zgodnie z minimalnym zoomem urządzenia.
@@ -429,7 +415,7 @@ class CameraEngine(private val context: Context) {
         val (minZoom, maxZoom) = zoomRange(info)
         val result = mutableListOf(1f)
         if (minZoom < 0.95f) result += minZoom
-        val base = equivalentFocal(info)
+        val base = primaryReferenceFocal(info)
         if (base != null) {
             runCatching { info.physicalCameraInfos }.getOrDefault(emptySet()).forEach { phys ->
                 val f = equivalentFocal(phys) ?: return@forEach
@@ -517,13 +503,18 @@ class CameraEngine(private val context: Context) {
 
         when (req.mode) {
             CaptureMode.SLOWMO -> {
-                val range = caps.slowMoRanges.firstOrNull { it.upper == s.slowMoFps } ?: caps.slowMoRanges.lastOrNull()
+                val profiles = caps.slowMoProfiles
+                val resolution = s.slowMoResolution.takeIf { wanted -> profiles.any { it.resolution == wanted } }
+                    ?: profiles.firstOrNull()?.resolution
                     ?: error("Urządzenie nie obsługuje zwolnionego tempa")
+                val profile = profiles.firstOrNull { it.resolution == resolution && it.fps == s.slowMoFps }
+                    ?: profiles.filter { it.resolution == resolution }.minByOrNull { it.fps }
+                    ?: error("Brak klatkażu slow-motion dla ${resolution.label}")
+                val range = profile.frameRate
                 val info = p.getCameraInfo(base)
-                val hsQuality = Recorder.getHighSpeedVideoCapabilities(info)?.getSupportedQualities(DynamicRange.SDR)?.firstOrNull()
-                val recorder = Recorder.Builder().apply {
-                    if (hsQuality != null) setQualitySelector(QualitySelector.from(hsQuality))
-                }.build()
+                val recorder = Recorder.Builder()
+                    .setQualitySelector(QualitySelector.from(qualityOf(profile.resolution)))
+                    .build()
                 val vc = VideoCapture.withOutput(recorder)
                 val preview = Preview.Builder().setTargetRotation(displayRotation).build().also {
                     it.setSurfaceProvider(surfaceProvider)
@@ -563,7 +554,7 @@ class CameraEngine(private val context: Context) {
                     try {
                         p.unbindAll()
                         val recorder = Recorder.Builder()
-                            .setQualitySelector(QualitySelector.from(quality, FallbackStrategy.lowerQualityOrHigherThan(Quality.SD)))
+                            .setQualitySelector(QualitySelector.from(quality))
                             .apply { if (bitrate > 0) setTargetVideoEncodingBitRate(bitrate) }
                             .build()
                         val builder = VideoCapture.Builder(recorder).setMirrorMode(MirrorMode.MIRROR_MODE_ON_FRONT_ONLY)
