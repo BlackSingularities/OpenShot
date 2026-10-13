@@ -117,29 +117,47 @@ fun GridOverlay(types: Set<GridType>, ratio: Float, modifier: Modifier = Modifie
 }
 
 @Composable
-fun HistogramView(bins: IntArray, modifier: Modifier = Modifier) {
+fun HistogramView(
+    bins: IntArray,
+    modifier: Modifier = Modifier,
+    mode: com.blacksingularities.registrer.data.HistogramMode = com.blacksingularities.registrer.data.HistogramMode.LUMA,
+    histogramSize: com.blacksingularities.registrer.data.HistogramSize = com.blacksingularities.registrer.data.HistogramSize.MEDIUM,
+) {
     Canvas(
         modifier
-            .size(width = 112.dp, height = 52.dp)
+            .size(width = histogramSize.widthDp.dp, height = histogramSize.heightDp.dp)
             .glass(RoundedCornerShape(12.dp)),
     ) {
-        val maxV = bins.maxOrNull()?.coerceAtLeast(1) ?: 1
-        val path = Path()
-        val bw = size.width / bins.size
-        path.moveTo(0f, size.height)
-        bins.forEachIndexed { i, v ->
-            val hgt = sqrt(v.toFloat() / maxV) * (size.height - 6.dp.toPx())
-            path.lineTo(i * bw + bw / 2f, size.height - hgt)
+        fun channel(offset: Int): IntArray =
+            if (bins.size >= offset + 64) bins.copyOfRange(offset, offset + 64) else bins.copyOfRange(0, minOf(64, bins.size))
+        fun curve(data: IntArray, color: Color) {
+            val maxV = data.maxOrNull()?.coerceAtLeast(1) ?: 1
+            val path = Path()
+            val bw = size.width / data.size
+            path.moveTo(0f, size.height)
+            data.forEachIndexed { i, v ->
+                val hgt = sqrt(v.toFloat() / maxV) * (size.height - 6.dp.toPx())
+                path.lineTo(i * bw + bw / 2f, size.height - hgt)
+            }
+            path.lineTo(size.width, size.height)
+            path.close()
+            drawPath(path, color)
         }
-        path.lineTo(size.width, size.height)
-        path.close()
-        drawPath(path, Color.White.copy(alpha = 0.55f))
-        val total = bins.sum().coerceAtLeast(1)
-        if (bins.last() + bins[bins.size - 2] > total * 0.04f) {
-            drawRect(Palette.Coral, Offset(size.width - 4.dp.toPx(), 0f), Size(4.dp.toPx(), size.height))
+        val luma = channel(0)
+        if (mode == com.blacksingularities.registrer.data.HistogramMode.RGB && bins.size >= 256) {
+            curve(channel(64), Color(0x99FF4D4D))
+            curve(channel(128), Color(0x994DFF6A))
+            curve(channel(192), Color(0x994D8BFF))
+        } else {
+            curve(luma, Color.White.copy(alpha = 0.6f))
         }
-        if (bins[0] + bins[1] > total * 0.08f) {
-            drawRect(Palette.Moon, Offset(0f, 0f), Size(4.dp.toPx(), size.height))
+        // Prześwietlenia (prawa krawędź) i zgubione cienie (lewa).
+        val total = luma.sum().coerceAtLeast(1)
+        if (luma.last() + luma[luma.size - 2] > total * 0.04f) {
+            drawRect(Color.White, Offset(size.width - 3.dp.toPx(), 0f), Size(3.dp.toPx(), size.height))
+        }
+        if (luma[0] + luma[1] > total * 0.08f) {
+            drawRect(Color.Gray, Offset(0f, 0f), Size(3.dp.toPx(), size.height))
         }
     }
 }

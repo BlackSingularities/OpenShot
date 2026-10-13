@@ -1,5 +1,7 @@
 package com.blacksingularities.registrer.ui
 
+import com.blacksingularities.registrer.data.withGroup
+import com.blacksingularities.registrer.data.SharedGroup
 import com.blacksingularities.registrer.camera.isMoment
 import com.blacksingularities.registrer.camera.MomentMedia
 import kotlinx.coroutines.sync.withLock
@@ -85,9 +87,20 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
 
     // ---------------------------------------------------------------- ustawienia
     var global by mutableStateOf(store.loadGlobal()); private set
-    var profiles by mutableStateOf(store.loadAll()); private set
+    private var rawProfiles by mutableStateOf(store.loadAll())
+
+    /** Ustawienia wspólne (grupy [SharedGroup]) – obowiązują w trybach, które ich nie odłączyły. */
+    var shared by mutableStateOf(store.loadShared()); private set
+
+    /** Profil trybu z nałożonymi ustawieniami wspólnymi. */
+    fun effective(target: CaptureMode): ModeSettings {
+        val p = rawProfiles.getValue(target)
+        return SharedGroup.entries.fold(p) { acc, g -> if (g in p.custom) acc else acc.withGroup(g, shared) }
+    }
+
+    val profiles: Map<CaptureMode, ModeSettings> get() = CaptureMode.entries.associateWith { effective(it) }
     var mode by mutableStateOf(global.lastMode.takeIf { it != CaptureMode.SLOWMO } ?: CaptureMode.PHOTO); private set
-    val cfg: ModeSettings get() = profiles.getValue(mode)
+    val cfg: ModeSettings get() = effective(mode)
 
     var lensFacing by mutableIntStateOf(CameraSelector.LENS_FACING_BACK); private set
     var pro by mutableStateOf(ProSettings()); private set
@@ -268,13 +281,22 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     // ================================================================ ustawienia
 
     fun updateProfile(target: CaptureMode = mode, transform: (ModeSettings) -> ModeSettings) {
-        val next = transform(profiles.getValue(target))
-        profiles = profiles + (target to next)
+        val next = transform(effective(target))
+        // Zmiana w grupie wspólnej obowiązuje we wszystkich trybach, które jej nie odłączyły.
+        val nextShared = SharedGroup.entries.fold(shared) { acc, g -> if (g in next.custom) acc else acc.withGroup(g, next) }
+        if (nextShared != shared) {
+            shared = nextShared
+            store.saveShared(nextShared)
+        }
+        rawProfiles = rawProfiles + (target to next)
         store.save(target, next)
         if (target == mode) engine.applyFlash(next.flash, mode)
     }
 
-    fun resetProfile(target: CaptureMode) = updateProfile(target) { ModeSettings.defaultsFor(target) }
+    /** Domyślne dla trybu – grupy wspólne zostają nietknięte (reset nie zmienia innych trybów). */
+    fun resetProfile(target: CaptureMode) = updateProfile(target) {
+        SharedGroup.entries.fold(ModeSettings.defaultsFor(target)) { acc, g -> acc.withGroup(g, shared) }
+    }
 
     fun updateGlobal(transform: (GlobalSettings) -> GlobalSettings) {
         global = transform(global)
@@ -651,7 +673,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Automatyczna liczba klatek nocnych: im ciemniejsza scena (histogram, ISO), tym więcej klatek. */
     fun autoNightFrames(): Int {
-        val bins = histogram
+        val bins = histogram?.copyOfRange(0, 64)
         val mean = if (bins != null && bins.sum() > 0) {
             bins.indices.sumOf { it.toLong() * bins[it] }.toFloat() / bins.sum() / 63f
         } else {

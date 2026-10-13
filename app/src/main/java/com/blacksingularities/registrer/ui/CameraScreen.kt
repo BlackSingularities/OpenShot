@@ -27,11 +27,8 @@ import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.GraphicEq
 import androidx.compose.material.icons.rounded.Exposure
 import androidx.compose.material.icons.rounded.BlurOn
-import dev.chrisbanes.haze.rememberHazeState
-import dev.chrisbanes.haze.hazeSource
 import com.blacksingularities.registrer.ui.theme.reactive
 import com.blacksingularities.registrer.ui.theme.glass
-import com.blacksingularities.registrer.ui.theme.LocalHaze
 import com.blacksingularities.registrer.ui.theme.GlassScope
 import com.blacksingularities.registrer.ui.theme.GlassLevel
 import com.blacksingularities.registrer.ui.theme.GlassIconButton
@@ -201,8 +198,8 @@ fun CameraScreen(vm: CameraViewModel, onToggleRearDisplay: () -> Unit = {}) {
 
     val previewView = remember {
         PreviewView(context).apply {
-            // TextureView – tylko jego obraz można rozmyć pod szklanymi panelami.
-            implementationMode = PreviewView.ImplementationMode.COMPATIBLE
+            // SurfaceView – najwydajniejsza ścieżka podglądu.
+            implementationMode = PreviewView.ImplementationMode.PERFORMANCE
             scaleType = PreviewView.ScaleType.FIT_CENTER
         }
     }
@@ -301,9 +298,8 @@ fun CameraScreen(vm: CameraViewModel, onToggleRearDisplay: () -> Unit = {}) {
 
     val ui = Ui(vm, iconRotation, uprightTurn, displayDegrees, haptics, onSettings = { showSettings = true }, onFold = onToggleRearDisplay, freeze = freezeFrame)
 
-    val hazeState = rememberHazeState()
     BackHandler(enabled = showSettings) { showSettings = false }
-    GlassScope(haze = hazeState, haptics = haptics) {
+    GlassScope(haptics = haptics) {
         BoxWithConstraints(Modifier.fillMaxSize().background(Color.Black)) {
             val wide = maxWidth > maxHeight * 1.05f
             if (wide) WideLayout(ui, previewView) else TallLayout(ui, previewView)
@@ -485,7 +481,6 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
         val rect = imageRect(containerSize, ratio, centered)
 
         // Widok kamery zajmuje dokładnie prostokąt kadru – obraz jest wyśrodkowany.
-        val haze = LocalHaze.current
         // Zoom cyfrowy ponad maksimum aparatu: podgląd powiększany w obrębie kadru.
         val crop by animateFloatAsState(vm.cropZoom, tween(90), label = "crop")
         Box(
@@ -501,8 +496,7 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
                     .graphicsLayer {
                         scaleX = crop
                         scaleY = crop
-                    }
-                    .then(if (haze != null) Modifier.hazeSource(haze) else Modifier),
+                    },
             )
         }
 
@@ -576,15 +570,32 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
             DraggableOverlay(
                 rect = Rect(Offset.Zero, containerSize),
                 start = Offset(vm.global.histogramX, vm.global.histogramY),
+                turn = ui.uprightTurn,
                 rotation = ui.iconRotation,
                 haptics = ui.haptics,
                 onCommit = { p -> vm.updateGlobal { it.copy(histogramX = p.x, histogramY = p.y) } },
-            ) { HistogramView(bins) }
+            ) {
+                // Dotknięcie przełącza tryb: jasność ↔ RGB.
+                HistogramView(
+                    bins,
+                    Modifier.pointerInput(Unit) {
+                        detectTapGestures {
+                            vm.updateGlobal {
+                                val all = com.blacksingularities.registrer.data.HistogramMode.entries
+                                it.copy(histogramMode = all[(it.histogramMode.ordinal + 1) % all.size])
+                            }
+                        }
+                    },
+                    mode = vm.global.histogramMode,
+                    histogramSize = vm.global.histogramSize,
+                )
+            }
         }
         if (vm.global.exposureInfo && vm.mode != CaptureMode.AUDIO) {
             DraggableOverlay(
                 rect = Rect(Offset.Zero, containerSize),
                 start = Offset(vm.global.stripX, vm.global.stripY),
+                turn = ui.uprightTurn,
                 rotation = ui.iconRotation,
                 haptics = ui.haptics,
                 onCommit = { p -> vm.updateGlobal { it.copy(stripX = p.x, stripY = p.y) } },
@@ -594,6 +605,7 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
             DraggableOverlay(
                 rect = Rect(Offset.Zero, containerSize),
                 start = Offset(vm.global.compassX, vm.global.compassY),
+                turn = ui.uprightTurn,
                 rotation = ui.iconRotation,
                 haptics = ui.haptics,
                 onCommit = { p -> vm.updateGlobal { it.copy(compassX = p.x, compassY = p.y) } },
@@ -605,15 +617,15 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
 }
 
 /**
- * Nakładka do przeciągnięcia w dowolne miejsce kadru. Gest działa w nieobróconym układzie
- * (przed obrotem treści), a obszar chwytu zamienia szerokość z wysokością, gdy telefon jest
- * obrócony o 90° – przesuwanie jest naturalne w każdej orientacji i na każdym ekranie.
- * Pozycja jako ułamek kadru, więc pasuje po zmianie proporcji i ekranu folda.
+ * Nakładka do przeciągnięcia. Pozycja zapisywana jest tak, jak widzi ją trzymający telefon
+ * (0–1 w poziomie i pionie „do góry”), więc po obróceniu telefonu element zostaje np. na górze.
+ * Po upuszczeniu przyciąga się do krawędzi, rogów lub środka. Gest działa przed obrotem treści.
  */
 @Composable
 private fun DraggableOverlay(
     rect: Rect,
     start: Offset,
+    turn: Int,
     rotation: Float,
     haptics: Boolean,
     onCommit: (Offset) -> Unit,
@@ -630,34 +642,46 @@ private fun DraggableOverlay(
     val availW by rememberUpdatedState((rect.width - boxW - 2 * margin).coerceAtLeast(1f))
     val availH by rememberUpdatedState((rect.height - boxH - 2 * margin).coerceAtLeast(1f))
     val commit by rememberUpdatedState(onCommit)
-    var pos by remember { mutableStateOf(start) }
-    var dragging by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(if (dragging) 1.08f else 1f, spring(dampingRatio = 0.55f, stiffness = 600f), label = "dragScale")
+    val turnNow by rememberUpdatedState(turn)
+    var upright by remember { mutableStateOf(start) }
+    var dragPos by remember { mutableStateOf<Offset?>(null) }
+    val target = dragPos ?: uprightToScreen(upright, turn)
+    val shown by androidx.compose.animation.core.animateOffsetAsState(
+        target,
+        if (dragPos != null) androidx.compose.animation.core.snap() else spring(dampingRatio = 0.8f, stiffness = 400f),
+        label = "overlayPos",
+    )
+    val scale by animateFloatAsState(if (dragPos != null) 1.06f else 1f, spring(dampingRatio = 0.55f, stiffness = 600f), label = "dragScale")
     Box(
         Modifier
             .offset {
                 IntOffset(
-                    (rect.left + margin + pos.x * availW).roundToInt(),
-                    (rect.top + margin + pos.y * availH).roundToInt(),
+                    (rect.left + margin + shown.x * availW).roundToInt(),
+                    (rect.top + margin + shown.y * availH).roundToInt(),
                 )
             }
             .size(with(density) { boxW.toDp() }, with(density) { boxH.toDp() })
             .pointerInput(Unit) {
                 detectDragGestures(
                     onDragStart = {
-                        dragging = true
+                        dragPos = uprightToScreen(upright, turnNow)
                         if (haptics) haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                     },
                     onDragEnd = {
-                        dragging = false
-                        commit(pos)
+                        val p = dragPos ?: return@detectDragGestures
+                        val snapped = snapUpright(screenToUpright(p, turnNow))
+                        upright = snapped
+                        dragPos = null
+                        if (haptics) haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                        commit(snapped)
                     },
-                    onDragCancel = { dragging = false },
+                    onDragCancel = { dragPos = null },
                 ) { change, drag ->
                     change.consume()
-                    pos = Offset(
-                        (pos.x + drag.x / availW).coerceIn(0f, 1f),
-                        (pos.y + drag.y / availH).coerceIn(0f, 1f),
+                    val p = dragPos ?: return@detectDragGestures
+                    dragPos = Offset(
+                        (p.x + drag.x / availW).coerceIn(0f, 1f),
+                        (p.y + drag.y / availH).coerceIn(0f, 1f),
                     )
                 }
             },
@@ -674,6 +698,27 @@ private fun DraggableOverlay(
                 },
         ) { content() }
     }
+}
+
+/** Obrót punktu (0–1) wokół środka o wielokrotność 90° (zgodnie z ruchem wskazówek). */
+private fun rotateUnit(p: Offset, degrees: Int): Offset {
+    val dx = p.x - 0.5f
+    val dy = p.y - 0.5f
+    return when (((degrees % 360) + 360) % 360) {
+        90 -> Offset(0.5f - dy, 0.5f + dx)
+        180 -> Offset(0.5f - dx, 0.5f - dy)
+        270 -> Offset(0.5f + dy, 0.5f - dx)
+        else -> p
+    }
+}
+
+private fun uprightToScreen(p: Offset, turn: Int) = rotateUnit(p, turn)
+private fun screenToUpright(p: Offset, turn: Int) = rotateUnit(p, -turn)
+
+/** Przyciąganie do krawędzi (0, 1) i środka (0,5), gdy blisko. */
+private fun snapUpright(p: Offset): Offset {
+    fun snap(v: Float) = listOf(0f, 0.5f, 1f).firstOrNull { kotlin.math.abs(it - v) < 0.1f } ?: v
+    return Offset(snap(p.x), snap(p.y))
 }
 
 /**

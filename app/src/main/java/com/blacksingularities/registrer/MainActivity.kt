@@ -56,10 +56,15 @@ class MainActivity : ComponentActivity() {
                     cameraGranted = result[Manifest.permission.CAMERA] == true || isGranted(Manifest.permission.CAMERA)
                 }
                 val request = {
-                    launcher.launch(arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO))
+                    val perms = mutableListOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)
+                    // Powiadomienie „zaktualizowano – dotknij, aby otworzyć”, gdy system nie pozwoli otworzyć aparatu sam.
+                    if (android.os.Build.VERSION.SDK_INT >= 33) perms += Manifest.permission.POST_NOTIFICATIONS
+                    launcher.launch(perms.toTypedArray())
                 }
                 LaunchedEffect(Unit) {
-                    if (!cameraGranted || !isGranted(Manifest.permission.RECORD_AUDIO)) request()
+                    val notificationsMissing = android.os.Build.VERSION.SDK_INT >= 33 &&
+                        !isGranted(Manifest.permission.POST_NOTIFICATIONS)
+                    if (!cameraGranted || !isGranted(Manifest.permission.RECORD_AUDIO) || notificationsMissing) request()
                 }
                 // Stały ekran (obracają się tylko elementy) albo pełny obrót – niezależnie od blokady systemu.
                 // Podczas nagrywania i przetwarzania orientacja jest zablokowana.
@@ -88,6 +93,11 @@ class MainActivity : ComponentActivity() {
             return true
         }
         return super.onKeyDown(keyCode, event)
+    }
+
+    override fun onStart() {
+        super.onStart()
+        com.blacksingularities.registrer.update.UpdateManager.clearUpdatedNotification(this)
     }
 
     override fun onStop() {

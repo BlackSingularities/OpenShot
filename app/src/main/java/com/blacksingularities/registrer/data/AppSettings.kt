@@ -19,6 +19,17 @@ enum class GridType(val label: String) {
     DIAGONAL("Przekątne"),
 }
 
+enum class HistogramMode(val label: String) {
+    LUMA("Jasność"),
+    RGB("RGB"),
+}
+
+enum class HistogramSize(val label: String, val widthDp: Int, val heightDp: Int) {
+    SMALL("Mały", 92, 42),
+    MEDIUM("Średni", 120, 56),
+    LARGE("Duży", 164, 76),
+}
+
 enum class PhotoFormat(val label: String) {
     JPEG("JPEG"),
     ULTRA_HDR("Ultra HDR"),
@@ -87,6 +98,23 @@ enum class AudioSourceType(val label: String, val description: String) {
 }
 
 /**
+ * Grupy ustawień wspólne dla wszystkich trybów. Tryb może odłączyć grupę (pole [ModeSettings.custom])
+ * i ustawiać ją tylko dla siebie.
+ */
+enum class SharedGroup(val label: String) {
+    FRAMING("Kadr"),
+    PHOTO("Zdjęcia"),
+    VIDEO("Wideo"),
+}
+
+/** Kopiuje wartości grupy [group] z [src]. */
+fun ModeSettings.withGroup(group: SharedGroup, src: ModeSettings): ModeSettings = when (group) {
+    SharedGroup.FRAMING -> copy(grids = src.grids, level = src.level, histogram = src.histogram, timerSeconds = src.timerSeconds)
+    SharedGroup.PHOTO -> copy(jpegQuality = src.jpegQuality, mirrorFront = src.mirrorFront, burst = src.burst)
+    SharedGroup.VIDEO -> copy(videoAudio = src.videoAudio, stabilization = src.stabilization, bitrate = src.bitrate, cinematicZoom = src.cinematicZoom)
+}
+
+/**
  * Profil jednego trybu. Każdy tryb (Foto, Noc, Portret, HDR, Pro, Wideo, Slow-mo, Audio)
  * ma własną kopię – ekran ustawień pokazuje tylko pola istotne dla danego trybu.
  */
@@ -124,6 +152,8 @@ data class ModeSettings(
     // audio
     val audioPreset: AudioPreset = AudioPreset.MUSIC,
     val audioSource: AudioSourceType = AudioSourceType.STANDARD,
+    /** Grupy odłączone od ustawień wspólnych (ustawiane tylko dla tego trybu). */
+    val custom: Set<SharedGroup> = emptySet(),
 ) {
     /** Pola wymagające ponownego związania kamery – reszta działa „na żywo”. */
     fun bindKey(): ModeSettings = ModeSettings(
@@ -172,6 +202,8 @@ data class GlobalSettings(
     val stripX: Float = 0.5f,
     val stripY: Float = 0f,
     val compass: Boolean = false,
+    val histogramMode: HistogramMode = HistogramMode.LUMA,
+    val histogramSize: HistogramSize = HistogramSize.MEDIUM,
     val compassX: Float = 0.5f,
     val compassY: Float = 0.1f,
     val autoCheckUpdates: Boolean = true,
@@ -196,6 +228,8 @@ class SettingsStore(context: Context) {
             stripX = prefs.getFloat("g.stripX", d.stripX),
             stripY = prefs.getFloat("g.stripY", d.stripY),
             compass = prefs.getBoolean("g.compass", d.compass),
+            histogramMode = enumOr(prefs.getString("g.histMode", null), d.histogramMode),
+            histogramSize = enumOr(prefs.getString("g.histSize", null), d.histogramSize),
             compassX = prefs.getFloat("g.compassX", d.compassX),
             compassY = prefs.getFloat("g.compassY", d.compassY),
             autoCheckUpdates = prefs.getBoolean("g.autoCheck", d.autoCheckUpdates),
@@ -217,6 +251,8 @@ class SettingsStore(context: Context) {
             .putFloat("g.stripX", g.stripX)
             .putFloat("g.stripY", g.stripY)
             .putBoolean("g.compass", g.compass)
+            .putString("g.histMode", g.histogramMode.name)
+            .putString("g.histSize", g.histogramSize.name)
             .putFloat("g.compassX", g.compassX)
             .putFloat("g.compassY", g.compassY)
             .putBoolean("g.autoCheck", g.autoCheckUpdates)
@@ -227,9 +263,17 @@ class SettingsStore(context: Context) {
 
     fun loadAll(): Map<CaptureMode, ModeSettings> = CaptureMode.entries.associateWith { load(it) }
 
-    fun load(mode: CaptureMode): ModeSettings {
-        val d = ModeSettings.defaultsFor(mode)
-        val k = mode.name + "."
+    fun load(mode: CaptureMode): ModeSettings = loadPrefix(mode.name + ".", ModeSettings.defaultsFor(mode))
+
+    /** Ustawienia wspólne; przy pierwszym uruchomieniu – przejęte z trybu Foto. */
+    fun loadShared(): ModeSettings =
+        if (prefs.contains("SHARED.level")) loadPrefix("SHARED.", ModeSettings()) else load(CaptureMode.PHOTO).copy(custom = emptySet())
+
+    fun saveShared(s: ModeSettings) = savePrefix("SHARED.", s)
+
+    fun save(mode: CaptureMode, s: ModeSettings) = savePrefix(mode.name + ".", s)
+
+    private fun loadPrefix(k: String, d: ModeSettings): ModeSettings {
         return ModeSettings(
             aspect = enumOr(prefs.getString(k + "aspect", null), d.aspect),
             grids = loadGrids(prefs.getString(k + "grids", null), prefs.getString(k + "grid", null), d.grids),
@@ -259,11 +303,13 @@ class SettingsStore(context: Context) {
             slowMoFps = prefs.getInt(k + "slowFps", d.slowMoFps),
             audioPreset = enumOr(prefs.getString(k + "audioPreset", null), d.audioPreset),
             audioSource = enumOr(prefs.getString(k + "audioSource", null), d.audioSource),
+            custom = prefs.getString(k + "custom", null)
+                ?.split(',')?.mapNotNull { n -> SharedGroup.entries.firstOrNull { it.name == n } }?.toSet()
+                ?: d.custom,
         )
     }
 
-    fun save(mode: CaptureMode, s: ModeSettings) {
-        val k = mode.name + "."
+    private fun savePrefix(k: String, s: ModeSettings) {
         prefs.edit()
             .putString(k + "aspect", s.aspect.name)
             .putString(k + "grids", s.grids.joinToString(",") { it.name })
@@ -293,6 +339,7 @@ class SettingsStore(context: Context) {
             .putInt(k + "slowFps", s.slowMoFps)
             .putString(k + "audioPreset", s.audioPreset.name)
             .putString(k + "audioSource", s.audioSource.name)
+            .putString(k + "custom", s.custom.joinToString(",") { it.name })
             .apply()
     }
 

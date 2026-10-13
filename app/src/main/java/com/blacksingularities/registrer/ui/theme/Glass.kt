@@ -68,14 +68,9 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import dev.chrisbanes.haze.HazeState
-import dev.chrisbanes.haze.HazeTint
-import dev.chrisbanes.haze.hazeEffect
 import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 
-/** Źródło rozmycia – żywy obraz kamery. Brak (null) = przyciemniona półprzezroczystość. */
-val LocalHaze = staticCompositionLocalOf<HazeState?> { null }
 
 /**
  * Rozmycie tylko tam, gdzie jest włączone (górne przyciski). Pozostałe elementy mają
@@ -98,28 +93,28 @@ val LocalHintOnTap = staticCompositionLocalOf { false }
 /** Dymki z nazwą elementu pokazywane po przytrzymaniu. */
 val LocalHints = staticCompositionLocalOf<HintState?> { null }
 
-/** [tint] – zabarwienie nad rozmyciem, [flat] – tło bez rozmycia. */
-enum class GlassLevel(val tint: Color, val blur: Dp, val flat: Color) {
-    /** Dolny panel sterowania – ledwie przyciemniony, kadr dobrze widoczny. */
-    Faint(Color(0x1A10131A), 18.dp, Color(0x2E10131A)),
-    /** Przyciski i plakietki nad kadrem. */
-    Thin(Color(0x2E10131A), 18.dp, Color(0x5910131A)),
-    /** Panele sterowania. */
-    Regular(Color(0x5210131A), 26.dp, Color(0x7310131A)),
-    /** Arkusze z dużą ilością tekstu (ustawienia). */
-    Thick(Color(0xB012141B), 34.dp, Color(0xE812141B)),
+/**
+ * Płaskie, nieprzezroczyste tła (czarno-biały interfejs, bez rozmycia – lekki dla GPU).
+ * [tint] – kolor tła elementu.
+ */
+enum class GlassLevel(val tint: Color) {
+    /** Dolny panel sterowania. */
+    Faint(Color(0xFF000000)),
+    /** Przyciski i plakietki. */
+    Thin(Color(0xFF1C1C1C)),
+    /** Paski i panele. */
+    Regular(Color(0xFF111111)),
+    /** Arkusz ustawień. */
+    Thick(Color(0xFF0B0B0B)),
 }
 
-/** Aktywny element to pełny bursztynowy blok z ciemną ikoną. */
-private val ActiveTint = Color(0xF2FFB547)
+/** Aktywny element: biały blok z czarną ikoną. */
+private val ActiveTint = Color.White
 
 /** Kształt przycisków i plakietek: koło / pigułka. */
 val BlockShape = RoundedCornerShape(50)
 
-/**
- * Szkło: rozmyty obraz kamery pod spodem, delikatne zabarwienie, ziarno i obwódka ze
- * światłem padającym z góry. Bez rozmycia (Android < 12) – przyciemniona półprzezroczystość.
- */
+/** Płaskie tło elementu (biel dla aktywnych). Nazwa zachowana dla zgodności wywołań. */
 @Composable
 fun Modifier.glass(
     shape: Shape,
@@ -127,21 +122,8 @@ fun Modifier.glass(
     active: Boolean = false,
     border: Boolean = true,
 ): Modifier {
-    val haze = LocalHaze.current.takeIf { LocalBlur.current }
-    val tint by animateColorAsState(if (active) ActiveTint else level.tint, tween(220), label = "glassTint")
-    val clipped = this.clip(shape)
-    val blurred = if (haze != null) {
-        clipped.hazeEffect(haze) {
-            blurRadius = level.blur
-            backgroundColor = Color.Black
-            tints = listOf(HazeTint(tint))
-            noiseFactor = 0f
-        }
-    } else {
-        clipped.background(if (active) tint else level.flat)
-    }
-    // Surowe bloki – bez obwódek i podświetleń krawędzi.
-    return blurred
+    val bg by animateColorAsState(if (active) ActiveTint else level.tint, tween(160), label = "flatBg")
+    return this.clip(shape).background(bg)
 }
 
 /**
@@ -277,11 +259,10 @@ val LocalPickerHorizontal = staticCompositionLocalOf { false }
 
 /** Zapewnia szkło, haptykę, dymki i rozwijane listy całemu drzewu interfejsu. */
 @Composable
-fun GlassScope(haze: HazeState?, haptics: Boolean, content: @Composable BoxScope.() -> Unit) {
+fun GlassScope(haptics: Boolean, content: @Composable BoxScope.() -> Unit) {
     val hints = remember { HintState() }
     val picker = remember { PickerState() }
     CompositionLocalProvider(
-        LocalHaze provides haze,
         LocalHaptics provides haptics,
         LocalHints provides hints,
         LocalPicker provides picker,
@@ -335,7 +316,7 @@ private fun PickerLayer(picker: PickerState) {
 
 @Composable
 private fun PickerItem(option: PickerOption, highlighted: Boolean, current: Boolean, rotation: Float) {
-    val bg by animateColorAsState(if (highlighted) ActiveTint else GlassLevel.Regular.tint.copy(alpha = 0.78f), tween(90), label = "pickBg")
+    val bg by animateColorAsState(if (highlighted) ActiveTint else GlassLevel.Thin.tint, tween(90), label = "pickBg")
     val fg by animateColorAsState(
         when {
             highlighted -> Palette.Ink

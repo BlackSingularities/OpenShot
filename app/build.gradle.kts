@@ -93,8 +93,6 @@ dependencies {
     implementation("com.google.mlkit:segmentation-selfie:16.0.0-beta6")
     // Foldy: przeniesienie aplikacji na ekran zewnętrzny (selfie głównym aparatem).
     implementation("androidx.window:window:1.4.0")
-    // Rozmycie tła (glassmorphism) – żywy obraz kamery pod panelami.
-    implementation("dev.chrisbanes.haze:haze:1.6.10")
 
     implementation(composeBom)
     implementation("androidx.compose.ui:ui")

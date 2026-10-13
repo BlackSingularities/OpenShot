@@ -45,6 +45,54 @@ sealed interface UpdateState {
 object UpdateManager {
     private const val API = "https://api.github.com/repos/" + BuildConfig.UPDATE_REPO + "/releases/latest"
     const val ACTION_STATUS = "com.blacksingularities.registrer.UPDATE_STATUS"
+    const val RESTART_KEY = "update.restart"
+    private const val CHANNEL = "updates"
+    const val NOTIFICATION_ID = 4711
+
+    /**
+     * Po aktualizacji: otwiera aparat ponownie. Android 10+ może zablokować otwarcie ekranu
+     * z tła – wtedy zostaje powiadomienie „dotknij, aby otworzyć” (usuwane po starcie aplikacji).
+     */
+    fun relaunchAfterUpdate(context: Context) {
+        val prefs = context.getSharedPreferences("registrer_v2", Context.MODE_PRIVATE)
+        val requested = prefs.getLong(RESTART_KEY, 0L)
+        if (requested == 0L || System.currentTimeMillis() - requested > 30 * 60_000L) return
+        prefs.edit().remove(RESTART_KEY).apply()
+        val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)
+            ?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP) ?: return
+        runCatching { context.startActivity(launch) }
+        notifyUpdated(context, launch)
+    }
+
+    private fun notifyUpdated(context: Context, launch: Intent) {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            context.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+        val nm = context.getSystemService(android.app.NotificationManager::class.java) ?: return
+        nm.createNotificationChannel(
+            android.app.NotificationChannel(CHANNEL, "Aktualizacje", android.app.NotificationManager.IMPORTANCE_HIGH),
+        )
+        val pending = PendingIntent.getActivity(
+            context,
+            0,
+            launch,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val notification = android.app.Notification.Builder(context, CHANNEL)
+            .setSmallIcon(android.R.drawable.stat_sys_download_done)
+            .setContentTitle("Registrer zaktualizowany do ${BuildConfig.VERSION_NAME}")
+            .setContentText("Dotknij, aby otworzyć aparat")
+            .setContentIntent(pending)
+            .setAutoCancel(true)
+            .build()
+        runCatching { nm.notify(NOTIFICATION_ID, notification) }
+    }
+
+    fun clearUpdatedNotification(context: Context) {
+        runCatching { context.getSystemService(android.app.NotificationManager::class.java)?.cancel(NOTIFICATION_ID) }
+    }
 
     val currentVersion: String get() = BuildConfig.VERSION_NAME
 
@@ -162,6 +210,9 @@ object UpdateManager {
             setAppPackageName(context.packageName)
             if (Build.VERSION.SDK_INT >= 31) setRequireUserAction(PackageInstaller.SessionParams.USER_ACTION_NOT_REQUIRED)
         }
+        // Znacznik dla nowej wersji: po instalacji uruchom aplikację ponownie.
+        context.getSharedPreferences("registrer_v2", Context.MODE_PRIVATE).edit()
+            .putLong(RESTART_KEY, System.currentTimeMillis()).apply()
         val id = installer.createSession(params)
         installer.openSession(id).use { session ->
             session.openWrite("base.apk", 0, file.length()).use { out ->
@@ -193,7 +244,7 @@ class UpdateReceiver : BroadcastReceiver() {
                     runCatching { context.startActivity(confirm) }
                 }
             }
-            PackageInstaller.STATUS_SUCCESS -> Unit
+            PackageInstaller.STATUS_SUCCESS -> UpdateManager.relaunchAfterUpdate(context)
             else -> {
                 val msg = intent.getStringExtra(PackageInstaller.EXTRA_STATUS_MESSAGE) ?: "kod $status"
                 if (status != PackageInstaller.STATUS_FAILURE_ABORTED) {
@@ -201,5 +252,12 @@ class UpdateReceiver : BroadcastReceiver() {
                 }
             }
         }
+    }
+}
+
+/** Nowa wersja zainstalowana – system wysyła to do zaktualizowanej aplikacji. */
+class PackageReplacedReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        if (intent.action == Intent.ACTION_MY_PACKAGE_REPLACED) UpdateManager.relaunchAfterUpdate(context)
     }
 }

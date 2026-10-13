@@ -93,6 +93,8 @@ import com.blacksingularities.registrer.ui.theme.GlassIconButton
 import com.blacksingularities.registrer.ui.theme.GlassLevel
 import com.blacksingularities.registrer.ui.theme.glass
 import com.blacksingularities.registrer.ui.theme.reactive
+import androidx.compose.material.icons.rounded.Link
+import com.blacksingularities.registrer.data.SharedGroup
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -236,6 +238,8 @@ fun SettingsSheet(
 @Composable
 private fun ModeTab(mode: CaptureMode, s: ModeSettings, caps: CameraCaps, enabled: Boolean, change: ((ModeSettings) -> ModeSettings) -> Unit) {
     val isPhoto = mode.isPhoto
+    @Composable
+    fun shared(group: SharedGroup) = SharedSwitch(group, s, change)
     when (mode) {
         CaptureMode.VIDEO -> {
             Group("Obraz") {
@@ -260,6 +264,7 @@ private fun ModeTab(mode: CaptureMode, s: ModeSettings, caps: CameraCaps, enable
                 }
             }
             Group("Dźwięk i zoom") {
+                shared(SharedGroup.VIDEO)
                 SwitchRow(Icons.Rounded.Mic, "Nagrywaj dźwięk", null, s.videoAudio, enabled) { v -> change { it.copy(videoAudio = v) } }
                 SwitchRow(Icons.Rounded.ZoomIn, "Kinowy zoom", "Wolny, płynny najazd podczas nagrywania", s.cinematicZoom) { v -> change { it.copy(cinematicZoom = v) } }
             }
@@ -335,6 +340,7 @@ private fun ModeTab(mode: CaptureMode, s: ModeSettings, caps: CameraCaps, enable
                 else -> Unit
             }
             Group("Zdjęcie") {
+                shared(SharedGroup.PHOTO)
                 if (mode == CaptureMode.PHOTO || mode == CaptureMode.PRO) {
                     val formats = PhotoFormat.entries.filter { it in caps.photoFormats }
                     if (formats.size > 1) {
@@ -386,8 +392,9 @@ private fun FramingGroup(
     enabled: Boolean = true,
 ) {
     Group("Kadr") {
+        SharedSwitch(SharedGroup.FRAMING, s, change)
         if (showAspect) Chips(Icons.Rounded.AspectRatio, "Proporcje", AspectRatioMode.entries, s.aspect, { it.label }, enabled) { v -> change { it.copy(aspect = v) } }
-        MultiChips(Icons.Rounded.GridOn, "Siatki (dowolne naraz)", GridType.entries, s.grids, { it.label }) { v ->
+        MultiChips(Icons.Rounded.GridOn, "Siatki", GridType.entries, s.grids, { it.label }) { v ->
             change { it.copy(grids = if (v in it.grids) it.grids - v else it.grids + v) }
         }
         if (showTimer) Chips(Icons.Rounded.Timer, "Samowyzwalacz", listOf(0, 3, 5, 10), s.timerSeconds, { if (it == 0) "Wył." else "$it s" }) { v -> change { it.copy(timerSeconds = v) } }
@@ -424,6 +431,12 @@ private fun GeneralTab(
         }
         SwitchRow(Icons.Rounded.Explore, "Kompas", "Kierunek osi aparatu – przeciągnij, by przesunąć", g.compass) { v ->
             onGlobal { it.copy(compass = v) }
+        }
+        Chips(Icons.Rounded.BarChart, "Histogram", com.blacksingularities.registrer.data.HistogramMode.entries, g.histogramMode, { it.label }, hint = "Dotknięcie histogramu też przełącza tryb") { v ->
+            onGlobal { it.copy(histogramMode = v) }
+        }
+        Chips(Icons.Rounded.BarChart, "Wielkość histogramu", com.blacksingularities.registrer.data.HistogramSize.entries, g.histogramSize, { it.label }) { v ->
+            onGlobal { it.copy(histogramSize = v) }
         }
         Chips(
             Icons.Rounded.ScreenRotation,
@@ -572,6 +585,21 @@ private fun SwitchRow(icon: ImageVector, title: String, subtitle: String?, value
             colors = SwitchDefaults.colors(checkedTrackColor = Palette.Amber, checkedThumbColor = Palette.Ink),
         )
     }
+}
+
+/**
+ * „Wspólne dla wszystkich trybów”: włączone – zmiany tej grupy obowiązują wszędzie;
+ * wyłączone – tryb zaczyna od bieżących wartości wspólnych i ustawia je tylko dla siebie.
+ */
+@Composable
+private fun SharedSwitch(group: SharedGroup, s: ModeSettings, change: ((ModeSettings) -> ModeSettings) -> Unit) {
+    val isShared = group !in s.custom
+    SwitchRow(
+        Icons.Rounded.Link,
+        "Wspólne dla wszystkich trybów",
+        if (isShared) "${group.label}: zmiany obowiązują we wszystkich trybach" else "${group.label}: ustawienia tylko dla tego trybu",
+        isShared,
+    ) { v -> change { it.copy(custom = if (v) it.custom - group else it.custom + group) } }
 }
 
 /** Chipy wielokrotnego wyboru – każde dotknięcie włącza / wyłącza jedną opcję. */
