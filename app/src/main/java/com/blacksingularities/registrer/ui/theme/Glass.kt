@@ -285,6 +285,8 @@ fun GlassScope(haze: HazeState?, haptics: Boolean, content: @Composable BoxScope
         LocalHaptics provides haptics,
         LocalHints provides hints,
         LocalPicker provides picker,
+        // Biały tekst domyślnie – poza arkuszami Material tekst byłby czarny.
+        androidx.compose.material3.LocalContentColor provides Color.White,
     ) {
         Box(Modifier.fillMaxSize()) {
             content()
@@ -700,7 +702,7 @@ fun GlassChip(
     val color by animateColorAsState(if (active) Palette.Ink else Color.White, tween(200), label = "chipText")
     Box(
         modifier
-            .reactive(label, enabled, null, onClick)
+            .reactive(label, enabled, onClick = onClick)
             .heightIn(min = 44.dp)
             .glass(BlockShape, active = active)
             .padding(horizontal = 12.dp),
