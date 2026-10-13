@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.3.2
+
+- Ikona OpenShot ma teraz neutralną, czarno-białą paletę: srebrne metaliczne listki, grafitowe cienie i białe refleksy, nadal bez tła.
+
 ## 2.3.1
 
 - Stabilizacja obrazu jest dostępna bezpośrednio na górnym pasku trybu Wideo, gdy obsługuje ją aktywny aparat.
