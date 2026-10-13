@@ -92,6 +92,8 @@ data class ActiveSession(
     val photoFormat: PhotoFormat = PhotoFormat.JPEG,
     val snapshotInVideo: Boolean = false,
     val postview: Boolean = false,
+    /** Rzeczywista rozdzielczość zapisywanego materiału (zdjęcia albo wideo), jeśli znana. */
+    val outputSize: android.util.Size? = null,
 )
 
 /** Bieżące parametry ekspozycji odczytane z sensora (HUD). */

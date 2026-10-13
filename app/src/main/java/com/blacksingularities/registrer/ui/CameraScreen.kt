@@ -1,5 +1,10 @@
 package com.blacksingularities.registrer.ui
 
+import androidx.compose.material.icons.rounded.ZoomIn
+import androidx.compose.material.icons.rounded.Videocam
+import androidx.compose.material.icons.rounded.ShutterSpeed
+import androidx.compose.material.icons.rounded.Iso
+import androidx.compose.material.icons.rounded.Camera
 import com.blacksingularities.registrer.ui.theme.LocalBlur
 import androidx.compose.runtime.CompositionLocalProvider
 import com.blacksingularities.registrer.ui.theme.BlockShape
@@ -1093,39 +1098,58 @@ private fun frameIcon(aspect: com.blacksingularities.registrer.data.AspectRatioM
 }
 
 /**
- * Pasek parametrów na samej górze kadru: ISO, czas naświetlania, przysłona, kompensacja EV
- * i zoom. Wartości ustawione ręcznie (tryb Pro) są wyróżnione bursztynem.
+ * Pasek parametrów na samej górze kadru (ikony zamiast nazw): rozdzielczość materiału, ISO,
+ * czas naświetlania, przysłona, kompensacja EV i zoom. Wartości ręczne (Pro) – bursztynem.
  */
 @Composable
 private fun ExposureStrip(vm: CameraViewModel, modifier: Modifier = Modifier) {
     val hud = vm.hud
     val pro = if (vm.mode == CaptureMode.PRO) vm.pro else null
+    data class Item(val icon: ImageVector, val name: String, val value: String, val manual: Boolean = false)
     val items = buildList {
+        add(Item(if (vm.mode.isVideo) Icons.Rounded.Videocam else Icons.Rounded.Image, "Rozdzielczość", resolutionText(vm)))
         val iso = pro?.iso ?: hud?.iso
-        add(Triple("ISO", iso?.toString() ?: "—", pro?.iso != null))
+        add(Item(Icons.Rounded.Iso, "ISO", iso?.toString() ?: "—", pro?.iso != null))
         val shutter = pro?.exposureNs ?: hud?.exposureNs
-        add(Triple("S", shutter?.let { formatShutter(it) } ?: "—", pro?.exposureNs != null))
-        hud?.aperture?.let { add(Triple("f/", String.format(java.util.Locale.US, "%.1f", it), false)) }
-        val ev = vm.evIndex * vm.evStep
-        add(Triple("EV", String.format(java.util.Locale.US, "%+.1f", ev), vm.evIndex != 0))
-        add(Triple("", com.blacksingularities.registrer.ui.components.formatZoom(vm.displayZoom) + "×", false))
+        add(Item(Icons.Rounded.ShutterSpeed, "Czas naświetlania", shutter?.let { formatShutter(it) } ?: "—", pro?.exposureNs != null))
+        hud?.aperture?.let { add(Item(Icons.Rounded.Camera, "Przysłona", String.format(java.util.Locale.US, "f/%.1f", it))) }
+        add(Item(Icons.Rounded.Exposure, "Kompensacja EV", String.format(java.util.Locale.US, "%+.1f", vm.evIndex * vm.evStep), vm.evIndex != 0))
+        add(Item(Icons.Rounded.ZoomIn, "Zoom", com.blacksingularities.registrer.ui.components.formatZoom(vm.displayZoom) + "×"))
     }
     Row(
         modifier
+            .horizontalScroll(rememberScrollState())
             .glass(BlockShape)
-            .padding(horizontal = 12.dp, vertical = 5.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(horizontal = 10.dp, vertical = 5.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        items.forEach { (label, value, manual) ->
+        items.forEach { item ->
             Row(verticalAlignment = Alignment.CenterVertically) {
-                if (label.isNotEmpty()) {
-                    Text(label, color = Palette.TextFaint, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.width(3.dp))
-                }
-                Text(value, style = MonoDigits, fontSize = 12.sp, color = if (manual) Palette.Amber else Color.White)
+                Icon(item.icon, item.name, tint = if (item.manual) Palette.Amber else Palette.TextDim, modifier = Modifier.size(13.dp))
+                Spacer(Modifier.width(3.dp))
+                Text(item.value, style = MonoDigits, fontSize = 12.sp, color = if (item.manual) Palette.Amber else Color.White, maxLines = 1)
             }
         }
+    }
+}
+
+/** „50 MP” dla zdjęć, „2160p30” dla wideo – z rzeczywistej rozdzielczości, a gdy nieznana, z ustawień. */
+private fun resolutionText(vm: CameraViewModel): String {
+    val size = vm.session.outputSize
+    return if (vm.mode.isVideo) {
+        val lines = size?.let { minOf(it.width, it.height) } ?: when (vm.cfg.videoResolution) {
+            com.blacksingularities.registrer.data.VideoResolution.UHD -> 2160
+            com.blacksingularities.registrer.data.VideoResolution.FHD -> 1080
+            com.blacksingularities.registrer.data.VideoResolution.HD -> 720
+        }
+        val fps = vm.session.fps
+        "${lines}p" + (if (fps > 0) "$fps" else "")
+    } else if (size != null) {
+        val mp = size.width.toLong() * size.height / 1_000_000f
+        if (mp < 10f) String.format(java.util.Locale.US, "%.1f MP", mp) else "${mp.roundToInt()} MP"
+    } else {
+        "—"
     }
 }
 

@@ -569,6 +569,10 @@ class CameraEngine(private val context: Context) {
         }
 
         camera = bound
+        val output = runCatching {
+            if (req.mode.isVideo) videoCapture?.resolutionInfo?.resolution else imageCapture?.resolutionInfo?.resolution
+        }.getOrNull()
+        active = active.copy(outputSize = output)
         session = active
 
         if (wantedExtension == null && req.mode == CaptureMode.NIGHT) {
