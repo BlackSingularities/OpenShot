@@ -226,13 +226,13 @@ fun CompassTape(modifier: Modifier = Modifier) {
 
     Canvas(
         modifier
-            .width(240.dp)
-            .height(46.dp)
+            .width(220.dp)
+            .height(32.dp)
             .glass(BlockShape),
     ) {
         val cx = size.width / 2f
         val pxPerDeg = size.width / 90f // widoczne ±45°
-        val base = size.height - 6.dp.toPx()
+        val axis = size.height / 2f
         val start = (heading - 50f).toInt() / 5 * 5
         for (deg in start..(heading + 50f).toInt() step 5) {
             val x = cx + (deg - heading) * pxPerDeg
@@ -242,11 +242,11 @@ fun CompassTape(modifier: Modifier = Modifier) {
             val fade = 1f - (abs(x - cx) / cx).coerceIn(0f, 1f) * 0.8f
             drawLine(
                 Color.White.copy(alpha = (if (major) 0.9f else 0.4f) * fade),
-                Offset(x, base),
-                Offset(x, base - (if (major) 9 else 5).dp.toPx()),
+                Offset(x, axis - (if (major) 8 else 4).dp.toPx()),
+                Offset(x, axis + (if (major) 8 else 4).dp.toPx()),
                 1.dp.toPx(),
             )
-            if (major) {
+            if (major && abs(x - cx) > 30.dp.toPx()) {
                 val name = DIRECTIONS[d / 45]
                 val layout = measurer.measure(
                     name,
@@ -256,17 +256,23 @@ fun CompassTape(modifier: Modifier = Modifier) {
                         fontWeight = FontWeight.Bold,
                     ),
                 )
-                drawText(layout, topLeft = Offset(x - layout.size.width / 2f, base - 11.dp.toPx() - layout.size.height))
+                drawText(layout, topLeft = Offset(x - layout.size.width / 2f, axis - layout.size.height / 2f))
             }
         }
-        // Wskaźnik środka i odczyt.
-        drawLine(Palette.Amber, Offset(cx, base + 3.dp.toPx()), Offset(cx, base - 12.dp.toPx()), 2.dp.toPx())
+        // Odczyt leży dokładnie na osi kompasu, dzięki czemu cała kontrolka jest niższa.
         val label = "${heading.roundToInt() % 360}° ${directionName(heading)}" + if (unreliable) "  ⚠" else ""
         val layout = measurer.measure(
             label,
             TextStyle(color = Palette.Amber, fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace),
         )
-        drawRect(Color.Black.copy(alpha = 0.55f), Offset(cx - layout.size.width / 2f - 4.dp.toPx(), 2.dp.toPx()), Size(layout.size.width + 8.dp.toPx(), layout.size.height.toFloat()))
-        drawText(layout, topLeft = Offset(cx - layout.size.width / 2f, 2.dp.toPx()))
+        val labelTop = axis - layout.size.height / 2f
+        drawRect(
+            Color.Black.copy(alpha = 0.72f),
+            Offset(cx - layout.size.width / 2f - 5.dp.toPx(), labelTop - 2.dp.toPx()),
+            Size(layout.size.width + 10.dp.toPx(), layout.size.height + 4.dp.toPx()),
+        )
+        drawLine(Palette.Amber, Offset(cx, 2.dp.toPx()), Offset(cx, labelTop - 2.dp.toPx()), 2.dp.toPx())
+        drawLine(Palette.Amber, Offset(cx, labelTop + layout.size.height + 2.dp.toPx()), Offset(cx, size.height - 2.dp.toPx()), 2.dp.toPx())
+        drawText(layout, topLeft = Offset(cx - layout.size.width / 2f, labelTop))
     }
 }

@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
@@ -97,6 +98,7 @@ import com.blacksingularities.registrer.ui.theme.GlassIconButton
 import com.blacksingularities.registrer.ui.theme.GlassLevel
 import com.blacksingularities.registrer.ui.theme.glass
 import com.blacksingularities.registrer.ui.theme.reactive
+import com.blacksingularities.registrer.ui.theme.rotatedLayout
 import androidx.compose.material.icons.rounded.Link
 import com.blacksingularities.registrer.data.SharedGroup
 import androidx.compose.ui.Alignment
@@ -154,6 +156,8 @@ fun SettingsSheet(
     caps: CameraCaps,
     locked: Boolean,
     update: UpdateState,
+    landscape: Boolean,
+    rotation: Float,
     onProfile: (CaptureMode, (ModeSettings) -> ModeSettings) -> Unit,
     onGlobal: ((GlobalSettings) -> GlobalSettings) -> Unit,
     onReset: (CaptureMode) -> Unit,
@@ -164,68 +168,77 @@ fun SettingsSheet(
 ) {
     var tab by remember { mutableStateOf<CaptureMode?>(initialMode) }
 
-    // Pełny ekran.
-    Box(Modifier.fillMaxSize()) {
-        Column(
-            Modifier
-                .fillMaxSize()
-                .background(GlassLevel.Thick.tint)
-                .pointerInput(Unit) { detectTapGestures { } }
-                .statusBarsPadding()
-                .navigationBarsPadding(),
-        ) {
+    @Composable
+    fun Tabs(horizontal: Boolean) {
+        val options: @Composable () -> Unit = {
+            TabChip(Icons.Rounded.Settings, "Ogólne", tab == null) { tab = null }
+            modes.forEach { m -> TabChip(modeIcon(m), m.label, tab == m) { tab = m } }
+        }
+        if (horizontal) {
+            Row(
+                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) { options() }
+        } else {
+            Column(
+                Modifier.width(164.dp).verticalScroll(rememberScrollState()).padding(horizontal = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(5.dp),
+            ) { options() }
+        }
+    }
+
+    @Composable
+    fun Body(modifier: Modifier) {
+        AnimatedContent(
+            modifier = modifier,
+            targetState = tab,
+            transitionSpec = { fadeIn() togetherWith fadeOut() },
+            label = "settingsTab",
+        ) { current ->
+            Column(
+                Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 14.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                if (locked) Text("Część opcji jest zablokowana podczas nagrywania lub przetwarzania.", color = Palette.Amber, fontSize = 12.sp)
+                if (current == null) {
+                    GeneralTab(global, caps, update, onGlobal, onCheckUpdate, onDownloadUpdate, onInstallUpdate)
+                } else {
+                    ModeTab(current, profiles.getValue(current), caps, !locked) { t -> onProfile(current, t) }
+                    Row(
+                        Modifier.fillMaxWidth().clip(RoundedCornerShape(50)).clickable { onReset(current) }.padding(12.dp),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Icon(Icons.Rounded.RestartAlt, null, tint = Palette.TextDim, modifier = Modifier.size(18.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text("Przywróć domyślne dla trybu ${current.label}", color = Palette.TextDim, fontSize = 13.sp)
+                    }
+                }
+                Spacer(Modifier.height(20.dp))
+            }
+        }
+    }
+
+    BoxWithConstraints(
+        Modifier.fillMaxSize().rotatedLayout(rotation).background(GlassLevel.Thick.tint).pointerInput(Unit) { detectTapGestures { } },
+    ) {
+        val horizontalLayout = landscape || maxWidth > maxHeight
+        Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
             Row(Modifier.padding(start = 20.dp, end = 12.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Ustawienia", fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                 GlassIconButton(Icons.Rounded.Close, "Zamknij", 0f, size = 38.dp, onClick = onDismiss)
             }
-            Spacer(Modifier.height(12.dp))
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                TabChip(Icons.Rounded.Settings, "Ogólne", tab == null) { tab = null }
-                modes.forEach { m -> TabChip(modeIcon(m), m.label, tab == m) { tab = m } }
-            }
-            Spacer(Modifier.height(10.dp))
-            AnimatedContent(
-                modifier = Modifier.weight(1f),
-                targetState = tab,
-                transitionSpec = { fadeIn() togetherWith fadeOut() },
-                label = "settingsTab",
-            ) { current ->
-                Column(
-                    Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 14.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    if (locked) {
-                        Text("Część opcji jest zablokowana podczas nagrywania lub przetwarzania.", color = Palette.Amber, fontSize = 12.sp)
-                    }
-                    if (current == null) {
-                        GeneralTab(global, caps, update, onGlobal, onCheckUpdate, onDownloadUpdate, onInstallUpdate)
-                    } else {
-                        ModeTab(current, profiles.getValue(current), caps, !locked) { t -> onProfile(current, t) }
-                        Row(
-                            Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(50))
-                                .clickable { onReset(current) }
-                                .padding(12.dp),
-                            horizontalArrangement = Arrangement.Center,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Icon(Icons.Rounded.RestartAlt, null, tint = Palette.TextDim, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text("Przywróć domyślne dla trybu ${current.label}", color = Palette.TextDim, fontSize = 13.sp)
-                        }
-                    }
-                    Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(if (horizontalLayout) 6.dp else 12.dp))
+            if (horizontalLayout) {
+                Row(Modifier.weight(1f)) {
+                    Tabs(horizontal = false)
+                    Box(Modifier.width(1.dp).fillMaxHeight().background(Color.White.copy(alpha = 0.08f)))
+                    Body(Modifier.weight(1f))
                 }
+            } else {
+                Tabs(horizontal = true)
+                Spacer(Modifier.height(10.dp))
+                Body(Modifier.weight(1f))
             }
         }
     }
@@ -269,13 +282,20 @@ private fun ModeTab(mode: CaptureMode, s: ModeSettings, caps: CameraCaps, enable
 
         CaptureMode.SLOWMO -> {
             Group("Zwolnione tempo") {
-                if (caps.slowMoRanges.isEmpty()) {
+                if (caps.slowMoProfiles.isEmpty()) {
                     InfoRow(Icons.Rounded.Info, "Ten obiektyw nie obsługuje nagrywania szybkoklatkowego")
                 } else {
-                    val options = caps.slowMoRanges.map { it.upper }
-                    val selected = options.firstOrNull { it == s.slowMoFps } ?: options.last()
-                    Chips(Icons.Rounded.SlowMotionVideo, "Prędkość nagrywania", options, selected, { "$it kl/s · 1/${it / 30}×" }, enabled) { v ->
-                        change { it.copy(slowMoFps = v) }
+                    InfoRow(Icons.Rounded.CameraAlt, "Tylko tylny aparat główny · 1×")
+                    val resolutions = caps.slowMoProfiles.map { it.resolution }.distinct().sortedBy { it.ordinal }
+                    val resolution = s.slowMoResolution.takeIf { it in resolutions } ?: resolutions.first()
+                    Chips(Icons.Rounded.HighQuality, "Rozdzielczość", resolutions, resolution, { it.label }, enabled) { selectedResolution ->
+                        val fps = caps.slowMoProfiles.filter { it.resolution == selectedResolution }.map { it.fps }
+                        change { current -> current.copy(slowMoResolution = selectedResolution, slowMoFps = current.slowMoFps.takeIf { it in fps } ?: fps.min()) }
+                    }
+                    val options = caps.slowMoProfiles.filter { it.resolution == resolution }.map { it.fps }.distinct().sorted()
+                    val selected = s.slowMoFps.takeIf { it in options } ?: options.first()
+                    Chips(Icons.Rounded.SlowMotionVideo, "Prędkość nagrywania", options, selected, { "$it kl/s · 1/${it / 30}×" }, enabled) { selectedFps ->
+                        change { it.copy(slowMoFps = selectedFps) }
                     }
                 }
                 SwitchRow(Icons.Rounded.ZoomIn, "Kinowy zoom", null, s.cinematicZoom) { v -> change { it.copy(cinematicZoom = v) } }
@@ -295,7 +315,6 @@ private fun ModeTab(mode: CaptureMode, s: ModeSettings, caps: CameraCaps, enable
         }
 
         else -> {
-            FramingGroup(s, change, showAspect = true, showHistogram = true, showTimer = true, enabled = enabled)
             when (mode) {
                 CaptureMode.NIGHT -> Group("Tryb nocny") {
                     if (caps.nightExtension) {
@@ -335,7 +354,22 @@ private fun ModeTab(mode: CaptureMode, s: ModeSettings, caps: CameraCaps, enable
                 }
                 else -> Unit
             }
-            Group("Zdjęcie") {
+            if (mode == CaptureMode.PHOTO || mode == CaptureMode.PRO) {
+                Group("Seria i interwał") {
+                    if (mode == CaptureMode.PHOTO) {
+                        SwitchRow(Icons.Rounded.BurstMode, "Seria po przytrzymaniu", "Zdjęcia seryjne, dopóki trzymasz migawkę", s.burst) { v -> change { it.copy(burst = v) } }
+                    }
+                    Chips(Icons.Rounded.AvTimer, "Interwałometr", listOf(0, 2, 5, 10, 30, 60), s.intervalSeconds, { if (it == 0) "Wył." else "${it}s" }) { v ->
+                        change { it.copy(intervalSeconds = v) }
+                    }
+                    if (s.intervalSeconds > 0) {
+                        Chips(Icons.Rounded.Layers, "Liczba zdjęć", listOf(0, 10, 30, 100, 300), s.intervalCount, { if (it == 0) "∞" else "$it" }) { v ->
+                            change { it.copy(intervalCount = v) }
+                        }
+                    }
+                }
+            }
+            Group("Zdjęcie", collapsible = true, initiallyExpanded = false) {
                 shared(SharedGroup.PHOTO)
                 if (mode == CaptureMode.PHOTO || mode == CaptureMode.PRO) {
                     val formats = PhotoFormat.entries.filter { it in caps.photoFormats }
@@ -358,21 +392,7 @@ private fun ModeTab(mode: CaptureMode, s: ModeSettings, caps: CameraCaps, enable
                     SwitchRow(Icons.Rounded.Flip, "Lustrzane selfie", "Zapis jak w podglądzie przedniego aparatu", s.mirrorFront) { v -> change { it.copy(mirrorFront = v) } }
                 }
             }
-            if (mode == CaptureMode.PHOTO || mode == CaptureMode.PRO) {
-                Group("Seria i interwał") {
-                    if (mode == CaptureMode.PHOTO) {
-                        SwitchRow(Icons.Rounded.BurstMode, "Seria po przytrzymaniu", "Zdjęcia seryjne, dopóki trzymasz migawkę", s.burst) { v -> change { it.copy(burst = v) } }
-                    }
-                    Chips(Icons.Rounded.AvTimer, "Interwałometr", listOf(0, 2, 5, 10, 30, 60), s.intervalSeconds, { if (it == 0) "Wył." else "${it}s" }) { v ->
-                        change { it.copy(intervalSeconds = v) }
-                    }
-                    if (s.intervalSeconds > 0) {
-                        Chips(Icons.Rounded.Layers, "Liczba zdjęć", listOf(0, 10, 30, 100, 300), s.intervalCount, { if (it == 0) "∞" else "$it" }) { v ->
-                            change { it.copy(intervalCount = v) }
-                        }
-                    }
-                }
-            }
+            FramingGroup(s, change, showAspect = true, showHistogram = true, showTimer = true, enabled = enabled)
         }
     }
     if (!isPhoto && mode != CaptureMode.AUDIO && mode != CaptureMode.VIDEO && mode != CaptureMode.SLOWMO) Unit
@@ -387,7 +407,7 @@ private fun FramingGroup(
     showTimer: Boolean,
     enabled: Boolean = true,
 ) {
-    Group("Kadr", collapsible = true) {
+    Group("Kadr", collapsible = true, initiallyExpanded = false) {
         SharedSwitch(SharedGroup.FRAMING, s, change)
         if (showAspect) Chips(Icons.Rounded.AspectRatio, "Proporcje", AspectRatioMode.entries, s.aspect, { it.label }, enabled) { v -> change { it.copy(aspect = v) } }
         MultiChips(Icons.Rounded.GridOn, "Siatki", GridType.entries, s.grids, { it.label }) { v ->
@@ -422,10 +442,10 @@ private fun GeneralTab(
         SwitchRow(Icons.Rounded.Vibration, "Wibracje", "Haptyka pokręteł, zoomu i poziomicy", g.haptics) { v -> onGlobal { it.copy(haptics = v) } }
         SwitchRow(Icons.Rounded.CameraAlt, "Dźwięk migawki", null, g.shutterSound) { v -> onGlobal { it.copy(shutterSound = v) } }
         SwitchRow(Icons.Rounded.Alarm, "Sygnał samowyzwalacza", null, g.timerBeep) { v -> onGlobal { it.copy(timerBeep = v) } }
-        SwitchRow(Icons.Rounded.Speed, "Parametry ekspozycji", "Pasek rozdzielczości · ISO · czasu · EV – przeciągnij, by przesunąć", g.exposureInfo) { v ->
+        SwitchRow(Icons.Rounded.Speed, "Parametry ekspozycji", "Przytrzymaj, aby przesunąć lub przeciągnąć do kosza", g.exposureInfo) { v ->
             onGlobal { it.copy(exposureInfo = v) }
         }
-        SwitchRow(Icons.Rounded.Explore, "Kompas", "Kierunek osi aparatu – przeciągnij, by przesunąć", g.compass) { v ->
+        SwitchRow(Icons.Rounded.Explore, "Kompas", "Przytrzymaj, aby przesunąć lub przeciągnąć do kosza", g.compass) { v ->
             onGlobal { it.copy(compass = v) }
         }
         Chips(Icons.Rounded.BarChart, "Histogram", com.blacksingularities.registrer.data.HistogramMode.entries, g.histogramMode, { it.label }, hint = "Dotknięcie histogramu też przełącza tryb") { v ->
@@ -448,11 +468,10 @@ private fun GeneralTab(
         val lenses = (caps.lensZooms + caps.auxLenses.map { it.factor }).distinct().sorted()
             .joinToString(" · ") { formatZoom(it) + "×" }.ifEmpty { "1×" }
         InfoRow(Icons.Rounded.ZoomIn, "Obiektywy: $lenses")
-        if (caps.cameraSummary.isNotEmpty()) InfoRow(Icons.Rounded.CameraAlt, "Wykryte aparaty:\n" + caps.cameraSummary)
+        if (caps.cameraSummary.isNotEmpty()) ExpandableInfoRow(Icons.Rounded.CameraAlt, "Wykryte aparaty", caps.cameraSummary)
         InfoRow(Icons.Rounded.Image, "Formaty: " + caps.photoFormats.sortedBy { it.ordinal }.joinToString { it.label })
-        if (caps.formatSummary.isNotEmpty()) InfoRow(Icons.Rounded.Info, "Diagnostyka formatów:\n" + caps.formatSummary)
         InfoRow(Icons.Rounded.Movie, "Wideo: " + caps.videoResolutions.joinToString { it.label } + (if (caps.fps60) " · 60 kl/s" else "") + (if (caps.videoHlg) " · HLG" else ""))
-        if (caps.slowMo) InfoRow(Icons.Rounded.SlowMotionVideo, "Slow-mo: " + caps.slowMoRanges.joinToString { "${it.upper} kl/s" })
+        if (caps.slowMo) InfoRow(Icons.Rounded.SlowMotionVideo, "Slow-mo: " + caps.slowMoProfiles.joinToString { "${it.resolution.label} ${it.fps} kl/s" })
         InfoRow(Icons.Rounded.Tune, if (caps.manualSensor) "Pełne sterowanie ręczne sensora" else "Ograniczone sterowanie ręczne")
         InfoRow(Icons.Rounded.Info, "Pliki: DCIM/OpenShot · Recordings/OpenShot")
     }
@@ -530,8 +549,13 @@ private fun TabChip(icon: ImageVector, label: String, selected: Boolean, onClick
 }
 
 @Composable
-private fun Group(title: String, collapsible: Boolean = false, content: @Composable ColumnScope.() -> Unit) {
-    var expanded by remember(title) { mutableStateOf(true) }
+private fun Group(
+    title: String,
+    collapsible: Boolean = false,
+    initiallyExpanded: Boolean = true,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    var expanded by remember(title) { mutableStateOf(initiallyExpanded) }
     Column {
         Row(
             Modifier
@@ -736,5 +760,33 @@ private fun InfoRow(icon: ImageVector, text: String) {
     Row(Modifier.padding(horizontal = 12.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
         RowIcon(icon)
         Text(text, fontSize = 13.sp, color = Palette.TextDim, modifier = Modifier.padding(horizontal = 12.dp))
+    }
+}
+
+@Composable
+private fun ExpandableInfoRow(icon: ImageVector, title: String, body: String) {
+    var expanded by remember { mutableStateOf(false) }
+    Column(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.fillMaxWidth().clickable { expanded = !expanded }.padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            RowIcon(icon)
+            Text(title, fontSize = 13.sp, modifier = Modifier.weight(1f).padding(horizontal = 12.dp))
+            Icon(
+                Icons.Rounded.ExpandMore,
+                if (expanded) "Zwiń" else "Rozwiń",
+                tint = Palette.TextDim,
+                modifier = Modifier.size(20.dp).rotate(if (expanded) 180f else 0f),
+            )
+        }
+        AnimatedVisibility(expanded) {
+            Text(
+                body,
+                color = Palette.TextDim,
+                fontSize = 11.sp,
+                modifier = Modifier.fillMaxWidth().padding(start = 56.dp, end = 12.dp, bottom = 12.dp),
+            )
+        }
     }
 }

@@ -212,9 +212,9 @@ data class PickerOption(
     val caption: String? = null,
 )
 
-private val PICKER_ITEM = 54.dp
-private val PICKER_STEP = 58.dp
-private val PICKER_GAP = 10.dp
+private val PICKER_ITEM = 50.dp
+private val PICKER_STEP = 52.dp
+private val PICKER_GAP = 8.dp
 
 /**
  * Rozwijana lista opcji przycisku: przytrzymaj przycisk i przeciągnij w dół (w pionowym
@@ -339,6 +339,8 @@ private fun PickerItem(option: PickerOption, highlighted: Boolean, current: Bool
     Box(
         Modifier
             .size(PICKER_ITEM)
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color.Black.copy(alpha = if (highlighted) 0.72f else 0.46f))
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale

@@ -34,8 +34,9 @@ jobs:
         id: ver
         run: |
           BASE=$(tr -d '[:space:]' < VERSION)
-          NAME="${BASE}.${GITHUB_RUN_NUMBER}"
-          CODE=$((1000 + GITHUB_RUN_NUMBER))
+          NAME="$BASE"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$BASE"
+          CODE=$((MAJOR * 10000 + MINOR * 100 + PATCH))
           echo "name=$NAME" >> "$GITHUB_OUTPUT"
           echo "code=$CODE" >> "$GITHUB_OUTPUT"
 
@@ -66,7 +67,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           TAG="v${{ steps.ver.outputs.name }}"
-          NOTES=$(git log -1 --pretty=format:'%s%n%n%b')
+          NOTES=$(awk -v version="${{ steps.ver.outputs.name }}" '$0 == "## " version { found=1; next } found && /^## / { exit } found { print }' CHANGELOG.md)
           gh release create "$TAG" "OpenShot-${{ steps.ver.outputs.name }}.apk" \
             --target "$GITHUB_SHA" \
             --title "OpenShot ${{ steps.ver.outputs.name }}" \
