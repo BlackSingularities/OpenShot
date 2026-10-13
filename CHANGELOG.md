@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.4.2
+
+- Ustawienia po obróceniu telefonu do poziomu mają nadal zakładki u góry i nie wchodzą pod pasek stanu – odstępy od pasków systemowych liczone są dla obróconego układu.
+- Podpis przy wersji: „Pomysł i wykonanie · redzikowski.com” (poprawiona pisownia, adres otwiera się po dotknięciu).
+- W ustawieniach ogólnych sekcja Aktualizacje jest pod sekcją Obsługa.
+
 ## 2.4.1
 
 - Polskie nazwy zamiast zapożyczeń: tryby *Ręczny* (Pro), *Ruchome* (Live), *Zdjęcie* (Foto), *Zwolnione tempo* (Slow-mo) i *Dyktafon* (Audio); w ustawieniach pełne nazwy trybów.
@@ -32,8 +38,8 @@
 
 ### Ustawienia i wygląd
 - Changelog w ustawieniach ma wyjustowany tekst i czytelniejszą interlinię.
-- Przy numerze wersji widnieje podpis „Pomysł i wykonanie · redzikowksi.com”.
-- Pionowa nawigacja ustawień ma równe przyciski pełnej szerokości, a aktywna zakładka automatycznie pozostaje widoczna.
+- Przy numerze wersji widnieje podpis „Pomysł i wykonanie · redzikowski.com”.
+- Aktywna zakładka ustawień automatycznie pozostaje widoczna.
 - Ikona launchera jest odrobinę większa i nie ma narzuconego tła.
 
 ## 2.3.3

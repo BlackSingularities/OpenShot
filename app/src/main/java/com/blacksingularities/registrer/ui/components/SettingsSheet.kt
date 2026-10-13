@@ -112,6 +112,16 @@ import androidx.compose.material.icons.rounded.Link
 import com.blacksingularities.registrer.data.SharedGroup
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.rotate
@@ -180,43 +190,25 @@ fun SettingsSheet(
     var tab by remember { mutableStateOf<CaptureMode?>(initialMode) }
 
     @Composable
-    fun Tabs(horizontal: Boolean) {
+    fun Tabs() {
         val options = listOf<CaptureMode?>(null) + modes
         val selectedIndex = options.indexOf(tab).coerceAtLeast(0)
         val state = rememberLazyListState()
-        LaunchedEffect(selectedIndex, horizontal) {
+        LaunchedEffect(selectedIndex) {
             state.animateScrollToItem(selectedIndex)
         }
-        if (horizontal) {
-            LazyRow(
-                Modifier.fillMaxWidth(),
-                state = state,
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                items(options, key = { it?.name ?: "GENERAL" }) { mode ->
-                    TabChip(
-                        if (mode == null) Icons.Rounded.Settings else modeIcon(mode),
-                        mode?.title ?: "Ogólne",
-                        tab == mode,
-                    ) { tab = mode }
-                }
-            }
-        } else {
-            LazyColumn(
-                Modifier.width(164.dp).fillMaxHeight(),
-                state = state,
-                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 2.dp),
-                verticalArrangement = Arrangement.spacedBy(5.dp),
-            ) {
-                items(options, key = { it?.name ?: "GENERAL" }) { mode ->
-                    TabChip(
-                        if (mode == null) Icons.Rounded.Settings else modeIcon(mode),
-                        mode?.title ?: "Ogólne",
-                        tab == mode,
-                        modifier = Modifier.fillMaxWidth(),
-                    ) { tab = mode }
-                }
+        LazyRow(
+            Modifier.fillMaxWidth(),
+            state = state,
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp),
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            items(options, key = { it?.name ?: "GENERAL" }) { mode ->
+                TabChip(
+                    if (mode == null) Icons.Rounded.Settings else modeIcon(mode),
+                    mode?.title ?: "Ogólne",
+                    tab == mode,
+                ) { tab = mode }
             }
         }
     }
@@ -253,27 +245,36 @@ fun SettingsSheet(
         }
     }
 
-    BoxWithConstraints(
+    // Odstępy od pasków systemowych liczone dla obróconego układu: po obrocie o 90° pasek stanu
+    // leży przy bocznej krawędzi treści, a nie przy jej górze.
+    val density = LocalDensity.current
+    val direction = LocalLayoutDirection.current
+    val safe = WindowInsets.safeDrawing
+    val physical = with(density) {
+        listOf(
+            safe.getTop(density).toDp(),
+            safe.getRight(density, direction).toDp(),
+            safe.getBottom(density).toDp(),
+            safe.getLeft(density, direction).toDp(),
+        )
+    }
+    // Krawędzie treści (góra, prawo, dół, lewo) po obrocie o kolejne ćwiartki zgodnie z ruchem wskazówek.
+    val quarter = (((rotation / 90f).roundToInt() % 4) + 4) % 4
+    fun edge(contentSide: Int) = physical[(contentSide + quarter) % 4]
+    val insets = PaddingValues(top = edge(0), end = edge(1), bottom = edge(2), start = edge(3))
+
+    Box(
         Modifier.fillMaxSize().rotatedLayout(rotation).background(GlassLevel.Thick.tint).pointerInput(Unit) { detectTapGestures { } },
     ) {
-        val horizontalLayout = landscape || maxWidth > maxHeight
-        Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
+        Column(Modifier.fillMaxSize().padding(insets)) {
             Row(Modifier.padding(start = 20.dp, end = 12.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Ustawienia", fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                 GlassIconButton(Icons.Rounded.Close, "Zamknij", 0f, size = 38.dp, onClick = onDismiss)
             }
-            Spacer(Modifier.height(if (horizontalLayout) 6.dp else 12.dp))
-            if (horizontalLayout) {
-                Row(Modifier.weight(1f)) {
-                    Tabs(horizontal = false)
-                    Box(Modifier.width(1.dp).fillMaxHeight().background(Color.White.copy(alpha = 0.08f)))
-                    Body(Modifier.weight(1f))
-                }
-            } else {
-                Tabs(horizontal = true)
-                Spacer(Modifier.height(10.dp))
-                Body(Modifier.weight(1f))
-            }
+            Spacer(Modifier.height(if (landscape) 6.dp else 12.dp))
+            Tabs()
+            Spacer(Modifier.height(if (landscape) 6.dp else 10.dp))
+            Body(Modifier.weight(1f))
         }
     }
 }
@@ -490,23 +491,14 @@ private fun GeneralTab(
     onDownload: () -> Unit,
     onInstall: () -> Unit,
 ) {
-    Group("Aktualizacje") {
-        UpdateRow(update, onCheck, onDownload, onInstall)
-        SwitchRow(Icons.Rounded.Autorenew, "Sprawdzaj automatycznie", "Przy uruchomieniu, co najwyżej co 3 godziny", g.autoCheckUpdates) { v ->
-            onGlobal { it.copy(autoCheckUpdates = v) }
-        }
-        SwitchRow(Icons.Rounded.Download, "Pobieraj i instaluj automatycznie", "Instalacja po wyjściu z aplikacji", g.autoDownloadUpdates) { v ->
-            onGlobal { it.copy(autoDownloadUpdates = v) }
-        }
-    }
     Group("Obsługa") {
         SwitchRow(Icons.Rounded.Vibration, "Wibracje", "Haptyka pokręteł, zoomu i poziomicy", g.haptics) { v -> onGlobal { it.copy(haptics = v) } }
         SwitchRow(Icons.Rounded.CameraAlt, "Dźwięk migawki", null, g.shutterSound) { v -> onGlobal { it.copy(shutterSound = v) } }
         SwitchRow(Icons.Rounded.Alarm, "Sygnał samowyzwalacza", null, g.timerBeep) { v -> onGlobal { it.copy(timerBeep = v) } }
-        SwitchRow(Icons.Rounded.Speed, "Parametry ekspozycji", "Przytrzymaj, aby przesunąć lub przeciągnąć do kosza", g.exposureInfo) { v ->
+        SwitchRow(Icons.Rounded.Speed, "Parametry ekspozycji", "Przeciągnij, aby przesunąć; upuść na koszu, aby ukryć", g.exposureInfo) { v ->
             onGlobal { it.copy(exposureInfo = v) }
         }
-        SwitchRow(Icons.Rounded.Explore, "Kompas", "Przytrzymaj, aby przesunąć lub przeciągnąć do kosza", g.compass) { v ->
+        SwitchRow(Icons.Rounded.Explore, "Kompas", "Przeciągnij, aby przesunąć; upuść na koszu, aby ukryć", g.compass) { v ->
             onGlobal { it.copy(compass = v) }
         }
         Chips(Icons.Rounded.BarChart, "Histogram", com.blacksingularities.registrer.data.HistogramMode.entries, g.histogramMode, { it.label }, hint = "Dotknięcie histogramu też przełącza tryb") { v ->
@@ -524,6 +516,15 @@ private fun GeneralTab(
             hint = g.screenRotation.description,
         ) { v -> onGlobal { it.copy(screenRotation = v) } }
         Chips(Icons.Rounded.VolumeUp, "Klawisze głośności", VolumeAction.entries, g.volumeAction, { it.label }) { v -> onGlobal { it.copy(volumeAction = v) } }
+    }
+    Group("Aktualizacje") {
+        UpdateRow(update, onCheck, onDownload, onInstall)
+        SwitchRow(Icons.Rounded.Autorenew, "Sprawdzaj automatycznie", "Przy uruchomieniu, co najwyżej co 3 godziny", g.autoCheckUpdates) { v ->
+            onGlobal { it.copy(autoCheckUpdates = v) }
+        }
+        SwitchRow(Icons.Rounded.Download, "Pobieraj i instaluj automatycznie", "Instalacja po wyjściu z aplikacji", g.autoDownloadUpdates) { v ->
+            onGlobal { it.copy(autoDownloadUpdates = v) }
+        }
     }
     Group("Ten aparat") {
         val lenses = (caps.lensZooms + caps.auxLenses.map { it.factor }).distinct().sorted()
@@ -555,10 +556,18 @@ private fun UpdateRow(update: UpdateState, onCheck: () -> Unit, onDownload: () -
             RowIcon(Icons.Rounded.SystemUpdate)
             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                 Text("OpenShot ${UpdateManager.currentVersion}", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                val uriHandler = LocalUriHandler.current
                 Text(
-                    "Pomysł i wykonanie · redzikowksi.com",
-                    fontSize = 10.sp,
-                    color = Palette.TextDim.copy(alpha = 0.8f),
+                    buildAnnotatedString {
+                        append("Pomysł i wykonanie · ")
+                        withStyle(SpanStyle(color = Color.White, textDecoration = TextDecoration.Underline)) { append("redzikowski.com") }
+                    },
+                    fontSize = 11.sp,
+                    color = Palette.TextDim,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable { runCatching { uriHandler.openUri("https://redzikowski.com") } }
+                        .padding(vertical = 2.dp),
                 )
                 Text(status, fontSize = 12.sp, color = if (update is UpdateState.Available || update is UpdateState.Ready) Palette.Amber else Palette.TextDim, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
