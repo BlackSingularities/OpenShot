@@ -47,6 +47,8 @@ import com.blacksingularities.registrer.camera.Hud
 import com.blacksingularities.registrer.camera.ProSettings
 import com.blacksingularities.registrer.camera.WhiteBalance
 import com.blacksingularities.registrer.ui.theme.Palette
+import com.blacksingularities.registrer.ui.theme.glass
+import com.blacksingularities.registrer.ui.theme.GlassLevel
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -145,8 +147,7 @@ fun ProPanel(
         Row(
             Modifier
                 .padding(horizontal = 12.dp, vertical = 4.dp)
-                .clip(RoundedCornerShape(18.dp))
-                .background(Palette.GlassStrong)
+                .glass(RoundedCornerShape(18.dp), GlassLevel.Regular)
                 .padding(4.dp),
             horizontalArrangement = Arrangement.spacedBy(2.dp),
         ) {

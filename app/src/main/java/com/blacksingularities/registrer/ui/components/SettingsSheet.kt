@@ -67,19 +67,29 @@ import androidx.compose.material.icons.rounded.AvTimer
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.ui.input.pointer.pointerInput
+import com.blacksingularities.registrer.ui.theme.GlassIconButton
+import com.blacksingularities.registrer.ui.theme.GlassLevel
+import com.blacksingularities.registrer.ui.theme.glass
+import com.blacksingularities.registrer.ui.theme.reactive
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -123,7 +133,6 @@ fun modeIcon(mode: CaptureMode): ImageVector = when (mode) {
 }
 
 /** Zakładka ustawień: profil trybu albo ustawienia ogólne (null). */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsSheet(
     initialMode: CaptureMode,
@@ -141,18 +150,30 @@ fun SettingsSheet(
     onInstallUpdate: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val state = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     var tab by remember { mutableStateOf<CaptureMode?>(initialMode) }
 
-    ModalBottomSheet(
-        onDismissRequest = onDismiss,
-        sheetState = state,
-        containerColor = Palette.Panel,
-        contentColor = Color.White,
-    ) {
-        Column(Modifier.fillMaxWidth().navigationBarsPadding()) {
-            Row(Modifier.padding(horizontal = 20.dp), verticalAlignment = Alignment.CenterVertically) {
+    // Arkusz w tym samym oknie co podgląd – dzięki temu tło jest rozmytym obrazem kamery.
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .heightIn(max = maxHeight * 0.86f)
+                .padding(horizontal = 6.dp)
+                .glass(RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp), GlassLevel.Thick)
+                .pointerInput(Unit) { detectTapGestures { } }
+                .navigationBarsPadding(),
+        ) {
+            Box(
+                Modifier
+                    .padding(top = 10.dp)
+                    .align(Alignment.CenterHorizontally)
+                    .size(width = 38.dp, height = 4.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(Color.White.copy(alpha = 0.35f)),
+            )
+            Row(Modifier.padding(start = 20.dp, end = 12.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Ustawienia", fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                GlassIconButton(Icons.Rounded.Close, "Zamknij", 0f, size = 38.dp, onClick = onDismiss)
             }
             Spacer(Modifier.height(12.dp))
             Row(
@@ -167,6 +188,7 @@ fun SettingsSheet(
             }
             Spacer(Modifier.height(10.dp))
             AnimatedContent(
+                modifier = Modifier.weight(1f, fill = false),
                 targetState = tab,
                 transitionSpec = { fadeIn() togetherWith fadeOut() },
                 label = "settingsTab",
@@ -472,15 +494,17 @@ private fun UpdateRow(update: UpdateState, onCheck: () -> Unit, onDownload: () -
 private fun TabChip(icon: ImageVector, label: String, selected: Boolean, onClick: () -> Unit) {
     Row(
         Modifier
-            .clip(RoundedCornerShape(50))
-            .background(if (selected) Palette.Amber else Palette.PanelHigh)
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .reactive(label, onClick = onClick)
+            .glass(RoundedCornerShape(50), active = selected)
+            .animateContentSize(spring(dampingRatio = 0.8f, stiffness = 500f))
+            .padding(horizontal = 11.dp, vertical = 9.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, null, tint = if (selected) Palette.Ink else Color.White, modifier = Modifier.size(16.dp))
-        Spacer(Modifier.width(6.dp))
-        Text(label, color = if (selected) Palette.Ink else Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+        Icon(icon, null, tint = if (selected) Palette.Amber else Color.White, modifier = Modifier.size(18.dp))
+        if (selected) {
+            Spacer(Modifier.width(6.dp))
+            Text(label, color = Palette.Amber, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+        }
     }
 }
 
@@ -499,7 +523,8 @@ private fun Group(title: String, content: @Composable ColumnScope.() -> Unit) {
             Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(20.dp))
-                .background(Palette.PanelHigh)
+                .background(Color.White.copy(alpha = 0.06f))
+                .border(0.8.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(20.dp))
                 .padding(vertical = 4.dp),
             content = content,
         )

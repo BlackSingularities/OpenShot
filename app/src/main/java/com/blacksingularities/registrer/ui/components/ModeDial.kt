@@ -37,6 +37,12 @@ import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.asin
 import kotlin.math.cos
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Icon
+import com.blacksingularities.registrer.ui.theme.glass
 import kotlin.math.min
 import kotlin.math.roundToInt
 import kotlin.math.sin
@@ -78,7 +84,7 @@ fun ModeDial(
     Box(
         modifier
             .fillMaxWidth()
-            .height(58.dp)
+            .height(76.dp)
             .pointerInput(enabled, modes) {
                 if (!enabled) return@pointerInput
                 var lastTick = selectedIndex
@@ -108,7 +114,7 @@ fun ModeDial(
     ) {
         Canvas(Modifier.matchParentSize()) {
             // Delikatny łuk-prowadnica oraz znacznik aktualnego trybu.
-            val top = 30.dp.toPx()
+            val top = 40.dp.toPx()
             drawArc(
                 color = Color.White.copy(alpha = 0.07f),
                 startAngle = 245f,
@@ -125,12 +131,9 @@ fun ModeDial(
             val angle = d * anglePerItem
             val dist = min(abs(d), 3f)
             val isSel = abs(d) < 0.5f
-            Text(
-                text = m.label.uppercase(),
-                color = if (isSel) Palette.Amber else Color.White,
-                fontSize = 13.sp,
-                fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
-                letterSpacing = 1.6.sp,
+            val focus = (1f - abs(d)).coerceIn(0f, 1f)
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .graphicsLayer {
@@ -142,7 +145,25 @@ fun ModeDial(
                         scaleX = s
                         scaleY = s
                     },
-            )
+            ) {
+                Box(
+                    Modifier
+                        .size(34.dp)
+                        .graphicsLayer { scaleX = 0.9f + 0.18f * focus; scaleY = 0.9f + 0.18f * focus }
+                        .glass(CircleShape, active = isSel, border = isSel),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(modeIcon(m), m.label, tint = if (isSel) Palette.Amber else Color.White, modifier = Modifier.size(18.dp))
+                }
+                Text(
+                    m.label.uppercase(),
+                    color = Palette.Amber,
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.4.sp,
+                    modifier = Modifier.padding(top = 3.dp).graphicsLayer { alpha = focus * focus },
+                )
+            }
         }
     }
 }

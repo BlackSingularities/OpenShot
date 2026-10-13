@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import com.blacksingularities.registrer.data.GridType
 import com.blacksingularities.registrer.ui.theme.Palette
+import com.blacksingularities.registrer.ui.theme.glass
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.atan2
@@ -187,8 +188,7 @@ fun HistogramView(bins: IntArray, modifier: Modifier = Modifier) {
     Canvas(
         modifier
             .size(width = 112.dp, height = 52.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .background(Palette.GlassStrong),
+            .glass(RoundedCornerShape(12.dp)),
     ) {
         val maxV = bins.maxOrNull()?.coerceAtLeast(1) ?: 1
         val path = Path()

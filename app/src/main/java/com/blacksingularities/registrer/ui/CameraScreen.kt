@@ -1,5 +1,27 @@
 package com.blacksingularities.registrer.ui
 
+import dev.chrisbanes.haze.rememberHazeState
+import dev.chrisbanes.haze.hazeSource
+import com.blacksingularities.registrer.ui.theme.reactive
+import com.blacksingularities.registrer.ui.theme.glass
+import com.blacksingularities.registrer.ui.theme.LocalHaze
+import com.blacksingularities.registrer.ui.theme.GlassScope
+import com.blacksingularities.registrer.ui.theme.GlassLevel
+import com.blacksingularities.registrer.ui.theme.GlassIconButton
+import com.blacksingularities.registrer.ui.theme.GlassChip
+import androidx.compose.ui.graphics.vector.path
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.material.icons.rounded.Speed
+import androidx.compose.material.icons.rounded.RawOn
+import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.material.icons.rounded.Image
+import androidx.compose.material.icons.rounded.HdrOn
+import androidx.compose.material.icons.rounded.HdrOff
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.core.spring
+import androidx.activity.compose.BackHandler
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.view.OrientationEventListener
@@ -152,7 +174,8 @@ fun CameraScreen(vm: CameraViewModel, onToggleRearDisplay: () -> Unit = {}) {
 
     val previewView = remember {
         PreviewView(context).apply {
-            implementationMode = PreviewView.ImplementationMode.PERFORMANCE
+            // TextureView – tylko jego obraz można rozmyć pod szklanymi panelami.
+            implementationMode = PreviewView.ImplementationMode.COMPATIBLE
             scaleType = PreviewView.ScaleType.FIT_CENTER
         }
     }
@@ -242,13 +265,33 @@ fun CameraScreen(vm: CameraViewModel, onToggleRearDisplay: () -> Unit = {}) {
 
     val ui = Ui(vm, iconRotation, uprightTurn, displayDegrees, haptics, onSettings = { showSettings = true }, onFold = onToggleRearDisplay)
 
-    BoxWithConstraints(Modifier.fillMaxSize().background(Color.Black)) {
-        val wide = maxWidth > maxHeight * 1.05f
-        if (wide) WideLayout(ui, previewView) else TallLayout(ui, previewView)
-    }
+    val hazeState = rememberHazeState()
+    BackHandler(enabled = showSettings) { showSettings = false }
+    GlassScope(haze = hazeState, haptics = haptics) {
+        BoxWithConstraints(Modifier.fillMaxSize().background(Color.Black)) {
+            val wide = maxWidth > maxHeight * 1.05f
+            if (wide) WideLayout(ui, previewView) else TallLayout(ui, previewView)
+        }
 
-    if (showSettings) {
-        SettingsSheet(
+        AnimatedVisibility(
+            visible = showSettings,
+            enter = fadeIn(tween(180)),
+            exit = fadeOut(tween(220)),
+        ) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.18f))
+                    .pointerInput(Unit) { detectTapGestures { showSettings = false } },
+            )
+        }
+        AnimatedVisibility(
+            visible = showSettings,
+            enter = slideInVertically(spring(dampingRatio = 0.86f, stiffness = 420f)) { it } + fadeIn(),
+            exit = slideOutVertically(tween(220)) { it } + fadeOut(tween(200)),
+            modifier = Modifier.align(Alignment.BottomCenter),
+        ) {
+            SettingsSheet(
             initialMode = vm.mode,
             modes = vm.availableModes,
             profiles = vm.profiles,
@@ -263,7 +306,8 @@ fun CameraScreen(vm: CameraViewModel, onToggleRearDisplay: () -> Unit = {}) {
             onDownloadUpdate = vm::downloadUpdate,
             onInstallUpdate = { vm.installUpdate() },
             onDismiss = { showSettings = false },
-        )
+            )
+        }
     }
 }
 
@@ -307,8 +351,9 @@ private fun TallLayout(ui: Ui, previewView: PreviewView) {
             Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.55f), Color.Black.copy(alpha = 0.85f))))
-                .padding(bottom = insets.calculateBottomPadding() + 12.dp, top = 12.dp),
+                .padding(start = 8.dp, end = 8.dp, bottom = insets.calculateBottomPadding() + 6.dp)
+                .glass(RoundedCornerShape(30.dp), GlassLevel.Regular)
+                .padding(bottom = 8.dp, top = 10.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             CaptureTools(ui)
@@ -352,8 +397,9 @@ private fun WideLayout(ui: Ui, previewView: PreviewView) {
                 Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .background(Brush.verticalGradient(listOf(Color.Transparent, Color.Black.copy(alpha = 0.6f))))
-                    .padding(top = 16.dp, bottom = 8.dp),
+                    .padding(horizontal = 12.dp, vertical = 10.dp)
+                    .glass(RoundedCornerShape(28.dp), GlassLevel.Regular)
+                    .padding(top = 10.dp, bottom = 6.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 CaptureTools(ui)
@@ -402,11 +448,13 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
         val rect = imageRect(containerSize, ratio, centered)
 
         // Widok kamery zajmuje dokładnie prostokąt kadru – obraz jest wyśrodkowany.
+        val haze = LocalHaze.current
         AndroidView(
             factory = { previewView },
             modifier = Modifier
                 .offset { IntOffset(rect.left.roundToInt(), rect.top.roundToInt()) }
-                .size(with(density) { rect.width.toDp() }, with(density) { rect.height.toDp() }),
+                .size(with(density) { rect.width.toDp() }, with(density) { rect.height.toDp() })
+                .then(if (haze != null) Modifier.hazeSource(haze) else Modifier),
         )
 
         val streaming = streamState == PreviewView.StreamState.STREAMING && vm.cameraReady
@@ -544,8 +592,7 @@ private fun BoxScope.FrameInfo(ui: Ui) {
                 textAlign = TextAlign.Center,
                 modifier = Modifier
                     .padding(horizontal = 16.dp)
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Palette.PanelHigh.copy(alpha = 0.95f))
+                    .glass(RoundedCornerShape(16.dp))
                     .padding(horizontal = 16.dp, vertical = 10.dp),
             )
         }
@@ -568,8 +615,7 @@ private fun BoxScope.FrameInfo(ui: Ui) {
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 14.dp)
-                .clip(RoundedCornerShape(50))
-                .background(Palette.GlassStrong)
+                .glass(RoundedCornerShape(50))
                 .padding(horizontal = 14.dp, vertical = 6.dp),
         )
     }
@@ -654,9 +700,9 @@ private fun ShutterCluster(ui: Ui) {
                     .size(52.dp)
                     .graphicsLayer { rotationZ = rot }
                     .clip(CircleShape)
-                    .border(2.dp, Color.White.copy(alpha = 0.85f), CircleShape)
-                    .clickable {
-                        val uri = vm.lastUri ?: return@clickable
+                    .border(1.5.dp, Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.9f), Color.White.copy(alpha = 0.3f))), CircleShape)
+                    .reactive("Galeria") {
+                        val uri = vm.lastUri ?: return@reactive
                         val type = if (vm.lastIsVideo) "video/*" else "image/*"
                         val review = Intent("android.provider.action.REVIEW").setDataAndType(uri, type)
                             .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
@@ -714,7 +760,7 @@ private fun ShutterCluster(ui: Ui) {
     }
 }
 
-/** Lampa, samowyzwalacz, proporcje, format, siatka, fold, ustawienia – w rzędzie albo w kolumnie. */
+/** Lampa, samowyzwalacz, proporcje, format, siatki, fold, ustawienia – ikony; nazwy po przytrzymaniu. */
 @Composable
 private fun TopControls(ui: Ui, vertical: Boolean) {
     val vm = ui.vm
@@ -722,86 +768,98 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
     val items: @Composable () -> Unit = {
         if (vm.mode != CaptureMode.AUDIO) {
             val cfg = vm.cfg
-            val flashIcon = when (cfg.flash) {
-                FlashSetting.OFF -> Icons.Rounded.FlashOff
-                FlashSetting.AUTO -> Icons.Rounded.FlashAuto
-                FlashSetting.ON -> Icons.Rounded.FlashOn
-                FlashSetting.TORCH -> Icons.Rounded.FlashlightOn
+            val (flashIcon, flashName) = when (cfg.flash) {
+                FlashSetting.OFF -> Icons.Rounded.FlashOff to "Lampa wyłączona"
+                FlashSetting.AUTO -> Icons.Rounded.FlashAuto to "Lampa automatyczna"
+                FlashSetting.ON -> Icons.Rounded.FlashOn to "Lampa włączona"
+                FlashSetting.TORCH -> Icons.Rounded.FlashlightOn to "Latarka"
             }
             RoundIcon(
                 flashIcon,
-                "Lampa",
+                if (vm.caps.hasFlash) flashName else "Brak lampy",
                 rot,
-                tint = if (cfg.flash == FlashSetting.OFF) Color.White else Palette.Amber,
+                active = cfg.flash != FlashSetting.OFF,
                 enabled = vm.caps.hasFlash,
                 onClick = vm::cycleFlash,
             )
             if (vm.mode.isPhoto) {
-                LabeledIcon(
+                RoundIcon(
                     Icons.Rounded.Timer,
-                    if (cfg.timerSeconds == 0) null else "${cfg.timerSeconds}s",
+                    if (cfg.timerSeconds == 0) "Samowyzwalacz wyłączony" else "Samowyzwalacz ${cfg.timerSeconds} s",
                     rot,
                     active = cfg.timerSeconds > 0,
+                    badge = cfg.timerSeconds.takeIf { it > 0 }?.toString(),
                     onClick = vm::cycleTimer,
                 )
-                TextChip(cfg.aspect.label, rot, enabled = !vm.busy, onClick = vm::cycleAspect)
+                val frame = remember(cfg.aspect) { frameIcon(cfg.aspect) }
+                RoundIcon(
+                    frame,
+                    "Proporcje ${cfg.aspect.label}",
+                    rot,
+                    enabled = !vm.busy,
+                    onClick = vm::cycleAspect,
+                )
                 if ((vm.mode == CaptureMode.PHOTO || vm.mode == CaptureMode.PRO) && vm.caps.photoFormats.size > 1) {
-                    TextChip(
-                        when (cfg.photoFormat) {
-                            PhotoFormat.JPEG -> "JPG"
-                            PhotoFormat.ULTRA_HDR -> "UHDR"
-                            PhotoFormat.RAW_JPEG -> "RAW+"
-                            PhotoFormat.RAW -> "RAW"
-                        },
+                    val (icon, name) = when (cfg.photoFormat) {
+                        PhotoFormat.JPEG -> Icons.Rounded.Image to "Format JPEG"
+                        PhotoFormat.ULTRA_HDR -> Icons.Rounded.HdrOn to "Format Ultra HDR"
+                        PhotoFormat.RAW_JPEG -> Icons.Rounded.RawOn to "Format RAW + JPEG"
+                        PhotoFormat.RAW -> Icons.Rounded.RawOn to "Format RAW (DNG)"
+                    }
+                    RoundIcon(
+                        icon,
+                        name,
                         rot,
-                        enabled = !vm.busy,
                         active = cfg.photoFormat != PhotoFormat.JPEG,
+                        badge = if (cfg.photoFormat == PhotoFormat.RAW_JPEG) "+" else null,
+                        enabled = !vm.busy,
                         onClick = vm::cyclePhotoFormat,
                     )
-                } else {
-                    GridButton(vm, rot)
                 }
             } else {
                 if (vm.mode == CaptureMode.VIDEO) {
-                    TextChip(cfg.videoResolution.label, rot, enabled = !vm.busy && vm.caps.videoResolutions.size > 1, onClick = vm::cycleVideoResolution)
+                    TextChip(
+                        cfg.videoResolution.label,
+                        rot,
+                        label = "Rozdzielczość ${cfg.videoResolution.label}",
+                        enabled = !vm.busy && vm.caps.videoResolutions.size > 1,
+                        onClick = vm::cycleVideoResolution,
+                    )
                 }
                 val fpsChoices = if (vm.mode == CaptureMode.SLOWMO) vm.caps.slowMoRanges.size else vm.videoFpsOptions().size
                 TextChip(
-                    vm.fpsLabel,
+                    vm.fpsLabel.removeSuffix(" kl/s"),
                     rot,
+                    label = "Klatkaż ${vm.fpsLabel}",
+                    icon = Icons.Rounded.Speed,
                     enabled = !vm.busy && fpsChoices > 1,
                     active = vm.mode == CaptureMode.VIDEO && cfg.videoFps != com.blacksingularities.registrer.data.VideoFps.AUTO,
                     onClick = vm::cycleVideoFps,
                 )
                 if (vm.mode == CaptureMode.VIDEO && vm.caps.videoHlg) {
-                    TextChip(
-                        if (cfg.videoHdr) "HDR" else "SDR",
+                    RoundIcon(
+                        if (cfg.videoHdr) Icons.Rounded.HdrOn else Icons.Rounded.HdrOff,
+                        if (cfg.videoHdr) "Wideo HDR (HLG)" else "Wideo SDR",
                         rot,
-                        enabled = !vm.busy,
                         active = cfg.videoHdr,
+                        enabled = !vm.busy,
                         onClick = { vm.updateProfile { it.copy(videoHdr = !it.videoHdr) } },
                     )
                 }
-                GridButton(vm, rot)
             }
+            GridButton(vm, rot)
             if (vm.rearDisplayAvailable || vm.rearDisplayActive) {
                 RoundIcon(
                     Icons.Rounded.FlipToBack,
                     if (vm.rearDisplayActive) "Wróć na ekran wewnętrzny" else "Selfie głównym aparatem",
                     rot,
-                    tint = if (vm.rearDisplayActive) Palette.Ink else Color.White,
-                    background = if (vm.rearDisplayActive) Palette.Amber else Palette.Glass,
+                    active = vm.rearDisplayActive,
                     enabled = !vm.busy,
                     onClick = ui.onFold,
                 )
             }
         } else {
-            Text(
-                "Dyktafon",
-                fontWeight = FontWeight.Bold,
-                fontSize = 18.sp,
-                modifier = Modifier.padding(6.dp).graphicsLayer { rotationZ = if (vertical) -90f else 0f },
-            )
+            RoundIcon(Icons.Rounded.Mic, "Dyktafon", rot, active = true, onClick = {})
         }
         RoundIcon(Icons.Rounded.Settings, "Ustawienia", rot, onClick = ui.onSettings)
     }
@@ -825,6 +883,34 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
     }
 }
 
+/** Ikona ramki o proporcjach kadru (pionowo: 3:4 albo 9:16). */
+private fun frameIcon(aspect: com.blacksingularities.registrer.data.AspectRatioMode): ImageVector {
+    val h = 19f
+    val w = h * aspect.ratio
+    val l = 12f - w / 2f
+    val t = 12f - h / 2f
+    val r = 2.5f
+    return ImageVector.Builder("frame_${aspect.name}", 24.dp, 24.dp, 24f, 24f).apply {
+        path(
+            fill = null,
+            stroke = SolidColor(Color.White),
+            strokeLineWidth = 2f,
+            strokeLineJoin = StrokeJoin.Round,
+        ) {
+            moveTo(l + r, t)
+            lineTo(l + w - r, t)
+            quadTo(l + w, t, l + w, t + r)
+            lineTo(l + w, t + h - r)
+            quadTo(l + w, t + h, l + w - r, t + h)
+            lineTo(l + r, t + h)
+            quadTo(l, t + h, l, t + h - r)
+            lineTo(l, t + r)
+            quadTo(l, t, l + r, t)
+            close()
+        }
+    }.build()
+}
+
 /**
  * Pasek parametrów na samej górze kadru: ISO, czas naświetlania, przysłona, kompensacja EV
  * i zoom. Wartości ustawione ręcznie (tryb Pro) są wyróżnione bursztynem.
@@ -845,8 +931,7 @@ private fun ExposureStrip(vm: CameraViewModel, modifier: Modifier = Modifier) {
     }
     Row(
         modifier
-            .clip(RoundedCornerShape(50))
-            .background(Palette.GlassStrong)
+            .glass(RoundedCornerShape(50))
             .padding(horizontal = 12.dp, vertical = 5.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -899,8 +984,7 @@ private fun RecordingClock(vm: CameraViewModel, rotation: Float) {
     Row(
         Modifier
             .graphicsLayer { rotationZ = rotation }
-            .clip(RoundedCornerShape(50))
-            .background(Palette.GlassStrong)
+            .glass(RoundedCornerShape(50))
             .padding(horizontal = 14.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -954,8 +1038,7 @@ private fun Badge(text: String, mono: Boolean = false, color: Color = Color.Whit
         letterSpacing = 0.8.sp,
         style = if (mono) MonoDigits else TextStyle.Default,
         modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(Palette.GlassStrong)
+            .glass(RoundedCornerShape(50), active = color == Palette.Amber)
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier)
             .padding(horizontal = 10.dp, vertical = 5.dp),
     )
@@ -977,8 +1060,8 @@ private fun GridButton(vm: CameraViewModel, rotation: Float) {
         DropdownMenu(
             expanded = open,
             onDismissRequest = { open = false },
-            containerColor = Palette.PanelHigh,
-            shape = RoundedCornerShape(16.dp),
+            containerColor = Palette.PanelHigh.copy(alpha = 0.9f),
+            shape = RoundedCornerShape(18.dp),
         ) {
             GridType.entries.forEach { g ->
                 val on = g in grids
@@ -1030,8 +1113,7 @@ private fun UpdateBanner(
         val (label, action, handler) = content ?: return@AnimatedVisibility
         Row(
             Modifier
-                .clip(RoundedCornerShape(50))
-                .background(Palette.PanelHigh.copy(alpha = 0.96f))
+                .glass(RoundedCornerShape(50))
                 .padding(start = 14.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
@@ -1071,62 +1153,35 @@ private fun RoundIcon(
     icon: ImageVector,
     description: String,
     rotation: Float,
-    size: Dp = 42.dp,
-    tint: Color = Color.White,
-    background: Color = Palette.Glass,
+    size: Dp = 44.dp,
+    tint: Color? = null,
+    active: Boolean = false,
     enabled: Boolean = true,
+    badge: String? = null,
     onClick: () -> Unit,
 ) {
-    Box(
-        Modifier
-            .size(size)
-            .clip(CircleShape)
-            .background(background)
-            .clickable(enabled = enabled, onClick = onClick)
-            .graphicsLayer { alpha = if (enabled) 1f else 0.4f },
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(icon, description, tint = tint, modifier = Modifier.graphicsLayer { rotationZ = rotation })
-    }
+    GlassIconButton(
+        icon = icon,
+        label = description,
+        rotation = rotation,
+        size = size,
+        active = active,
+        enabled = enabled,
+        tint = tint,
+        badge = badge,
+        onClick = onClick,
+    )
 }
 
 @Composable
-private fun LabeledIcon(icon: ImageVector, label: String?, rotation: Float, active: Boolean, onClick: () -> Unit) {
-    Box(
-        Modifier
-            .size(42.dp)
-            .clip(CircleShape)
-            .background(Palette.Glass)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Box(Modifier.graphicsLayer { rotationZ = rotation }, contentAlignment = Alignment.Center) {
-            if (label == null) {
-                Icon(icon, "Samowyzwalacz", tint = Color.White)
-            } else {
-                Text(label, color = if (active) Palette.Amber else Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-            }
-        }
-    }
-}
-
-@Composable
-private fun TextChip(text: String, rotation: Float, enabled: Boolean = true, active: Boolean = false, onClick: () -> Unit) {
-    Box(
-        Modifier
-            .height(42.dp)
-            .clip(RoundedCornerShape(50))
-            .background(Palette.Glass)
-            .clickable(enabled = enabled, onClick = onClick)
-            .padding(horizontal = 12.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text,
-            color = if (active) Palette.Amber else if (enabled) Color.White else Palette.TextFaint,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.graphicsLayer { rotationZ = rotation },
-        )
-    }
+private fun TextChip(
+    text: String,
+    rotation: Float,
+    label: String = text,
+    icon: ImageVector? = null,
+    enabled: Boolean = true,
+    active: Boolean = false,
+    onClick: () -> Unit,
+) {
+    GlassChip(text = text, label = label, rotation = rotation, icon = icon, active = active, enabled = enabled, onClick = onClick)
 }

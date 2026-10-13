@@ -78,7 +78,7 @@ kotlin {
 
 dependencies {
     val camerax = "1.6.2"
-    val composeBom = platform("androidx.compose:compose-bom:2025.10.01")
+    val composeBom = platform("androidx.compose:compose-bom:2026.01.00")
 
     implementation("androidx.core:core-ktx:1.17.0")
     implementation("androidx.activity:activity-compose:1.11.0")
@@ -93,6 +93,8 @@ dependencies {
     implementation("com.google.mlkit:segmentation-selfie:16.0.0-beta6")
     // Foldy: przeniesienie aplikacji na ekran zewnętrzny (selfie głównym aparatem).
     implementation("androidx.window:window:1.4.0")
+    // Rozmycie tła (glassmorphism) – żywy obraz kamery pod panelami.
+    implementation("dev.chrisbanes.haze:haze:1.6.10")
 
     implementation(composeBom)
     implementation("androidx.compose.ui:ui")
