@@ -28,7 +28,7 @@ import com.blacksingularities.registrer.ui.CameraViewModel
 import com.blacksingularities.registrer.ui.components.PermissionScreen
 import com.blacksingularities.registrer.ui.theme.OpenShotTheme
 
-class MainActivity : ComponentActivity() {
+open class MainActivity : ComponentActivity() {
     private val vm: CameraViewModel by viewModels()
     private lateinit var rearDisplay: RearDisplay
     private lateinit var subjectPreview: com.blacksingularities.registrer.fold.SubjectPreview
@@ -56,10 +56,21 @@ class MainActivity : ComponentActivity() {
             onActive = { vm.subjectPreviewActive = it },
         )
         subjectPreview.observe(this)
-        if (savedInstanceState == null) vm.handleShortcut(intent?.action)
+        if (savedInstanceState == null) {
+            vm.handleShortcut(intent?.action)
+            handleCameraIntent(intent)
+        }
 
         setContent {
             OpenShotTheme {
+                // Zlecenie innej aplikacji zakończone – wynik i powrót do niej.
+                val external = vm.externalResult
+                LaunchedEffect(external) {
+                    if (external != null) {
+                        setResult(external.first, external.second)
+                        finish()
+                    }
+                }
                 var cameraGranted by remember { mutableStateOf(isGranted(Manifest.permission.CAMERA)) }
                 val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
                     cameraGranted = result[Manifest.permission.CAMERA] == true || isGranted(Manifest.permission.CAMERA)
@@ -114,6 +125,29 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         vm.handleShortcut(intent.action)
+        handleCameraIntent(intent)
+    }
+
+    /** Aparat z ekranu blokady oraz zdjęcie / film na zlecenie innej aplikacji. */
+    private fun handleCameraIntent(intent: android.content.Intent?) {
+        when (intent?.action) {
+            android.provider.MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA_SECURE -> {
+                setShowWhenLocked(true)
+                setTurnScreenOn(true)
+            }
+            android.provider.MediaStore.ACTION_IMAGE_CAPTURE -> vm.startExternalCapture(false, outputUri(intent))
+            android.provider.MediaStore.ACTION_VIDEO_CAPTURE -> vm.startExternalCapture(true, outputUri(intent))
+        }
+    }
+
+    private fun outputUri(intent: android.content.Intent): android.net.Uri? {
+        val extra = if (android.os.Build.VERSION.SDK_INT >= 33) {
+            intent.getParcelableExtra(android.provider.MediaStore.EXTRA_OUTPUT, android.net.Uri::class.java)
+        } else {
+            @Suppress("DEPRECATION")
+            intent.getParcelableExtra(android.provider.MediaStore.EXTRA_OUTPUT)
+        }
+        return extra ?: intent.clipData?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.uri
     }
 
     private fun isGranted(permission: String) =

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.19.0
+
+- **Domyślny aparat**: nowa opcja w Ustawieniach → Ogólne → Sterowanie pokazuje, który aparat jest domyślny, i pomaga to zmienić – gdy żaden, otwiera systemowy wybór (wybierz OpenShot → Zawsze), gdy inna aplikacja – jej ustawienia, by wyczyścić „Otwieraj domyślnie”.
+- **Aparat dla innych aplikacji**: OpenShot obsługuje zlecenia zdjęcia i filmu (np. z komunikatora czy formularza w przeglądarce) – po zrobieniu zdjęcia lub nagraniu filmu wynik wraca do aplikacji, która o niego prosiła.
+- **Start z ekranu blokady**: aparat otwierany przy zablokowanym telefonie (np. podwójnym naciśnięciem przycisku zasilania) pokazuje się nad ekranem blokady.
+
 ## 2.18.0
 
 - **Płaski profil (LOG)** w wideo trybu ręcznego: logarytmiczna krzywa tonalna podnosi cienie i łagodnie kompresuje światła, a wyostrzanie jest wyłączone – materiał do późniejszej korekcji kolorów. Przełącznik „LOG” na górnym pasku i w ustawieniach trybu ręcznego; pojawia się tylko, gdy sterownik aparatu pozwala na własną krzywą (nie łączy się z HDR).

@@ -113,6 +113,7 @@ import androidx.compose.material.icons.rounded.Link
 import com.blacksingularities.registrer.data.SharedGroup
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Translate
 import androidx.compose.material.icons.rounded.CropFree
 import androidx.compose.material.icons.rounded.PresentToAll
@@ -690,6 +691,7 @@ private fun GeneralTab(
             icon = { if (it == ScreenRotation.FIXED) Icons.Rounded.ScreenLockRotation else Icons.Rounded.ScreenRotation },
             hint = g.screenRotation.description,
         ) { v -> onGlobal { it.copy(screenRotation = v) } }
+        DefaultCameraRow()
         CompactChoice(
             Icons.Rounded.VolumeUp,
             tr("Klawisze głośności", "Volume keys"),
@@ -828,6 +830,64 @@ private fun Hint(text: String) {
         color = Palette.TextDim,
         modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 8.dp),
     )
+}
+
+/** Status domyślnego aparatu i przycisk ustawienia (odświeżany po powrocie z ustawień systemu). */
+@Composable
+private fun DefaultCameraRow() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val owner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    var tick by remember { mutableStateOf(0) }
+    androidx.compose.runtime.DisposableEffect(owner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, e ->
+            if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) tick++
+        }
+        owner.lifecycle.addObserver(observer)
+        onDispose { owner.lifecycle.removeObserver(observer) }
+    }
+    val status = remember(tick) { com.blacksingularities.registrer.DefaultCamera.status(context) }
+    val ours = status is com.blacksingularities.registrer.DefaultCamera.Status.Ours
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(Icons.Rounded.CameraAlt, null, tint = Palette.TextDim, modifier = Modifier.size(18.dp))
+        Column(Modifier.weight(1f).padding(horizontal = 10.dp)) {
+            Text(tr("Domyślny aparat", "Default camera"), fontSize = 13.sp)
+            Text(
+                when (status) {
+                    is com.blacksingularities.registrer.DefaultCamera.Status.Ours ->
+                        tr("OpenShot – przycisk aparatu i inne aplikacje otwierają OpenShot", "OpenShot – the camera button and other apps open OpenShot")
+                    is com.blacksingularities.registrer.DefaultCamera.Status.None ->
+                        tr("Nie wybrano – dotknij „Ustaw” i wybierz OpenShot → Zawsze", "Not set – tap “Set” and choose OpenShot → Always")
+                    is com.blacksingularities.registrer.DefaultCamera.Status.Other ->
+                        tr(
+                            "Teraz: ${status.label} – w jej ustawieniach wyczyść „Otwieraj domyślnie”",
+                            "Now: ${status.label} – clear “Open by default” in its settings",
+                        )
+                },
+                fontSize = 10.sp,
+                lineHeight = 12.sp,
+                color = Palette.TextDim,
+                maxLines = 3,
+            )
+        }
+        if (!ours) {
+            Text(
+                tr("Ustaw", "Set"),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = Palette.Ink,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(Color.White)
+                    .clickable { com.blacksingularities.registrer.DefaultCamera.request(context) }
+                    .padding(horizontal = 12.dp, vertical = 6.dp),
+            )
+        } else {
+            Icon(Icons.Rounded.CheckCircle, tr("Domyślny", "Default"), tint = Color.White, modifier = Modifier.size(20.dp))
+        }
+    }
 }
 
 /**

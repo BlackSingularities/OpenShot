@@ -519,7 +519,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
                 updateGlobal { it.copy(lastMode = CaptureMode.AUDIO) }
                 startAudio()
             }
-            com.blacksingularities.registrer.MainActivity.ACTION_VIDEO -> selectMode(CaptureMode.VIDEO)
+            com.blacksingularities.registrer.MainActivity.ACTION_VIDEO, android.provider.MediaStore.INTENT_ACTION_VIDEO_CAMERA -> selectMode(CaptureMode.VIDEO)
             com.blacksingularities.registrer.MainActivity.ACTION_SELFIE -> {
                 selectMode(CaptureMode.PHOTO)
                 if (!busy && lensFacing != CameraSelector.LENS_FACING_FRONT) {
@@ -1423,6 +1423,55 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    // ================================================================ zlecenie innej aplikacji
+
+    /** Zdjęcie lub film zamówione przez inną aplikację; [output] – plik wskazany przez nią (EXTRA_OUTPUT). */
+    data class ExternalCapture(val video: Boolean, val output: Uri?)
+
+    var externalCapture by mutableStateOf<ExternalCapture?>(null); private set
+
+    /** Wynik dla wywołującej aplikacji (kod + intencja); ekran zamyka się po jego ustawieniu. */
+    var externalResult by mutableStateOf<Pair<Int, android.content.Intent?>?>(null); private set
+
+    fun startExternalCapture(video: Boolean, output: Uri?) {
+        externalCapture = ExternalCapture(video, output)
+        if (!busy) mode = if (video) CaptureMode.VIDEO else CaptureMode.PHOTO
+    }
+
+    private fun finishExternal(uri: Uri) {
+        val request = externalCapture ?: return
+        externalCapture = null
+        viewModelScope.launch {
+            val data = withContext(Dispatchers.IO) {
+                runCatching {
+                    val resolver = ctx.contentResolver
+                    val out = request.output
+                    if (out != null) {
+                        // Plik należy do wywołującej aplikacji – kopia trafia tylko tam.
+                        resolver.openInputStream(uri)!!.use { input ->
+                            resolver.openOutputStream(out, "wt")!!.use { input.copyTo(it) }
+                        }
+                        runCatching { resolver.delete(uri, null, null) }
+                        android.content.Intent().setData(out)
+                    } else if (request.video) {
+                        android.content.Intent().setData(uri).addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    } else {
+                        // Bez wskazanego pliku: miniatura w „data” (mała – ograniczenie rozmiaru intencji).
+                        val thumb = resolver.loadThumbnail(uri, Size(320, 320), null)
+                        android.content.Intent().putExtra("data", thumb).setData(uri)
+                            .addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    }
+                }.getOrNull()
+            }
+            externalResult = if (data != null) {
+                android.app.Activity.RESULT_OK to data
+            } else {
+                message = tr("Nie udało się przekazać pliku aplikacji", "Could not hand the file over to the app")
+                android.app.Activity.RESULT_CANCELED to null
+            }
+        }
+    }
+
     // ================================================================ zdjęcia ruchome
 
     private var momentJob: Job? = null
@@ -1542,6 +1591,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     private fun onSaved(uri: Uri, video: Boolean, alternative: Uri? = null) {
         lastUri = uri
         lastIsVideo = video
+        if (externalCapture?.video == video) finishExternal(uri)
         viewModelScope.launch {
             val thumb = withContext(Dispatchers.IO) {
                 listOfNotNull(alternative, uri).firstNotNullOfOrNull { u ->
