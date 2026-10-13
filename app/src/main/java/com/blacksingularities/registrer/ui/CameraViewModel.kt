@@ -270,6 +270,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
 
     fun selectMode(m: CaptureMode) {
         if (m == mode || busy) return
+        rockerFocus = false
         stopPlayback()
         timerJob?.cancel()
         countdown = null
@@ -360,6 +361,38 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     fun updatePro(p: ProSettings) {
         pro = p
         engine.applyPro(p)
+    }
+
+    /** Pro: suwak pod obiektywami steruje ręczną ostrością zamiast zoomem. */
+    var rockerFocus by mutableStateOf(false); private set
+    private var lastFocusApply = 0L
+
+    val focusAvailable: Boolean get() = mode == CaptureMode.PRO && caps.minFocusDistance > 0f && session.extension == null
+
+    fun toggleRockerFocus() {
+        rockerFocus = !rockerFocus && focusAvailable
+        if (rockerFocus && pro.focusDiopters == null) {
+            // Start od bieżącej odległości ostrzenia z autofokusa, by obraz nie „skoczył”.
+            val start = (hud?.focusDiopters ?: 0f).coerceIn(0f, caps.minFocusDistance)
+            updatePro(pro.copy(focusDiopters = start))
+        }
+    }
+
+    /**
+     * [rate] z suwaka: w prawo – dalej (mniej dioptrii, do ∞), w lewo – bliżej. Pełne wychylenie
+     * przejeżdża cały zakres w ok. 1,5 s; zmiany wysyłane do kamery co najwyżej co 30 ms.
+     */
+    fun nudgeFocus(rate: Float, dtSeconds: Float) {
+        if (!focusAvailable || rate == 0f) return
+        val range = caps.minFocusDistance
+        val current = pro.focusDiopters ?: hud?.focusDiopters ?: 0f
+        val next = (current - rate / 1.9f * range * 0.65f * dtSeconds).coerceIn(0f, range)
+        pro = pro.copy(focusDiopters = next)
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastFocusApply >= 30) {
+            lastFocusApply = now
+            engine.applyPro(pro)
+        }
     }
 
     // ================================================================ zoom / ostrość / EV

@@ -1,5 +1,6 @@
 package com.blacksingularities.registrer.ui
 
+import androidx.compose.foundation.gestures.detectDragGestures
 import com.blacksingularities.registrer.ui.components.QuickControl
 import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.GraphicEq
@@ -512,8 +513,66 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
             FrameInfo(ui)
         }
 
+        val bins = vm.histogram
+        if (bins != null && vm.cfg.histogram && vm.mode.isPhoto) {
+            DraggableHistogram(vm, bins, rect, ui.iconRotation)
+        }
+
         Box(Modifier.fillMaxSize().graphicsLayer { alpha = flashAlpha.value }.background(Color.Black))
     }
+}
+
+/**
+ * Histogram, który można przeciągnąć w dowolne miejsce kadru; pozycja jest zapamiętywana
+ * (jako ułamek kadru, więc pasuje też po zmianie proporcji czy ekranu folda).
+ */
+@Composable
+private fun DraggableHistogram(vm: CameraViewModel, bins: IntArray, rect: Rect, rotation: Float) {
+    val density = LocalDensity.current
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+    val w = with(density) { 112.dp.toPx() }
+    val h = with(density) { 52.dp.toPx() }
+    val margin = with(density) { 8.dp.toPx() }
+    val availW = (rect.width - w - 2 * margin).coerceAtLeast(1f)
+    val availH = (rect.height - h - 2 * margin).coerceAtLeast(1f)
+    var pos by remember { mutableStateOf(Offset(vm.global.histogramX, vm.global.histogramY)) }
+    var dragging by remember { mutableStateOf(false) }
+    val scale by animateFloatAsState(if (dragging) 1.12f else 1f, spring(dampingRatio = 0.55f, stiffness = 600f), label = "histScale")
+    HistogramView(
+        bins,
+        Modifier
+            .offset {
+                IntOffset(
+                    (rect.left + margin + pos.x * availW).roundToInt(),
+                    (rect.top + margin + pos.y * availH).roundToInt(),
+                )
+            }
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+                rotationZ = rotation
+                shadowElevation = if (dragging) 12f else 0f
+            }
+            .pointerInput(rect) {
+                detectDragGestures(
+                    onDragStart = {
+                        dragging = true
+                        if (vm.global.haptics) haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                    },
+                    onDragEnd = {
+                        dragging = false
+                        vm.updateGlobal { it.copy(histogramX = pos.x, histogramY = pos.y) }
+                    },
+                    onDragCancel = { dragging = false },
+                ) { change, drag ->
+                    change.consume()
+                    pos = Offset(
+                        (pos.x + drag.x / availW).coerceIn(0f, 1f),
+                        (pos.y + drag.y / availH).coerceIn(0f, 1f),
+                    )
+                }
+            },
+    )
 }
 
 /**
@@ -574,8 +633,6 @@ private fun BoxScope.FrameInfo(ui: Ui) {
                 }
                 if (vm.rearDisplayActive) Badge("Selfie głównym aparatem", color = Palette.Amber)
             }
-            val bins = vm.histogram
-            if (bins != null && vm.cfg.histogram && vm.mode.isPhoto) HistogramView(bins)
         }
         UpdateBanner(
             state = vm.update,
@@ -675,6 +732,11 @@ private fun CaptureTools(ui: Ui) {
             onPreset = vm::selectZoomPreset,
             onRate = vm::nudgeZoom,
             modifier = Modifier.padding(bottom = 4.dp),
+            focusAvailable = vm.focusAvailable,
+            focusMode = vm.rockerFocus,
+            focusLabel = vm.pro.focusDiopters?.let { com.blacksingularities.registrer.ui.components.formatFocus(it) },
+            onToggleFocus = vm::toggleRockerFocus,
+            onFocusRate = vm::nudgeFocus,
         )
     }
     ModeDial(

@@ -163,6 +163,9 @@ data class GlobalSettings(
     val volumeAction: VolumeAction = VolumeAction.SHUTTER,
     val screenRotation: ScreenRotation = ScreenRotation.FIXED,
     val exposureInfo: Boolean = true,
+    /** Pozycja histogramu w kadrze (0–1 w poziomie i pionie). */
+    val histogramX: Float = 1f,
+    val histogramY: Float = 0.12f,
     val autoCheckUpdates: Boolean = true,
     val autoDownloadUpdates: Boolean = true,
     val lastMode: CaptureMode = CaptureMode.PHOTO,
@@ -180,6 +183,8 @@ class SettingsStore(context: Context) {
             volumeAction = enumOr(prefs.getString("g.volume", null), d.volumeAction),
             screenRotation = enumOr(prefs.getString("g.rotation", null), d.screenRotation),
             exposureInfo = prefs.getBoolean("g.exposureInfo", d.exposureInfo),
+            histogramX = prefs.getFloat("g.histX", d.histogramX),
+            histogramY = prefs.getFloat("g.histY", d.histogramY),
             autoCheckUpdates = prefs.getBoolean("g.autoCheck", d.autoCheckUpdates),
             autoDownloadUpdates = prefs.getBoolean("g.autoDownload", d.autoDownloadUpdates),
             lastMode = enumOr(prefs.getString("g.lastMode", null), d.lastMode),
@@ -194,6 +199,8 @@ class SettingsStore(context: Context) {
             .putString("g.volume", g.volumeAction.name)
             .putString("g.rotation", g.screenRotation.name)
             .putBoolean("g.exposureInfo", g.exposureInfo)
+            .putFloat("g.histX", g.histogramX)
+            .putFloat("g.histY", g.histogramY)
             .putBoolean("g.autoCheck", g.autoCheckUpdates)
             .putBoolean("g.autoDownload", g.autoDownloadUpdates)
             .putString("g.lastMode", g.lastMode.name)

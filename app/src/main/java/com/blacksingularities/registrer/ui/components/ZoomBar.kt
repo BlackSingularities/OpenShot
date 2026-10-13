@@ -18,6 +18,18 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import com.blacksingularities.registrer.ui.theme.GlassIconButton
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.material.icons.rounded.LocalFlorist
+import androidx.compose.material.icons.rounded.Landscape
+import androidx.compose.material.icons.rounded.CenterFocusStrong
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.animation.togetherWith
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material3.Icon
@@ -125,6 +137,10 @@ fun ZoomRocker(
     haptics: Boolean,
     onRate: (rate: Float, dt: Float) -> Unit,
     modifier: Modifier = Modifier,
+    leftIcon: ImageVector = Icons.Rounded.Remove,
+    leftLabel: String = "Oddal",
+    rightIcon: ImageVector = Icons.Rounded.Add,
+    rightLabel: String = "Przybliż",
 ) {
     val haptic = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
@@ -154,7 +170,7 @@ fun ZoomRocker(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Icon(Icons.Rounded.Remove, "Oddal", tint = Palette.TextDim, modifier = Modifier.size(18.dp))
+        Icon(leftIcon, leftLabel, tint = Palette.TextDim, modifier = Modifier.size(18.dp))
         Canvas(
             Modifier
                 .width(220.dp)
@@ -226,11 +242,14 @@ fun ZoomRocker(
             drawCircle(if (dragging) Palette.Amber else Color.White, h / 2f - 4.dp.toPx(), Offset(thumbX, cy))
             drawCircle(Palette.Ink.copy(alpha = 0.6f), 3.dp.toPx(), Offset(thumbX, cy))
         }
-        Icon(Icons.Rounded.Add, "Przybliż", tint = Palette.TextDim, modifier = Modifier.size(18.dp))
+        Icon(rightIcon, rightLabel, tint = Palette.TextDim, modifier = Modifier.size(18.dp))
     }
 }
 
-/** Kompletny blok zoomu: obiektywy + przełącznik prędkości. */
+/**
+ * Kompletny blok zoomu: obiektywy + przełącznik prędkości. W trybie Pro przycisk obok
+ * suwaka przełącza go na ręczną ostrość (lewo – bliżej, prawo – dalej, do ∞).
+ */
 @Composable
 fun ZoomControls(
     presets: List<Float>,
@@ -242,11 +261,67 @@ fun ZoomControls(
     onPreset: (Float) -> Unit,
     onRate: (rate: Float, dt: Float) -> Unit,
     modifier: Modifier = Modifier,
+    focusAvailable: Boolean = false,
+    focusMode: Boolean = false,
+    focusLabel: String? = null,
+    onToggleFocus: () -> Unit = {},
+    onFocusRate: (rate: Float, dt: Float) -> Unit = { _, _ -> },
 ) {
+    val focusing = focusAvailable && focusMode
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        LensSelector(presets, current, iconRotation, haptics, onPreset)
-        if (max - min > 0.05f) {
-            ZoomRocker(enabled = true, haptics = haptics, onRate = onRate, modifier = Modifier.padding(top = 6.dp))
+        AnimatedContent(
+            targetState = focusing,
+            transitionSpec = { (fadeIn(tween(160)) + scaleIn(initialScale = 0.9f)) togetherWith fadeOut(tween(120)) },
+            label = "zoomOrFocus",
+        ) { f ->
+            if (f) {
+                Row(
+                    Modifier
+                        .height(48.dp)
+                        .glass(RoundedCornerShape(50), active = true)
+                        .padding(horizontal = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Icon(Icons.Rounded.CenterFocusStrong, null, tint = Palette.Amber, modifier = Modifier.size(18.dp).graphicsLayer { rotationZ = iconRotation })
+                    Text(
+                        "  Ostrość  " + (focusLabel ?: "AF"),
+                        color = Palette.Amber,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.graphicsLayer { rotationZ = iconRotation },
+                    )
+                }
+            } else {
+                LensSelector(presets, current, iconRotation, haptics, onPreset)
+            }
+        }
+        if (max - min > 0.05f || focusAvailable) {
+            Row(Modifier.padding(top = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (focusing) {
+                    ZoomRocker(
+                        enabled = true,
+                        haptics = haptics,
+                        onRate = onFocusRate,
+                        leftIcon = Icons.Rounded.LocalFlorist,
+                        leftLabel = "Bliżej",
+                        rightIcon = Icons.Rounded.Landscape,
+                        rightLabel = "Dalej",
+                    )
+                } else {
+                    ZoomRocker(enabled = max - min > 0.05f, haptics = haptics, onRate = onRate)
+                }
+                if (focusAvailable) {
+                    Spacer(Modifier.width(8.dp))
+                    GlassIconButton(
+                        Icons.Rounded.CenterFocusStrong,
+                        if (focusMode) "Suwak: ostrość – dotknij, by wrócić do zoomu" else "Suwak steruje ostrością",
+                        iconRotation,
+                        size = 36.dp,
+                        active = focusMode,
+                        onClick = onToggleFocus,
+                    )
+                }
+            }
         }
     }
 }
