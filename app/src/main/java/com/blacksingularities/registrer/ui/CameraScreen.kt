@@ -64,6 +64,7 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -113,6 +114,7 @@ import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.VideoStable
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -137,8 +139,10 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
@@ -608,6 +612,37 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
             overlayOverTrash = overTrash
         }
         val bins = vm.histogram
+
+        // Powyżej 10× główny podgląd jest kadrowany programowo. Osobna miniatura zachowuje
+        // szerszy obraz bazowy, dzięki czemu łatwo odnaleźć obiekt i zobaczyć aktualny wycinek.
+        val showZoomNavigator = vm.cropZoom > 1.001f && vm.displayZoom > ZOOM_NAVIGATOR_THRESHOLD
+        var zoomOverview by remember { mutableStateOf<ImageBitmap?>(null) }
+        LaunchedEffect(showZoomNavigator, previewView) {
+            if (!showZoomNavigator) {
+                zoomOverview = null
+                return@LaunchedEffect
+            }
+            while (true) {
+                runCatching { previewView.bitmap?.asImageBitmap() }.getOrNull()?.let { zoomOverview = it }
+                delay(200)
+            }
+        }
+        zoomOverview?.takeIf { showZoomNavigator }?.let { overview ->
+            DraggableOverlay(
+                rect = overlayArea,
+                start = Offset(vm.global.zoomNavigatorX, vm.global.zoomNavigatorY),
+                turn = ui.uprightTurn,
+                rotation = ui.iconRotation,
+                haptics = ui.haptics,
+                deletable = false,
+                onCommit = { p -> vm.updateGlobal { it.copy(zoomNavigatorX = p.x, zoomNavigatorY = p.y) } },
+                onDragState = { _, _ -> },
+                onDelete = {},
+            ) {
+                ZoomNavigator(overview, vm.displayZoom, vm.zoomNavigatorBase)
+            }
+        }
+
         if (bins != null && vm.cfg.histogram && vm.mode.isPhoto) {
             DraggableOverlay(
                 rect = overlayArea,
@@ -702,6 +737,7 @@ private fun DraggableOverlay(
     turn: Int,
     rotation: Float,
     haptics: Boolean,
+    deletable: Boolean = true,
     onCommit: (Offset) -> Unit,
     onDragState: (Boolean, Boolean) -> Unit,
     onDelete: () -> Unit,
@@ -743,12 +779,12 @@ private fun DraggableOverlay(
                 detectDragGesturesAfterLongPress(
                     onDragStart = {
                         dragPos = uprightToScreen(upright, turnNow)
-                        dragState(true, false)
+                        dragState(deletable, false)
                         if (haptics) haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                     },
                     onDragEnd = {
                         val p = dragPos ?: return@detectDragGesturesAfterLongPress
-                        if (isOverOverlayTrash(p, rect, margin, availW, availH, boxW, boxH, density)) {
+                        if (deletable && isOverOverlayTrash(p, rect, margin, availW, availH, boxW, boxH, density)) {
                             dragPos = null
                             dragState(false, false)
                             if (haptics) haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
@@ -773,7 +809,10 @@ private fun DraggableOverlay(
                         (p.x + drag.x / availW).coerceIn(0f, 1f),
                         (p.y + drag.y / availH).coerceIn(0f, 1f),
                     )
-                    dragState(true, isOverOverlayTrash(dragPos!!, rect, margin, availW, availH, boxW, boxH, density))
+                    dragState(
+                        deletable,
+                        deletable && isOverOverlayTrash(dragPos!!, rect, margin, availW, availH, boxW, boxH, density),
+                    )
                 }
             },
         contentAlignment = Alignment.Center,
@@ -788,6 +827,55 @@ private fun DraggableOverlay(
                     scaleY = scale
                 },
         ) { content() }
+    }
+}
+
+@Composable
+private fun ZoomNavigator(bitmap: ImageBitmap, zoom: Float, baseZoom: Float) {
+    val cropFraction = (baseZoom / zoom).coerceIn(0.08f, 1f)
+    Box(
+        Modifier
+            .size(120.dp, 82.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color.Black)
+            .border(1.dp, Color.White.copy(alpha = 0.7f), RoundedCornerShape(8.dp)),
+    ) {
+        Image(
+            bitmap = bitmap,
+            contentDescription = "Nawigator dużego zoomu",
+            contentScale = ContentScale.Crop,
+            modifier = Modifier.fillMaxSize(),
+        )
+        Canvas(Modifier.fillMaxSize()) {
+            val w = size.width * cropFraction
+            val h = size.height * cropFraction
+            val left = (size.width - w) / 2f
+            val top = (size.height - h) / 2f
+            val shade = Color.Black.copy(alpha = 0.34f)
+            drawRect(shade, topLeft = Offset.Zero, size = Size(size.width, top))
+            drawRect(shade, topLeft = Offset(0f, top + h), size = Size(size.width, size.height - top - h))
+            drawRect(shade, topLeft = Offset(0f, top), size = Size(left, h))
+            drawRect(shade, topLeft = Offset(left + w, top), size = Size(size.width - left - w, h))
+            drawRect(
+                color = Palette.Amber,
+                topLeft = Offset(left, top),
+                size = Size(w, h),
+                style = Stroke(width = 2.dp.toPx()),
+            )
+            val cross = 5.dp.toPx()
+            drawLine(Palette.Amber, Offset(center.x - cross, center.y), Offset(center.x + cross, center.y), 1.dp.toPx())
+            drawLine(Palette.Amber, Offset(center.x, center.y - cross), Offset(center.x, center.y + cross), 1.dp.toPx())
+        }
+        Text(
+            "${com.blacksingularities.registrer.ui.components.formatZoom(zoom)}×",
+            color = Color.White,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .background(Color.Black.copy(alpha = 0.72f), RoundedCornerShape(bottomEnd = 6.dp))
+                .padding(horizontal = 5.dp, vertical = 2.dp),
+        )
     }
 }
 
@@ -1339,6 +1427,22 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
                         selected = if (cfg.videoHdr) 1 else 0,
                         onPick = { i -> vm.setVideoHdr(i == 1) },
                         onClick = { vm.updateProfile { it.copy(videoHdr = !it.videoHdr) } },
+                    )
+                }
+                if (vm.mode == CaptureMode.VIDEO && vm.caps.videoStabilization) {
+                    RoundIcon(
+                        Icons.Rounded.VideoStable,
+                        if (cfg.stabilization) "Stabilizacja włączona" else "Stabilizacja wyłączona",
+                        rot,
+                        active = cfg.stabilization,
+                        enabled = !vm.busy,
+                        options = listOf(
+                            PickerOption("Stabilizacja wyłączona", Icons.Rounded.VideoStable, caption = "Wył."),
+                            PickerOption("Stabilizacja włączona", Icons.Rounded.VideoStable, caption = "Wł."),
+                        ),
+                        selected = if (cfg.stabilization) 1 else 0,
+                        onPick = { i -> vm.setStabilization(i == 1) },
+                        onClick = { vm.setStabilization(!cfg.stabilization) },
                     )
                 }
             }

@@ -209,6 +209,9 @@ data class GlobalSettings(
     val histogramSize: HistogramSize = HistogramSize.MEDIUM,
     val compassX: Float = 0.5f,
     val compassY: Float = 0.1f,
+    /** Pozycja automatycznego nawigatora zoomu >10×. */
+    val zoomNavigatorX: Float = 0f,
+    val zoomNavigatorY: Float = 0.18f,
     val autoCheckUpdates: Boolean = true,
     val autoDownloadUpdates: Boolean = true,
     val lastMode: CaptureMode = CaptureMode.PHOTO,
@@ -235,6 +238,8 @@ class SettingsStore(context: Context) {
             histogramSize = enumOr(prefs.getString("g.histSize", null), d.histogramSize),
             compassX = prefs.getFloat("g.compassX", d.compassX),
             compassY = prefs.getFloat("g.compassY", d.compassY),
+            zoomNavigatorX = prefs.getFloat("g.zoomNavX", d.zoomNavigatorX),
+            zoomNavigatorY = prefs.getFloat("g.zoomNavY", d.zoomNavigatorY),
             autoCheckUpdates = prefs.getBoolean("g.autoCheck", d.autoCheckUpdates),
             autoDownloadUpdates = prefs.getBoolean("g.autoDownload", d.autoDownloadUpdates),
             lastMode = enumOr(prefs.getString("g.lastMode", null), d.lastMode),
@@ -258,6 +263,8 @@ class SettingsStore(context: Context) {
             .putString("g.histSize", g.histogramSize.name)
             .putFloat("g.compassX", g.compassX)
             .putFloat("g.compassY", g.compassY)
+            .putFloat("g.zoomNavX", g.zoomNavigatorX)
+            .putFloat("g.zoomNavY", g.zoomNavigatorY)
             .putBoolean("g.autoCheck", g.autoCheckUpdates)
             .putBoolean("g.autoDownload", g.autoDownloadUpdates)
             .putString("g.lastMode", g.lastMode.name)

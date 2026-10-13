@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.3.1
+
+- Stabilizacja obrazu jest dostępna bezpośrednio na górnym pasku trybu Wideo, gdy obsługuje ją aktywny aparat.
+- Przy zoomie większym niż 10× pojawia się ruchomy podgląd szerszego kadru z celownikiem pokazującym widoczny wycinek; jego pozycja jest zapamiętywana.
+- Zoom powyżej 10× w trybach Foto i Pro przechodzi na przewidywalne kadrowanie programowe, dzięki czemu podgląd nawigacyjny pozostaje czytelny.
+
 ## 2.3.0
 
 - Slow-motion wykrywa wszystkie obsługiwane połączenia rozdzielczości i klatkażu, działa wyłącznie na tylnym aparacie głównym 1× i udostępnia oba parametry na górnym pasku.
