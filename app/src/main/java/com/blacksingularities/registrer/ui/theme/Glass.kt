@@ -14,6 +14,9 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Row
@@ -93,13 +96,16 @@ val LocalHintOnTap = staticCompositionLocalOf { false }
 /** Dymki z nazwą elementu pokazywane po przytrzymaniu. */
 val LocalHints = staticCompositionLocalOf<HintState?> { null }
 
-enum class GlassLevel(val tint: Color, val blur: Dp) {
+/** [tint] – zabarwienie nad rozmyciem, [flat] – tło bez rozmycia. */
+enum class GlassLevel(val tint: Color, val blur: Dp, val flat: Color) {
+    /** Dolny panel sterowania – ledwie przyciemniony, kadr dobrze widoczny. */
+    Faint(Color(0x1A10131A), 18.dp, Color(0x2E10131A)),
     /** Przyciski i plakietki nad kadrem. */
-    Thin(Color(0x2E10131A), 18.dp),
+    Thin(Color(0x2E10131A), 18.dp, Color(0x5910131A)),
     /** Panele sterowania. */
-    Regular(Color(0x5210131A), 26.dp),
+    Regular(Color(0x5210131A), 26.dp, Color(0x7310131A)),
     /** Arkusze z dużą ilością tekstu (ustawienia). */
-    Thick(Color(0xB012141B), 34.dp),
+    Thick(Color(0xB012141B), 34.dp, Color(0xE812141B)),
 }
 
 /** Aktywny element to pełny bursztynowy blok z ciemną ikoną. */
@@ -130,7 +136,7 @@ fun Modifier.glass(
             noiseFactor = 0f
         }
     } else {
-        clipped.background(tint.copy(alpha = (tint.alpha + 0.35f).coerceAtMost(0.9f)))
+        clipped.background(if (active) tint else level.flat)
     }
     // Surowe bloki – bez obwódek i podświetleń krawędzi.
     return blurred
@@ -157,14 +163,160 @@ class HintState {
     }
 }
 
-/** Zapewnia szkło, haptykę i warstwę dymków całemu drzewu interfejsu. */
+/** Opcja rozwijanej listy: ikona albo krótka wartość + podpis; [label] – pełna nazwa (dostępność). */
+data class PickerOption(
+    val label: String,
+    val icon: ImageVector? = null,
+    val value: String? = null,
+    val caption: String? = null,
+)
+
+private val PICKER_ITEM = 54.dp
+private val PICKER_STEP = 58.dp
+private val PICKER_GAP = 10.dp
+
+/**
+ * Rozwijana lista opcji przycisku: przytrzymaj przycisk i przeciągnij w dół (w pionowym
+ * pasku – w bok), przesuń palec na opcję i puść. Lista rysowana w warstwie nad interfejsem.
+ */
+@Stable
+class PickerState {
+    var options by mutableStateOf<List<PickerOption>>(emptyList())
+        private set
+    var anchor by mutableStateOf(Rect.Zero)
+        private set
+    var selected by mutableStateOf(-1)
+        private set
+    var highlighted by mutableStateOf(-1)
+        private set
+    var horizontal by mutableStateOf(false)
+        private set
+    var visible by mutableStateOf(false)
+        private set
+    var rotation by mutableStateOf(0f)
+        private set
+
+    fun open(options: List<PickerOption>, selected: Int, anchor: Rect, horizontal: Boolean, rotation: Float) {
+        this.options = options
+        this.selected = selected
+        this.anchor = anchor
+        this.horizontal = horizontal
+        this.rotation = rotation
+        highlighted = -1
+        visible = true
+    }
+
+    /** Ustawia podświetlenie wg pozycji palca (w układzie okna); zwraca true, gdy się zmieniło. */
+    fun track(root: Offset, density: androidx.compose.ui.unit.Density): Boolean {
+        val step = with(density) { PICKER_STEP.toPx() }
+        val gap = with(density) { PICKER_GAP.toPx() }
+        val along = if (horizontal) root.x - (anchor.right + gap) else root.y - (anchor.bottom + gap)
+        val i = if (along < 0f) -1 else (along / step).toInt().takeIf { it < options.size } ?: (options.size - 1)
+        if (i == highlighted) return false
+        highlighted = i
+        return true
+    }
+
+    fun close() {
+        visible = false
+    }
+}
+
+val LocalPicker = staticCompositionLocalOf<PickerState?> { null }
+
+/** Pionowy pasek narzędzi (układ poziomy ekranu) – listy rozwijają się w bok. */
+val LocalPickerHorizontal = staticCompositionLocalOf { false }
+
+/** Zapewnia szkło, haptykę, dymki i rozwijane listy całemu drzewu interfejsu. */
 @Composable
 fun GlassScope(haze: HazeState?, haptics: Boolean, content: @Composable BoxScope.() -> Unit) {
     val hints = remember { HintState() }
-    CompositionLocalProvider(LocalHaze provides haze, LocalHaptics provides haptics, LocalHints provides hints) {
+    val picker = remember { PickerState() }
+    CompositionLocalProvider(
+        LocalHaze provides haze,
+        LocalHaptics provides haptics,
+        LocalHints provides hints,
+        LocalPicker provides picker,
+    ) {
         Box(Modifier.fillMaxSize()) {
             content()
+            PickerLayer(picker)
             HintLayer(hints)
+        }
+    }
+}
+
+@Composable
+private fun PickerLayer(picker: PickerState) {
+    var root by remember { mutableStateOf(Rect.Zero) }
+    Box(
+        Modifier
+            .fillMaxSize()
+            .onGloballyPositioned { root = it.boundsInRoot() },
+    ) {
+        AnimatedVisibility(
+            visible = picker.visible,
+            enter = fadeIn(tween(120)) + scaleIn(initialScale = 0.9f),
+            exit = fadeOut(tween(140)),
+            modifier = Modifier.offset {
+                val a = picker.anchor
+                val gap = PICKER_GAP.roundToPx()
+                val item = PICKER_ITEM.roundToPx()
+                if (picker.horizontal) {
+                    IntOffset((a.right - root.left).roundToInt() + gap, (a.center.y - root.top).roundToInt() - item / 2)
+                } else {
+                    IntOffset((a.center.x - root.left).roundToInt() - item / 2, (a.bottom - root.top).roundToInt() + gap)
+                }
+            },
+        ) {
+            val items: @Composable () -> Unit = {
+                picker.options.forEachIndexed { i, o -> PickerItem(o, i == picker.highlighted, i == picker.selected, picker.rotation) }
+            }
+            if (picker.horizontal) {
+                Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(PICKER_STEP - PICKER_ITEM)) { items() }
+            } else {
+                androidx.compose.foundation.layout.Column(
+                    verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(PICKER_STEP - PICKER_ITEM),
+                ) { items() }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PickerItem(option: PickerOption, highlighted: Boolean, current: Boolean, rotation: Float) {
+    val bg by animateColorAsState(if (highlighted) ActiveTint else GlassLevel.Regular.tint.copy(alpha = 0.78f), tween(90), label = "pickBg")
+    val fg by animateColorAsState(
+        when {
+            highlighted -> Palette.Ink
+            current -> Palette.Amber
+            else -> Color.White
+        },
+        tween(90),
+        label = "pickFg",
+    )
+    val scale by animateFloatAsState(if (highlighted) 1.1f else 1f, spring(dampingRatio = 0.5f, stiffness = 800f), label = "pickScale")
+    Box(
+        Modifier
+            .size(PICKER_ITEM)
+            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .clip(BlockShape)
+            .background(bg)
+            .semantics { contentDescription = option.label },
+        contentAlignment = Alignment.Center,
+    ) {
+        androidx.compose.foundation.layout.Column(
+            Modifier.graphicsLayer { rotationZ = rotation },
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            if (option.icon != null) {
+                Icon(option.icon, null, tint = fg, modifier = Modifier.size(22.dp))
+            } else {
+                Text(option.value ?: option.label, color = fg, fontSize = 14.sp, fontWeight = FontWeight.Black, maxLines = 1)
+            }
+            if (option.caption != null) {
+                Text(option.caption, color = fg.copy(alpha = 0.75f), fontSize = 8.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+            }
         }
     }
 }
@@ -215,26 +367,38 @@ private fun HintLayer(hints: HintState) {
 }
 
 /**
- * Reaktywna powierzchnia dotyku: sprężyste wciśnięcie, haptyka przy dotknięciu i po
- * przytrzymaniu dymek z nazwą ([label]). [onLongPress] zastępuje dymek, jeśli podany.
+ * Reaktywna powierzchnia dotyku: sprężyste wciśnięcie, haptyka, po przytrzymaniu dymek
+ * z nazwą ([label]; [onLongPress] go zastępuje). Z [options]: przytrzymanie i przeciągnięcie
+ * w dół (w pionowym pasku – w bok) rozwija listę – wybór jednym ruchem, puszczeniem palca.
  */
 @Composable
 fun Modifier.reactive(
     label: String?,
     enabled: Boolean = true,
     onLongPress: (() -> Unit)? = null,
+    options: List<PickerOption>? = null,
+    selected: Int = -1,
+    onPick: (Int) -> Unit = {},
+    pickerRotation: Float = 0f,
     onClick: () -> Unit,
 ): Modifier {
     val haptic = LocalHapticFeedback.current
     val haptics = LocalHaptics.current
     val hints = LocalHints.current
+    val picker = LocalPicker.current
     val hintOnTap = LocalHintOnTap.current
+    val horizontalPicker = LocalPickerHorizontal.current
+    val density = LocalDensity.current
     var pressed by remember { mutableStateOf(false) }
     var bounds by remember { mutableStateOf(Rect.Zero) }
     val click by rememberUpdatedState(onClick)
     val long by rememberUpdatedState(onLongPress)
     val currentLabel by rememberUpdatedState(label)
-    // Po dotknięciu: dymek z etykietą po zmianie stanu (czyli już nową wartością).
+    val currentOptions by rememberUpdatedState(options)
+    val currentSelected by rememberUpdatedState(selected)
+    val pick by rememberUpdatedState(onPick)
+    val rotationNow by rememberUpdatedState(pickerRotation)
+    // Po dotknięciu / wyborze: dymek z etykietą po zmianie stanu (czyli już nową wartością).
     var tapped by remember { mutableStateOf(0) }
     LaunchedEffect(tapped) {
         if (tapped == 0) return@LaunchedEffect
@@ -248,33 +412,81 @@ fun Modifier.reactive(
     )
     return this
         .onGloballyPositioned { bounds = it.boundsInRoot() }
+        // Gest przed skalowaniem – współrzędne palca w układzie nieprzekształconym.
+        .pointerInput(enabled) {
+            if (!enabled) return@pointerInput
+            awaitEachGesture {
+                val down = awaitFirstDown()
+                pressed = true
+                if (haptics) haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                val slop = viewConfiguration.touchSlop
+                val longTimeout = viewConfiguration.longPressTimeoutMillis
+                var expanded = false
+                var moved = false
+                var longFired = false
+                try {
+                    while (true) {
+                        val waitFor = if (!moved && !longFired && !expanded) longTimeout else Long.MAX_VALUE
+                        val event = if (waitFor == Long.MAX_VALUE) {
+                            awaitPointerEvent()
+                        } else {
+                            withTimeoutOrNull(waitFor) { awaitPointerEvent() }
+                        }
+                        if (event == null) {
+                            longFired = true
+                            if (haptics) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            val l = long
+                            val text = currentLabel
+                            if (l != null) l() else if (text != null) hints?.show(text, bounds)
+                            continue
+                        }
+                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                        if (!change.pressed) {
+                            if (expanded) {
+                                val i = picker?.highlighted ?: -1
+                                picker?.close()
+                                if (i >= 0) {
+                                    pick(i)
+                                    if (hintOnTap) tapped++
+                                }
+                            } else if (!moved && !longFired) {
+                                click()
+                                if (hintOnTap) tapped++
+                            }
+                            change.consume()
+                            break
+                        }
+                        val delta = change.position - down.position
+                        val along = if (horizontalPicker) delta.x else delta.y
+                        val opts = currentOptions
+                        if (!expanded && opts != null && picker != null && along > slop) {
+                            expanded = true
+                            moved = true
+                            hints?.hide()
+                            picker.open(opts, currentSelected, bounds, horizontalPicker, rotationNow)
+                            if (haptics) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        } else if (!expanded && delta.getDistance() > slop) {
+                            moved = true
+                        }
+                        if (expanded && picker != null) {
+                            change.consume()
+                            if (picker.track(bounds.topLeft + change.position, density) && picker.highlighted >= 0 && haptics) {
+                                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                            }
+                        }
+                    }
+                } finally {
+                    pressed = false
+                    if (expanded) picker?.close()
+                }
+            }
+        }
         .graphicsLayer {
             scaleX = scale
             scaleY = scale
             alpha = if (enabled) 1f else 0.38f
         }
         .then(if (label != null) Modifier.semantics { contentDescription = label } else Modifier)
-        .pointerInput(enabled) {
-            if (!enabled) return@pointerInput
-            detectTapGestures(
-                onPress = {
-                    pressed = true
-                    if (haptics) haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    tryAwaitRelease()
-                    pressed = false
-                },
-                onLongPress = {
-                    if (haptics) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                    val l = long
-                    val text = currentLabel
-                    if (l != null) l() else if (text != null) hints?.show(text, bounds)
-                },
-                onTap = {
-                    click()
-                    if (hintOnTap) tapped++
-                },
-            )
-        }
 }
 
 /** Okrągły szklany przycisk z ikoną; zmiana ikony – płynne przenikanie z obrotem. */
@@ -291,12 +503,15 @@ fun GlassIconButton(
     badge: String? = null,
     level: GlassLevel = GlassLevel.Thin,
     onLongPress: (() -> Unit)? = null,
+    options: List<PickerOption>? = null,
+    selected: Int = -1,
+    onPick: (Int) -> Unit = {},
     onClick: () -> Unit,
 ) {
     val iconTint by animateColorAsState(tint ?: if (active) Palette.Ink else Color.White, tween(200), label = "iconTint")
     Box(
         modifier
-            .reactive(label, enabled, onLongPress, onClick)
+            .reactive(label, enabled, onLongPress, options, selected, onPick, rotation, onClick)
             .size(size)
             .buttonSurface(BlockShape, level, active),
         contentAlignment = Alignment.Center,
@@ -348,12 +563,15 @@ fun GlassValueButton(
     size: Dp = 44.dp,
     active: Boolean = false,
     enabled: Boolean = true,
+    options: List<PickerOption>? = null,
+    selected: Int = -1,
+    onPick: (Int) -> Unit = {},
     onClick: () -> Unit,
 ) {
     val color by animateColorAsState(if (active) Palette.Ink else Color.White, tween(200), label = "valueColor")
     Box(
         modifier
-            .reactive(label, enabled, null, onClick)
+            .reactive(label, enabled, null, options, selected, onPick, rotation, onClick)
             .size(size)
             .buttonSurface(BlockShape, GlassLevel.Thin, active),
         contentAlignment = Alignment.Center,

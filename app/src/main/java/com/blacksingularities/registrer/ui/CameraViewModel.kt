@@ -290,14 +290,38 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         pro = ProSettings()
     }
 
+    fun flashOptions(): List<FlashSetting> = when {
+        !caps.hasFlash -> listOf(FlashSetting.OFF)
+        mode.isVideo || mode == CaptureMode.NIGHT -> listOf(FlashSetting.OFF, FlashSetting.TORCH)
+        else -> FlashSetting.entries
+    }
+
     fun cycleFlash() {
-        val options = when {
-            !caps.hasFlash -> listOf(FlashSetting.OFF)
-            mode.isVideo || mode == CaptureMode.NIGHT -> listOf(FlashSetting.OFF, FlashSetting.TORCH)
-            else -> FlashSetting.entries
-        }
+        val options = flashOptions()
         val next = options[(options.indexOf(cfg.flash) + 1).mod(options.size)]
         updateProfile { it.copy(flash = next) }
+    }
+
+    // Bezpośredni wybór z rozwijanych list górnego paska.
+    fun setFlash(f: FlashSetting) = updateProfile { it.copy(flash = f) }
+    fun setTimer(seconds: Int) = updateProfile { it.copy(timerSeconds = seconds) }
+    fun setAspect(a: AspectRatioMode) {
+        if (!busy) updateProfile { it.copy(aspect = a) }
+    }
+    fun setPhotoFormat(f: PhotoFormat) {
+        if (!busy) updateProfile { it.copy(photoFormat = f) }
+    }
+    fun setVideoResolution(r: com.blacksingularities.registrer.data.VideoResolution) {
+        if (!busy) updateProfile { it.copy(videoResolution = r) }
+    }
+    fun setVideoFps(f: VideoFps) {
+        if (!busy) updateProfile { it.copy(videoFps = f) }
+    }
+    fun setSlowMoFps(fps: Int) {
+        if (!busy) updateProfile { it.copy(slowMoFps = fps) }
+    }
+    fun setVideoHdr(on: Boolean) {
+        if (!busy) updateProfile { it.copy(videoHdr = on) }
     }
 
     fun cycleTimer() {

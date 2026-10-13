@@ -37,6 +37,7 @@ import androidx.compose.material.icons.rounded.CenterFocusStrong
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.DataUsage
 import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.Explore
 import androidx.compose.material.icons.rounded.Face
 import androidx.compose.material.icons.rounded.Flip
 import androidx.compose.material.icons.rounded.GraphicEq
@@ -173,7 +174,7 @@ fun SettingsSheet(
                     .background(Color.White.copy(alpha = 0.35f)),
             )
             Row(Modifier.padding(start = 20.dp, end = 12.dp, top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("Ustawienia", fontSize = 22.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                Text("Ustawienia", fontSize = 18.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                 GlassIconButton(Icons.Rounded.Close, "Zamknij", 0f, size = 38.dp, onClick = onDismiss)
             }
             Spacer(Modifier.height(12.dp))
@@ -199,7 +200,7 @@ fun SettingsSheet(
                         .fillMaxWidth()
                         .verticalScroll(rememberScrollState())
                         .padding(horizontal = 14.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
                     if (locked) {
                         Text("Część opcji jest zablokowana podczas nagrywania lub przetwarzania.", color = Palette.Amber, fontSize = 12.sp)
@@ -415,8 +416,11 @@ private fun GeneralTab(
         SwitchRow(Icons.Rounded.Vibration, "Wibracje", "Haptyka pokręteł, zoomu i poziomicy", g.haptics) { v -> onGlobal { it.copy(haptics = v) } }
         SwitchRow(Icons.Rounded.CameraAlt, "Dźwięk migawki", null, g.shutterSound) { v -> onGlobal { it.copy(shutterSound = v) } }
         SwitchRow(Icons.Rounded.Alarm, "Sygnał samowyzwalacza", null, g.timerBeep) { v -> onGlobal { it.copy(timerBeep = v) } }
-        SwitchRow(Icons.Rounded.Speed, "Parametry ekspozycji", "Pasek ISO · czas · przysłona · EV u góry kadru", g.exposureInfo) { v ->
+        SwitchRow(Icons.Rounded.Speed, "Parametry ekspozycji", "Pasek rozdzielczości · ISO · czasu · EV – przeciągnij, by przesunąć", g.exposureInfo) { v ->
             onGlobal { it.copy(exposureInfo = v) }
+        }
+        SwitchRow(Icons.Rounded.Explore, "Kompas", "Kierunek osi aparatu – przeciągnij, by przesunąć", g.compass) { v ->
+            onGlobal { it.copy(compass = v) }
         }
         Chips(
             Icons.Rounded.ScreenRotation,
@@ -499,14 +503,12 @@ private fun TabChip(icon: ImageVector, label: String, selected: Boolean, onClick
             .reactive(label, onClick = onClick)
             .glass(BlockShape, active = selected)
             .animateContentSize(spring(dampingRatio = 0.8f, stiffness = 500f))
-            .padding(horizontal = 11.dp, vertical = 9.dp),
+            .padding(horizontal = 10.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(icon, null, tint = if (selected) Palette.Ink else Color.White, modifier = Modifier.size(18.dp))
-        if (selected) {
-            Spacer(Modifier.width(6.dp))
-            Text(label, color = Palette.Ink, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-        }
+        Icon(icon, null, tint = if (selected) Palette.Ink else Color.White, modifier = Modifier.size(16.dp))
+        Spacer(Modifier.width(5.dp))
+        Text(label, color = if (selected) Palette.Ink else Color.White, fontSize = 12.sp, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium)
     }
 }
 
@@ -519,14 +521,14 @@ private fun Group(title: String, content: @Composable ColumnScope.() -> Unit) {
             fontSize = 11.sp,
             fontWeight = FontWeight.Bold,
             letterSpacing = 1.4.sp,
-            modifier = Modifier.padding(start = 6.dp, bottom = 6.dp),
+            modifier = Modifier.padding(start = 4.dp, bottom = 3.dp),
         )
         Column(
             Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(4.dp))
                 .background(Color.White.copy(alpha = 0.06f))
-                .padding(vertical = 4.dp),
+                .padding(vertical = 2.dp),
             content = content,
         )
     }
@@ -551,13 +553,13 @@ private fun SwitchRow(icon: ImageVector, title: String, subtitle: String?, value
         Modifier
             .fillMaxWidth()
             .clickable(enabled = enabled) { onChange(!value) }
-            .padding(horizontal = 12.dp, vertical = 6.dp),
+            .padding(horizontal = 10.dp, vertical = 1.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         RowIcon(icon)
         Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
-            Text(title, fontSize = 14.sp, color = if (enabled) Color.White else Palette.TextFaint)
-            if (subtitle != null) Text(subtitle, fontSize = 11.sp, color = Palette.TextDim, lineHeight = 13.sp)
+            Text(title, fontSize = 13.sp, color = if (enabled) Color.White else Palette.TextFaint)
+            if (subtitle != null) Text(subtitle, fontSize = 10.sp, color = Palette.TextDim, lineHeight = 12.sp)
         }
         Switch(
             checked = value,
@@ -579,14 +581,14 @@ private fun <T> MultiChips(
     label: (T) -> String,
     onToggle: (T) -> Unit,
 ) {
-    Column(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
+    Column(Modifier.padding(horizontal = 10.dp, vertical = 3.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             RowIcon(icon)
             Text(title, fontSize = 14.sp, color = Color.White, modifier = Modifier.padding(horizontal = 12.dp))
         }
         Row(
             Modifier
-                .padding(start = 44.dp, top = 6.dp)
+                .padding(start = 40.dp, top = 3.dp)
                 .horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(5.dp),
         ) {
@@ -627,14 +629,14 @@ private fun <T> Chips(
     hint: String? = null,
     onSelect: (T) -> Unit,
 ) {
-    Column(Modifier.padding(horizontal = 12.dp, vertical = 6.dp)) {
+    Column(Modifier.padding(horizontal = 10.dp, vertical = 3.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             RowIcon(icon)
             Text(title, fontSize = 14.sp, color = if (enabled) Color.White else Palette.TextFaint, modifier = Modifier.padding(horizontal = 12.dp))
         }
         Row(
             Modifier
-                .padding(start = 44.dp, top = 6.dp)
+                .padding(start = 40.dp, top = 3.dp)
                 .horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(5.dp),
         ) {
@@ -649,11 +651,11 @@ private fun <T> Chips(
                         .clip(RoundedCornerShape(4.dp))
                         .background(if (sel) Palette.Amber else Color.White.copy(alpha = 0.07f))
                         .clickable(enabled = enabled) { onSelect(o) }
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                        .padding(horizontal = 10.dp, vertical = 4.dp),
                 )
             }
         }
-        if (hint != null) Text(hint, fontSize = 11.sp, color = Palette.TextDim, modifier = Modifier.padding(start = 44.dp, top = 4.dp))
+        if (hint != null) Text(hint, fontSize = 11.sp, color = Palette.TextDim, modifier = Modifier.padding(start = 40.dp, top = 2.dp))
     }
 }
 
@@ -672,7 +674,7 @@ private fun Slider(icon: ImageVector, title: String, value: Int, range: IntRange
             onValueChangeFinished = { onCommit(local.roundToInt()) },
             valueRange = range.first.toFloat()..range.last.toFloat(),
             enabled = enabled,
-            modifier = Modifier.padding(start = 44.dp).height(30.dp),
+            modifier = Modifier.padding(start = 40.dp).height(26.dp),
             colors = SliderDefaults.colors(thumbColor = Palette.Amber, activeTrackColor = Palette.Amber),
         )
     }

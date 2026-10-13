@@ -1,5 +1,13 @@
 package com.blacksingularities.registrer.ui
 
+import com.blacksingularities.registrer.ui.theme.LocalPickerHorizontal
+import com.blacksingularities.registrer.ui.theme.PickerOption
+import androidx.compose.material.icons.rounded.TimerOff
+import com.blacksingularities.registrer.ui.components.CompassTape
+import androidx.compose.material.icons.rounded.Insights
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.foundation.layout.wrapContentSize
 import com.blacksingularities.registrer.ui.theme.LocalHintOnTap
 import androidx.compose.material.icons.rounded.ZoomIn
 import androidx.compose.material.icons.rounded.Videocam
@@ -372,7 +380,7 @@ private fun TallLayout(ui: Ui, previewView: PreviewView) {
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
                 .padding(start = 8.dp, end = 8.dp, bottom = insets.calculateBottomPadding() + 6.dp)
-                .glass(RoundedCornerShape(6.dp), GlassLevel.Regular)
+                .glass(RoundedCornerShape(6.dp), GlassLevel.Faint)
                 .padding(bottom = 8.dp, top = 10.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
@@ -418,7 +426,7 @@ private fun WideLayout(ui: Ui, previewView: PreviewView) {
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
                     .padding(horizontal = 12.dp, vertical = 10.dp)
-                    .glass(RoundedCornerShape(6.dp), GlassLevel.Regular)
+                    .glass(RoundedCornerShape(6.dp), GlassLevel.Faint)
                     .padding(top = 10.dp, bottom = 6.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
@@ -525,9 +533,34 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
             FrameInfo(ui)
         }
 
+        // Przeciągane nakładki: histogram, pasek parametrów, kompas – pozycje zapamiętywane.
         val bins = vm.histogram
         if (bins != null && vm.cfg.histogram && vm.mode.isPhoto) {
-            DraggableHistogram(vm, bins, rect, ui.iconRotation)
+            DraggableOverlay(
+                rect = rect,
+                start = Offset(vm.global.histogramX, vm.global.histogramY),
+                rotation = ui.iconRotation,
+                haptics = ui.haptics,
+                onCommit = { p -> vm.updateGlobal { it.copy(histogramX = p.x, histogramY = p.y) } },
+            ) { HistogramView(bins) }
+        }
+        if (vm.global.exposureInfo && vm.mode != CaptureMode.AUDIO) {
+            DraggableOverlay(
+                rect = rect,
+                start = Offset(vm.global.stripX, vm.global.stripY),
+                rotation = ui.iconRotation,
+                haptics = ui.haptics,
+                onCommit = { p -> vm.updateGlobal { it.copy(stripX = p.x, stripY = p.y) } },
+            ) { ExposureStrip(vm) }
+        }
+        if (vm.global.compass && vm.mode != CaptureMode.AUDIO) {
+            DraggableOverlay(
+                rect = rect,
+                start = Offset(vm.global.compassX, vm.global.compassY),
+                rotation = ui.iconRotation,
+                haptics = ui.haptics,
+                onCommit = { p -> vm.updateGlobal { it.copy(compassX = p.x, compassY = p.y) } },
+            ) { CompassTape() }
         }
 
         Box(Modifier.fillMaxSize().graphicsLayer { alpha = flashAlpha.value }.background(Color.Black))
@@ -535,23 +568,35 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
 }
 
 /**
- * Histogram, który można przeciągnąć w dowolne miejsce kadru; pozycja jest zapamiętywana
- * (jako ułamek kadru, więc pasuje też po zmianie proporcji czy ekranu folda).
+ * Nakładka do przeciągnięcia w dowolne miejsce kadru. Gest działa w nieobróconym układzie
+ * (przed obrotem treści), a obszar chwytu zamienia szerokość z wysokością, gdy telefon jest
+ * obrócony o 90° – przesuwanie jest naturalne w każdej orientacji i na każdym ekranie.
+ * Pozycja jako ułamek kadru, więc pasuje po zmianie proporcji i ekranu folda.
  */
 @Composable
-private fun DraggableHistogram(vm: CameraViewModel, bins: IntArray, rect: Rect, rotation: Float) {
+private fun DraggableOverlay(
+    rect: Rect,
+    start: Offset,
+    rotation: Float,
+    haptics: Boolean,
+    onCommit: (Offset) -> Unit,
+    content: @Composable () -> Unit,
+) {
     val density = LocalDensity.current
     val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
-    val w = with(density) { 112.dp.toPx() }
-    val h = with(density) { 52.dp.toPx() }
+    var contentSize by remember { mutableStateOf(androidx.compose.ui.unit.IntSize.Zero) }
+    val quarter = (((rotation / 90f).roundToInt() % 4) + 4) % 4
+    val swap = quarter % 2 == 1
+    val boxW = (if (swap) contentSize.height else contentSize.width).toFloat()
+    val boxH = (if (swap) contentSize.width else contentSize.height).toFloat()
     val margin = with(density) { 8.dp.toPx() }
-    val availW = (rect.width - w - 2 * margin).coerceAtLeast(1f)
-    val availH = (rect.height - h - 2 * margin).coerceAtLeast(1f)
-    var pos by remember { mutableStateOf(Offset(vm.global.histogramX, vm.global.histogramY)) }
+    val availW by rememberUpdatedState((rect.width - boxW - 2 * margin).coerceAtLeast(1f))
+    val availH by rememberUpdatedState((rect.height - boxH - 2 * margin).coerceAtLeast(1f))
+    val commit by rememberUpdatedState(onCommit)
+    var pos by remember { mutableStateOf(start) }
     var dragging by remember { mutableStateOf(false) }
-    val scale by animateFloatAsState(if (dragging) 1.12f else 1f, spring(dampingRatio = 0.55f, stiffness = 600f), label = "histScale")
-    HistogramView(
-        bins,
+    val scale by animateFloatAsState(if (dragging) 1.08f else 1f, spring(dampingRatio = 0.55f, stiffness = 600f), label = "dragScale")
+    Box(
         Modifier
             .offset {
                 IntOffset(
@@ -559,21 +604,16 @@ private fun DraggableHistogram(vm: CameraViewModel, bins: IntArray, rect: Rect, 
                     (rect.top + margin + pos.y * availH).roundToInt(),
                 )
             }
-            .graphicsLayer {
-                scaleX = scale
-                scaleY = scale
-                rotationZ = rotation
-                shadowElevation = if (dragging) 12f else 0f
-            }
-            .pointerInput(rect) {
+            .size(with(density) { boxW.toDp() }, with(density) { boxH.toDp() })
+            .pointerInput(Unit) {
                 detectDragGestures(
                     onDragStart = {
                         dragging = true
-                        if (vm.global.haptics) haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                        if (haptics) haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                     },
                     onDragEnd = {
                         dragging = false
-                        vm.updateGlobal { it.copy(histogramX = pos.x, histogramY = pos.y) }
+                        commit(pos)
                     },
                     onDragCancel = { dragging = false },
                 ) { change, drag ->
@@ -584,7 +624,19 @@ private fun DraggableHistogram(vm: CameraViewModel, bins: IntArray, rect: Rect, 
                     )
                 }
             },
-    )
+        contentAlignment = Alignment.Center,
+    ) {
+        Box(
+            Modifier
+                .wrapContentSize(unbounded = true)
+                .onSizeChanged { contentSize = it }
+                .graphicsLayer {
+                    rotationZ = rotation
+                    scaleX = scale
+                    scaleY = scale
+                },
+        ) { content() }
+    }
 }
 
 /**
@@ -635,7 +687,6 @@ private fun BoxScope.FrameInfo(ui: Ui) {
             .padding(10.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        if (vm.global.exposureInfo && vm.mode != CaptureMode.AUDIO) ExposureStrip(vm, Modifier.align(Alignment.CenterHorizontally))
         Row(verticalAlignment = Alignment.Top) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (vm.focusLocked) Badge("AE/AF · zablokowane  ✕", color = Palette.Amber, onClick = vm::unlockFocus)
@@ -949,6 +1000,16 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
                 rot,
                 active = cfg.flash != FlashSetting.OFF,
                 enabled = vm.caps.hasFlash,
+                options = vm.flashOptions().map { f ->
+                    when (f) {
+                        FlashSetting.OFF -> PickerOption("Lampa wyłączona", Icons.Rounded.FlashOff, caption = "Wył.")
+                        FlashSetting.AUTO -> PickerOption("Lampa automatyczna", Icons.Rounded.FlashAuto, caption = "Auto")
+                        FlashSetting.ON -> PickerOption("Lampa włączona", Icons.Rounded.FlashOn, caption = "Wł.")
+                        FlashSetting.TORCH -> PickerOption("Latarka", Icons.Rounded.FlashlightOn, caption = "Latarka")
+                    }
+                },
+                selected = vm.flashOptions().indexOf(cfg.flash),
+                onPick = { i -> vm.setFlash(vm.flashOptions()[i]) },
                 onClick = vm::cycleFlash,
             )
             if (vm.mode.isPhoto) {
@@ -958,6 +1019,12 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
                     rot,
                     active = cfg.timerSeconds > 0,
                     badge = cfg.timerSeconds.takeIf { it > 0 }?.toString(),
+                    options = TIMER_STEPS.map { t ->
+                        if (t == 0) PickerOption("Samowyzwalacz wyłączony", Icons.Rounded.TimerOff, caption = "Wył.")
+                        else PickerOption("Samowyzwalacz $t s", value = "$t", caption = "s")
+                    },
+                    selected = TIMER_STEPS.indexOf(cfg.timerSeconds),
+                    onPick = { i -> vm.setTimer(TIMER_STEPS[i]) },
                     onClick = vm::cycleTimer,
                 )
                 val frame = remember(cfg.aspect) { frameIcon(cfg.aspect) }
@@ -966,9 +1033,15 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
                     "Proporcje ${cfg.aspect.label}",
                     rot,
                     enabled = !vm.busy,
+                    options = com.blacksingularities.registrer.data.AspectRatioMode.entries.map { a ->
+                        PickerOption("Proporcje ${a.label}", frameIcon(a), caption = a.label)
+                    },
+                    selected = cfg.aspect.ordinal,
+                    onPick = { i -> vm.setAspect(com.blacksingularities.registrer.data.AspectRatioMode.entries[i]) },
                     onClick = vm::cycleAspect,
                 )
-                if ((vm.mode == CaptureMode.PHOTO || vm.mode == CaptureMode.PRO) && vm.caps.photoFormats.size > 1) {
+                val formats = PhotoFormat.entries.filter { it in vm.caps.photoFormats }
+                if ((vm.mode == CaptureMode.PHOTO || vm.mode == CaptureMode.PRO) && formats.size > 1) {
                     val (icon, name) = when (cfg.photoFormat) {
                         PhotoFormat.JPEG -> Icons.Rounded.Image to "Format JPEG"
                         PhotoFormat.ULTRA_HDR -> Icons.Rounded.HdrOn to "Format Ultra HDR"
@@ -982,16 +1055,22 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
                         active = cfg.photoFormat != PhotoFormat.JPEG,
                         badge = if (cfg.photoFormat == PhotoFormat.RAW_JPEG) "+" else null,
                         enabled = !vm.busy,
+                        options = formats.map { f ->
+                            when (f) {
+                                PhotoFormat.JPEG -> PickerOption("Format JPEG", Icons.Rounded.Image, caption = "JPEG")
+                                PhotoFormat.ULTRA_HDR -> PickerOption("Format Ultra HDR", Icons.Rounded.HdrOn, caption = "UHDR")
+                                PhotoFormat.RAW_JPEG -> PickerOption("Format RAW + JPEG", Icons.Rounded.RawOn, caption = "RAW+JPG")
+                                PhotoFormat.RAW -> PickerOption("Format RAW (DNG)", Icons.Rounded.RawOn, caption = "DNG")
+                            }
+                        },
+                        selected = formats.indexOf(cfg.photoFormat),
+                        onPick = { i -> vm.setPhotoFormat(formats[i]) },
                         onClick = vm::cyclePhotoFormat,
                     )
                 }
             } else {
                 if (vm.mode == CaptureMode.VIDEO) {
-                    val (resValue, resUnit) = when (cfg.videoResolution) {
-                        com.blacksingularities.registrer.data.VideoResolution.UHD -> "4K" to "2160"
-                        com.blacksingularities.registrer.data.VideoResolution.FHD -> "FHD" to "1080"
-                        com.blacksingularities.registrer.data.VideoResolution.HD -> "HD" to "720"
-                    }
+                    val (resValue, resUnit) = resolutionGlyph(cfg.videoResolution)
                     GlassValueButton(
                         resValue,
                         resUnit,
@@ -999,10 +1078,17 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
                         rot,
                         active = cfg.videoResolution == com.blacksingularities.registrer.data.VideoResolution.UHD,
                         enabled = !vm.busy && vm.caps.videoResolutions.size > 1,
+                        options = vm.caps.videoResolutions.map { r ->
+                            val (v, u) = resolutionGlyph(r)
+                            PickerOption("Rozdzielczość ${r.label}", value = v, caption = u)
+                        },
+                        selected = vm.caps.videoResolutions.indexOf(cfg.videoResolution),
+                        onPick = { i -> vm.setVideoResolution(vm.caps.videoResolutions[i]) },
                         onClick = vm::cycleVideoResolution,
                     )
                 }
-                val fpsChoices = if (vm.mode == CaptureMode.SLOWMO) vm.caps.slowMoRanges.size else vm.videoFpsOptions().size
+                val slowFps = vm.caps.slowMoRanges.map { it.upper }.distinct().sorted()
+                val fpsChoices = if (vm.mode == CaptureMode.SLOWMO) slowFps.size else vm.videoFpsOptions().size
                 val autoFps = vm.mode == CaptureMode.VIDEO && cfg.videoFps == com.blacksingularities.registrer.data.VideoFps.AUTO
                 val fpsNumber = vm.fpsLabel.removeSuffix(" kl/s").removePrefix("Auto").trim()
                 GlassValueButton(
@@ -1012,6 +1098,19 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
                     rot,
                     active = !autoFps,
                     enabled = !vm.busy && fpsChoices > 1,
+                    options = if (vm.mode == CaptureMode.SLOWMO) {
+                        slowFps.map { f -> PickerOption("Zwolnione tempo $f kl/s", value = "$f", caption = "kl/s") }
+                    } else {
+                        vm.videoFpsOptions().map { f ->
+                            if (f == com.blacksingularities.registrer.data.VideoFps.AUTO) PickerOption("Klatkaż automatyczny", value = "A", caption = "auto")
+                            else PickerOption("Klatkaż ${f.fps} kl/s", value = "${f.fps}", caption = "kl/s")
+                        }
+                    },
+                    selected = if (vm.mode == CaptureMode.SLOWMO) slowFps.indexOf(cfg.slowMoFps).let { if (it < 0) slowFps.lastIndex else it }
+                        else vm.videoFpsOptions().indexOf(cfg.videoFps),
+                    onPick = { i ->
+                        if (vm.mode == CaptureMode.SLOWMO) vm.setSlowMoFps(slowFps[i]) else vm.setVideoFps(vm.videoFpsOptions()[i])
+                    },
                     onClick = vm::cycleVideoFps,
                 )
                 if (vm.mode == CaptureMode.VIDEO && vm.caps.videoHlg) {
@@ -1021,11 +1120,24 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
                         rot,
                         active = cfg.videoHdr,
                         enabled = !vm.busy,
+                        options = listOf(
+                            PickerOption("Wideo SDR", Icons.Rounded.HdrOff, caption = "SDR"),
+                            PickerOption("Wideo HDR (HLG)", Icons.Rounded.HdrOn, caption = "HLG"),
+                        ),
+                        selected = if (cfg.videoHdr) 1 else 0,
+                        onPick = { i -> vm.setVideoHdr(i == 1) },
                         onClick = { vm.updateProfile { it.copy(videoHdr = !it.videoHdr) } },
                     )
                 }
             }
             GridButton(vm, rot)
+            RoundIcon(
+                Icons.Rounded.Insights,
+                if (vm.global.exposureInfo) "Pasek parametrów włączony" else "Pasek parametrów wyłączony",
+                rot,
+                active = vm.global.exposureInfo,
+                onClick = { vm.updateGlobal { it.copy(exposureInfo = !it.exposureInfo) } },
+            )
             if (vm.rearDisplayAvailable || vm.rearDisplayActive) {
                 RoundIcon(
                     Icons.Rounded.FlipToBack,
@@ -1053,7 +1165,7 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
         ) {
             Box(Modifier.weight(1f, fill = false)) {
                 GlassToolbar(vertical = true, modifier = Modifier.verticalScroll(rememberScrollState())) {
-                    CompositionLocalProvider(LocalHintOnTap provides true) { items() }
+                    CompositionLocalProvider(LocalHintOnTap provides true, LocalPickerHorizontal provides true) { items() }
                 }
             }
             settings()
@@ -1072,6 +1184,14 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
             settings()
         }
     }
+}
+
+private val TIMER_STEPS = listOf(0, 3, 5, 10)
+
+private fun resolutionGlyph(r: com.blacksingularities.registrer.data.VideoResolution): Pair<String, String> = when (r) {
+    com.blacksingularities.registrer.data.VideoResolution.UHD -> "4K" to "2160"
+    com.blacksingularities.registrer.data.VideoResolution.FHD -> "FHD" to "1080"
+    com.blacksingularities.registrer.data.VideoResolution.HD -> "HD" to "720"
 }
 
 /** Ikona ramki o proporcjach kadru (pionowo: 3:4 albo 9:16). */
@@ -1123,7 +1243,6 @@ private fun ExposureStrip(vm: CameraViewModel, modifier: Modifier = Modifier) {
     }
     Row(
         modifier
-            .horizontalScroll(rememberScrollState())
             .glass(BlockShape)
             .padding(horizontal = 10.dp, vertical = 5.dp),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -1325,6 +1444,9 @@ private fun RoundIcon(
     active: Boolean = false,
     enabled: Boolean = true,
     badge: String? = null,
+    options: List<PickerOption>? = null,
+    selected: Int = -1,
+    onPick: (Int) -> Unit = {},
     onClick: () -> Unit,
 ) {
     GlassIconButton(
@@ -1336,6 +1458,9 @@ private fun RoundIcon(
         enabled = enabled,
         tint = tint,
         badge = badge,
+        options = options,
+        selected = selected,
+        onPick = onPick,
         onClick = onClick,
     )
 }

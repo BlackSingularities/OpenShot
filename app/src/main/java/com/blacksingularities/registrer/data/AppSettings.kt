@@ -166,6 +166,12 @@ data class GlobalSettings(
     /** Pozycja histogramu w kadrze (0–1 w poziomie i pionie). */
     val histogramX: Float = 1f,
     val histogramY: Float = 0.12f,
+    /** Pozycja paska parametrów i kompasu w kadrze (0–1). */
+    val stripX: Float = 0.5f,
+    val stripY: Float = 0f,
+    val compass: Boolean = false,
+    val compassX: Float = 0.5f,
+    val compassY: Float = 0.1f,
     val autoCheckUpdates: Boolean = true,
     val autoDownloadUpdates: Boolean = true,
     val lastMode: CaptureMode = CaptureMode.PHOTO,
@@ -185,6 +191,11 @@ class SettingsStore(context: Context) {
             exposureInfo = prefs.getBoolean("g.exposureInfo", d.exposureInfo),
             histogramX = prefs.getFloat("g.histX", d.histogramX),
             histogramY = prefs.getFloat("g.histY", d.histogramY),
+            stripX = prefs.getFloat("g.stripX", d.stripX),
+            stripY = prefs.getFloat("g.stripY", d.stripY),
+            compass = prefs.getBoolean("g.compass", d.compass),
+            compassX = prefs.getFloat("g.compassX", d.compassX),
+            compassY = prefs.getFloat("g.compassY", d.compassY),
             autoCheckUpdates = prefs.getBoolean("g.autoCheck", d.autoCheckUpdates),
             autoDownloadUpdates = prefs.getBoolean("g.autoDownload", d.autoDownloadUpdates),
             lastMode = enumOr(prefs.getString("g.lastMode", null), d.lastMode),
@@ -201,6 +212,11 @@ class SettingsStore(context: Context) {
             .putBoolean("g.exposureInfo", g.exposureInfo)
             .putFloat("g.histX", g.histogramX)
             .putFloat("g.histY", g.histogramY)
+            .putFloat("g.stripX", g.stripX)
+            .putFloat("g.stripY", g.stripY)
+            .putBoolean("g.compass", g.compass)
+            .putFloat("g.compassX", g.compassX)
+            .putFloat("g.compassY", g.compassY)
             .putBoolean("g.autoCheck", g.autoCheckUpdates)
             .putBoolean("g.autoDownload", g.autoDownloadUpdates)
             .putString("g.lastMode", g.lastMode.name)
