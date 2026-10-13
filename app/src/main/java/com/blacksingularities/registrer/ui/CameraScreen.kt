@@ -1,5 +1,10 @@
 package com.blacksingularities.registrer.ui
 
+import com.blacksingularities.registrer.ui.components.QuickControl
+import androidx.compose.material.icons.rounded.Layers
+import androidx.compose.material.icons.rounded.GraphicEq
+import androidx.compose.material.icons.rounded.Exposure
+import androidx.compose.material.icons.rounded.BlurOn
 import dev.chrisbanes.haze.rememberHazeState
 import dev.chrisbanes.haze.hazeSource
 import com.blacksingularities.registrer.ui.theme.reactive
@@ -560,7 +565,6 @@ private fun BoxScope.FrameInfo(ui: Ui) {
         if (vm.global.exposureInfo && vm.mode != CaptureMode.AUDIO) ExposureStrip(vm, Modifier.align(Alignment.CenterHorizontally))
         Row(verticalAlignment = Alignment.Top) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                modeBadge(vm)?.let { Badge(it) }
                 if (vm.focusLocked) Badge("AE/AF · zablokowane  ✕", color = Palette.Amber, onClick = vm::unlockFocus)
                 if (vm.intervalRunning) {
                     val total = vm.cfg.intervalCount
@@ -639,10 +643,11 @@ private fun AudioPane(vm: CameraViewModel, padding: PaddingValues) {
 
 // ==================================================================== sterowanie
 
-/** Panel Pro, obiektywy z przełącznikiem zoomu oraz pokrętło trybów. */
+/** Panel Pro / szybkie ustawienie trybu, obiektywy z przełącznikiem zoomu oraz pokrętło trybów. */
 @Composable
 private fun CaptureTools(ui: Ui) {
     val vm = ui.vm
+    if (vm.mode != CaptureMode.PRO) ModeQuickControl(ui, Modifier.padding(bottom = 8.dp))
     if (vm.mode == CaptureMode.PRO && vm.cameraReady) {
         ProPanel(
             caps = vm.caps,
@@ -677,6 +682,94 @@ private fun CaptureTools(ui: Ui) {
         haptics = ui.haptics,
         onSelect = vm::selectMode,
     )
+}
+
+/**
+ * Najważniejsze ustawienie bieżącego trybu, zawsze na ekranie: rozmycie w Portrecie, liczba
+ * klatek w Nocy, rozpiętość w HDR, jakość w Audio, a w pozostałych trybach kompensacja EV.
+ * Gdy działa rozszerzenie sprzętowe producenta (bez regulacji) – kompensacja EV.
+ */
+@Composable
+private fun ModeQuickControl(ui: Ui, modifier: Modifier = Modifier) {
+    val vm = ui.vm
+    val cfg = vm.cfg
+    val rot = ui.iconRotation
+    val ext = vm.session.extension
+
+    @Composable
+    fun ev() {
+        if (vm.evMax <= vm.evMin || !vm.cameraReady) return
+        val values = (vm.evMin..vm.evMax).toList()
+        QuickControl(
+            icon = Icons.Rounded.Exposure,
+            label = "Kompensacja ekspozycji",
+            options = values.map { String.format(java.util.Locale.US, "%+.1f EV", it * vm.evStep) },
+            selected = values.indexOf(vm.evIndex).coerceAtLeast(0),
+            defaultIndex = values.indexOf(0).takeIf { it >= 0 },
+            rotation = rot,
+            modifier = modifier,
+        ) { i -> vm.setEv(values[i]) }
+    }
+
+    when (vm.mode) {
+        CaptureMode.PORTRAIT -> if (ext == ExtensionMode.BOKEH || ext == ExtensionMode.FACE_RETOUCH) {
+            ev()
+        } else {
+            val values = (0..10).map { it * 10 }
+            QuickControl(
+                icon = Icons.Rounded.BlurOn,
+                label = "Rozmycie tła",
+                options = values.map { "$it%" },
+                selected = values.indexOfFirst { it >= cfg.portraitBlur }.let { if (it < 0) values.lastIndex else it },
+                defaultIndex = values.indexOf(60),
+                rotation = rot,
+                modifier = modifier,
+            ) { i -> vm.updateProfile { it.copy(portraitBlur = values[i]) } }
+        }
+        CaptureMode.NIGHT -> if (ext == ExtensionMode.NIGHT) {
+            ev()
+        } else {
+            val values = listOf(0, 4, 6, 8, 10, 12, 16)
+            QuickControl(
+                icon = Icons.Rounded.Layers,
+                label = "Liczba klatek nocnych",
+                options = values.map { if (it == 0) "Auto ${vm.autoNightFrames()}" else "×$it" },
+                selected = values.indexOf(cfg.nightFrames).coerceAtLeast(0),
+                defaultIndex = 0,
+                rotation = rot,
+                modifier = modifier,
+            ) { i -> vm.updateProfile { it.copy(nightFrames = values[i]) } }
+        }
+        CaptureMode.HDR -> if (ext == ExtensionMode.HDR) {
+            ev()
+        } else {
+            val values = listOf(1.0f, 1.3f, 1.7f, 2.0f, 2.5f)
+            QuickControl(
+                icon = Icons.Rounded.HdrOn,
+                label = "Rozpiętość ekspozycji HDR",
+                options = values.map { String.format(java.util.Locale.US, "±%.1f EV", it) },
+                selected = values.indexOfFirst { abs(it - cfg.hdrStops) < 0.05f }.let { if (it < 0) 2 else it },
+                defaultIndex = 2,
+                rotation = rot,
+                modifier = modifier,
+            ) { i -> vm.updateProfile { it.copy(hdrStops = values[i]) } }
+        }
+        CaptureMode.AUDIO -> {
+            val values = com.blacksingularities.registrer.data.AudioPreset.entries
+            QuickControl(
+                icon = Icons.Rounded.GraphicEq,
+                label = "Jakość nagrania: ${cfg.audioPreset.description}",
+                options = values.map { it.label },
+                selected = values.indexOf(cfg.audioPreset),
+                defaultIndex = values.indexOf(com.blacksingularities.registrer.data.AudioPreset.MUSIC),
+                rotation = rot,
+                enabled = vm.audioState == RecState.IDLE,
+                modifier = modifier,
+            ) { i -> vm.updateProfile { it.copy(audioPreset = values[i]) } }
+        }
+        CaptureMode.PRO -> Unit
+        else -> ev()
+    }
 }
 
 /** Miniatura / kadr z wideo, migawka, przełącznik obiektywu / pauza. */
@@ -998,31 +1091,6 @@ private fun RecordingClock(vm: CameraViewModel, rotation: Float) {
         Spacer(Modifier.width(8.dp))
         Text(formatClock(vm.recNanos / 1_000_000, tenths = false), style = MonoDigits, color = Color.White)
         if (vm.recMuted) Text("  ·  bez dźwięku", fontSize = 11.sp, color = Palette.TextDim)
-    }
-}
-
-private fun modeBadge(vm: CameraViewModel): String? {
-    val ext = vm.session.extension
-    return when (vm.mode) {
-        CaptureMode.NIGHT -> when {
-            ext == ExtensionMode.NIGHT -> "NOC · sprzętowa"
-            vm.cfg.nightFrames == 0 -> "NOC · auto ${vm.autoNightFrames()} klatek"
-            else -> "NOC · ${vm.cfg.nightFrames} klatek"
-        }
-        CaptureMode.HDR -> if (ext == ExtensionMode.HDR) "HDR · sprzętowy" else "HDR · fuzja 3 ekspozycji"
-        CaptureMode.PORTRAIT -> when (ext) {
-            ExtensionMode.BOKEH -> "PORTRET · bokeh sprzętowy"
-            ExtensionMode.FACE_RETOUCH -> "PORTRET · retusz"
-            else -> "PORTRET · bokeh ${vm.cfg.portraitBlur}%"
-        }
-        CaptureMode.PHOTO, CaptureMode.PRO -> vm.session.photoFormat.takeIf { it != PhotoFormat.JPEG }?.label
-        CaptureMode.VIDEO, CaptureMode.SLOWMO -> buildString {
-            append(vm.cfg.videoResolution.label)
-            if (vm.session.fps > 0) append(" · ${vm.session.fps} kl./s")
-            if (vm.session.videoHdr) append(" · HDR")
-            if (vm.session.stabilization) append(" · STAB")
-        }
-        CaptureMode.AUDIO -> null
     }
 }
 

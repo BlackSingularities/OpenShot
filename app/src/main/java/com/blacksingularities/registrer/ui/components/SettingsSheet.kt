@@ -183,8 +183,8 @@ fun SettingsSheet(
                     .padding(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                modes.forEach { m -> TabChip(modeIcon(m), m.label, tab == m) { tab = m } }
                 TabChip(Icons.Rounded.Settings, "Ogólne", tab == null) { tab = null }
+                modes.forEach { m -> TabChip(modeIcon(m), m.label, tab == m) { tab = m } }
             }
             Spacer(Modifier.height(10.dp))
             AnimatedContent(
