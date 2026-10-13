@@ -67,20 +67,27 @@ fun ModeDial(
     val haptic = LocalHapticFeedback.current
     val scope = rememberCoroutineScope()
     val currentSelect by rememberUpdatedState(onSelect)
+    // Gesty żyją dłużej niż jedna kompozycja – bieżący tryb i lista muszą być czytane przez stan,
+    // inaczej porównanie odbywa się z trybem sprzed przełączenia (pokrętło pokazuje inny tryb niż aktywny).
+    val currentSelected by rememberUpdatedState(selected)
+    val currentModes by rememberUpdatedState(modes)
     val selectedIndex = modes.indexOf(selected).coerceAtLeast(0)
     val position = remember { Animatable(selectedIndex.toFloat()) }
     var dragging by remember { mutableStateOf(false) }
     val anglePerItem = 0.19f
     val radiusPx = with(density) { 330.dp.toPx() }
 
-    LaunchedEffect(selectedIndex) {
+    // Po każdej zmianie trybu i po puszczeniu pokrętła – zawsze na rzeczywiście aktywnym trybie
+    // (także gdy przełączenie zostało odrzucone, np. w trakcie nagrywania).
+    LaunchedEffect(selectedIndex, dragging) {
         if (!dragging) position.animateTo(selectedIndex.toFloat(), spring(dampingRatio = 0.78f, stiffness = 260f))
     }
 
     fun commit(index: Int) {
-        val i = index.coerceIn(0, modes.lastIndex)
+        val list = currentModes
+        val i = index.coerceIn(0, list.lastIndex)
         scope.launch { position.animateTo(i.toFloat(), spring(dampingRatio = 0.78f, stiffness = 260f)) }
-        if (modes[i] != selected) currentSelect(modes[i])
+        if (list[i] != currentSelected) currentSelect(list[i])
     }
 
     Box(

@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.21.1
+
+- Naprawiono pokrętło trybów: po powrocie do trybu, w którym aplikacja startowała (np. Zdjęcie → Wideo), pokrętło pokazywało nowy tryb, ale aparat zostawał w poprzednim – w „Wideo” robił zdjęcia. Pokrętło zawsze wraca też na rzeczywiście aktywny tryb, gdy przełączenie jest niemożliwe.
+
 ## 2.21.0
 
 - **Przyciąganie nakładek do zdjęcia**: parametry, kompas, histogram, wskaźnik dźwięku i nawigator zoomu podczas przeciągania „przyklejają się” do środka kadru (w poziomie i pionie) oraz do górnej, dolnej i bocznych krawędzi zdjęcia – z wibracją i linią pomocniczą.
