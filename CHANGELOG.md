@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.4.4
+
+- Rząd przełączników na górze ustawień ogólnych nie ma już nagłówka.
+
 ## 2.4.3
 
 - Ustawienia ogólne są zwarte: proste przełączniki to siatka ikon (wibracje, dźwięk migawki, sygnał odliczania, parametry, kompas), a wybory – obrót ekranu, klawisze głośności, histogram i jego wielkość – mieszczą się w jednej linii z przełącznikiem segmentowym i bieżącą wartością.

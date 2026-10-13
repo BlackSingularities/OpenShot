@@ -496,7 +496,7 @@ private fun GeneralTab(
     onDownload: () -> Unit,
     onInstall: () -> Unit,
 ) {
-    Group("Przełączniki") {
+    Group(null) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -790,14 +790,15 @@ private fun TabChip(icon: ImageVector, label: String, selected: Boolean, modifie
 
 @Composable
 private fun Group(
-    title: String,
+    /** null = sekcja bez nagłówka. */
+    title: String?,
     collapsible: Boolean = false,
     initiallyExpanded: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     var expanded by remember(title) { mutableStateOf(initiallyExpanded) }
     Column {
-        Row(
+        if (title != null) Row(
             Modifier
                 .fillMaxWidth()
                 .then(if (collapsible) Modifier.clickable { expanded = !expanded } else Modifier)
