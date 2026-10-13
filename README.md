@@ -22,7 +22,7 @@ Najnowszy plik APK jest zawsze w **[Releases → Latest](../../releases/latest)*
 | **Foto** | Szybka migawka lub priorytet jakości, lampa auto/wł./latarka, samowyzwalacz 3/10 s. |
 | **Live** | Odpowiednik Live Photo: zdjęcie oraz około 3 s ruchu przed i po naciśnięciu migawki. |
 | **HDR** | Sprzętowy HDR albo fuzja 3 ekspozycji (−1,7 / 0 / +1,7 EV) z lokalnym mapowaniem tonów. |
-| **Pro Foto** | Fotograficzny tryb ręczny: ISO, czas naświetlania (do 30″, jeśli sensor pozwala), ostrość z odległością, balans bieli i EV. |
+| **Pro** | Fotograficzny tryb ręczny: ISO, czas naświetlania (do 30″, jeśli sensor pozwala), ostrość z odległością, balans bieli i EV. |
 
 - **RAW (DNG) i RAW+JPEG** z automatycznym wyborem sensora RAW, także gdy telefon udostępnia go jako osobny aparat fizyczny.
 
@@ -30,13 +30,15 @@ Najnowszy plik APK jest zawsze w **[Releases → Latest](../../releases/latest)*
 - 4K / 1080p / 720p, **HDR 10-bit (HLG)** i **stabilizacja**, jeśli urządzenie je obsługuje (automatyczny dobór do możliwości).
 - **Slow-motion** na głównym tylnym obiektywie 1×: wybór każdej wykrytej pary rozdzielczość + klatkaż (m.in. 120/240 kl/s, zależnie od telefonu).
 - Pauza i wznowienie, latarka, dźwięk.
-- **Klip** zapisuje krótki, około 3-sekundowy film HEVC obejmujący moment przed i po naciśnięciu migawki.
 - **Kinowy zoom** – wolny, płynny najazd podczas nagrywania.
 
 ### Dyktafon
-- AAC/M4A: *Mowa* (96 kb/s mono), *Muzyka* (256 kb/s stereo), *Studio* (320 kb/s stereo).
-- Źródła: standard, surowy (bez filtrów), głos (redukcja szumów), kierunkowy.
-- Orbitalny wizualizator głośności, pauza, biblioteka nagrań z odtwarzaniem, udostępnianiem i usuwaniem.
+- AAC/M4A: *Mowa* (96 kb/s mono), *Muzyka* (256 kb/s stereo), *Studio* (320 kb/s stereo) oraz *Bezstratny* WAV 16-bit 48 kHz.
+- Nagrywanie w tle i przy zgaszonym ekranie, sterowanie z powiadomienia (pauza, znacznik, stop).
+- Mikrofon wbudowany lub zewnętrzny (przewodowy, USB, Bluetooth LE), przetwarzanie: standard, surowy, głos, kierunkowy.
+- Wzmocnienie do +24 dB z ogranicznikiem, redukcja szumów, automatyczna głośność, pomijanie ciszy, automatyczny stop.
+- Mierniki szczytów L/P z ostrzeżeniem o przesterowaniu, znaczniki w trakcie nagrania.
+- Biblioteka: dni, wyszukiwanie, zarys fali, przewijanie, ±10 s, prędkość 0,75–2×, znaczniki, zmiana nazwy, udostępnianie.
 
 ### Interfejs
 - **Łukowe pokrętło trybów**, działające jak pierścień obiektywu, z zapadkami haptycznymi.
@@ -53,7 +55,7 @@ app/src/main/java/com/blacksingularities/registrer/
 ├── MainActivity.kt          # uprawnienia, klawisze, cykl życia
 ├── camera/                  # CameraEngine (CameraX + Camera2 Interop + Extensions), zapis MediaStore, histogram
 ├── computational/           # NightStacker, ExposureFusion, FrameMath – przetwarzanie pasami, wielowątkowo
-├── audio/                   # AudioEngine – MediaRecorder → MediaStore, lista nagrań
+├── audio/                   # AudioEngine (AudioRecord → AAC/WAV → MediaStore), usługa nagrywania w tle
 ├── data/                    # ustawienia (SharedPreferences)
 └── ui/                      # CameraViewModel (MVVM) + Jetpack Compose: ekran i komponenty
 ```

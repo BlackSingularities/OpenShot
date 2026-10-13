@@ -85,10 +85,19 @@ enum class AudioPreset(
     val sampleRate: Int,
     val bitRate: Int,
     val channels: Int,
+    /** Bezstratny WAV zamiast AAC. */
+    val lossless: Boolean = false,
 ) {
     VOICE("Mowa", "AAC 96 kb/s · mono · 44,1 kHz", 44_100, 96_000, 1),
     MUSIC("Muzyka", "AAC 256 kb/s · stereo · 48 kHz", 48_000, 256_000, 2),
     STUDIO("Studio", "AAC 320 kb/s · stereo · 48 kHz", 48_000, 320_000, 2),
+    LOSSLESS("Bezstratny", "WAV 16-bit · stereo · 48 kHz · ok. 11 MB/min", 48_000, 0, 2, lossless = true),
+}
+
+enum class AudioInput(val label: String, val description: String) {
+    AUTO("Auto", "System wybiera mikrofon"),
+    BUILTIN("Telefon", "Zawsze wbudowany mikrofon"),
+    EXTERNAL("Zewnętrzny", "Przewodowy, USB lub Bluetooth LE, gdy jest podłączony"),
 }
 
 enum class AudioSourceType(val label: String, val description: String) {
@@ -154,6 +163,15 @@ data class ModeSettings(
     // audio
     val audioPreset: AudioPreset = AudioPreset.MUSIC,
     val audioSource: AudioSourceType = AudioSourceType.STANDARD,
+    val audioInput: AudioInput = AudioInput.AUTO,
+    /** Cyfrowe wzmocnienie z miękkim ogranicznikiem, 0–24 dB. */
+    val audioGainDb: Int = 0,
+    val audioNoiseSuppression: Boolean = false,
+    val audioAgc: Boolean = false,
+    /** Pauzy dłuższe niż 1,5 s nie trafiają do pliku. */
+    val audioSkipSilence: Boolean = false,
+    /** Automatyczne zatrzymanie po tylu minutach; 0 = wyłączone. */
+    val audioAutoStopMin: Int = 0,
     /** Grupy odłączone od ustawień wspólnych (ustawiane tylko dla tego trybu). */
     val custom: Set<SharedGroup> = emptySet(),
 ) {
@@ -186,7 +204,6 @@ data class ModeSettings(
             CaptureMode.AUDIO -> ModeSettings(histogram = false, level = false, grids = emptySet())
             CaptureMode.PHOTO -> ModeSettings()
             CaptureMode.MOTION -> ModeSettings()
-            CaptureMode.CLIP -> ModeSettings(aspect = AspectRatioMode.R16_9, histogram = false)
         }
     }
 }
@@ -314,6 +331,12 @@ class SettingsStore(context: Context) {
             slowMoFps = prefs.getInt(k + "slowFps", d.slowMoFps),
             audioPreset = enumOr(prefs.getString(k + "audioPreset", null), d.audioPreset),
             audioSource = enumOr(prefs.getString(k + "audioSource", null), d.audioSource),
+            audioInput = enumOr(prefs.getString(k + "audioInput", null), d.audioInput),
+            audioGainDb = prefs.getInt(k + "audioGain", d.audioGainDb),
+            audioNoiseSuppression = prefs.getBoolean(k + "audioNs", d.audioNoiseSuppression),
+            audioAgc = prefs.getBoolean(k + "audioAgc", d.audioAgc),
+            audioSkipSilence = prefs.getBoolean(k + "audioSkipSilence", d.audioSkipSilence),
+            audioAutoStopMin = prefs.getInt(k + "audioAutoStop", d.audioAutoStopMin),
             custom = prefs.getString(k + "custom", null)
                 ?.split(',')?.mapNotNull { n -> SharedGroup.entries.firstOrNull { it.name == n } }?.toSet()
                 ?: d.custom,
@@ -351,6 +374,12 @@ class SettingsStore(context: Context) {
             .putInt(k + "slowFps", s.slowMoFps)
             .putString(k + "audioPreset", s.audioPreset.name)
             .putString(k + "audioSource", s.audioSource.name)
+            .putString(k + "audioInput", s.audioInput.name)
+            .putInt(k + "audioGain", s.audioGainDb)
+            .putBoolean(k + "audioNs", s.audioNoiseSuppression)
+            .putBoolean(k + "audioAgc", s.audioAgc)
+            .putBoolean(k + "audioSkipSilence", s.audioSkipSilence)
+            .putInt(k + "audioAutoStop", s.audioAutoStopMin)
             .putString(k + "custom", s.custom.joinToString(",") { it.name })
             .apply()
     }

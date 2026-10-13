@@ -1,5 +1,37 @@
 # Changelog
 
+## 2.4.0
+
+### Dyktafon
+- Nowy silnik nagrywania: własne kodowanie AAC (M4A) oraz nowy format **Bezstratny** – WAV 16-bit 48 kHz stereo.
+- Nagrywanie trwa **w tle i przy zgaszonym ekranie**; powiadomienie pokazuje czas i pozwala wstrzymać, wznowić, dodać znacznik i zakończyć nagranie. Po powrocie do aplikacji studio pokazuje trwające nagranie.
+- **Mierniki szczytów L/P** w dBFS ze strefą przesterowania, wskaźnikiem szczytu i ostrzeżeniem „PRZESTER”.
+- **Wybór mikrofonu**: auto, telefon albo zewnętrzny (przewodowy, USB, Bluetooth LE) – podłączenie urządzenia jest wykrywane na bieżąco, a nazwa aktywnego mikrofonu widnieje podczas nagrywania.
+- **Cyfrowe wzmocnienie** do +24 dB z miękkim ogranicznikiem, systemowa **redukcja szumów** i **automatyczna głośność** (gdy telefon je udostępnia).
+- **Pomijanie ciszy**: przerwy dłuższe niż 1,5 s nie trafiają do pliku (z zachowaniem początku kolejnej wypowiedzi).
+- **Automatyczne zatrzymanie** po 15 min, 30 min, 1 h lub 2 h.
+- **Znaczniki** w trakcie nagrywania – przyciskiem obok migawki albo z powiadomienia.
+- Górny pasek trybu Audio ma szybkie przełączniki: mikrofon, wzmocnienie, redukcja szumów, pomijanie ciszy i automatyczny stop.
+- Biblioteka nagrań: grupowanie dniami, wyszukiwanie, łączny czas i rozmiar, **zarys fali** z postępem i znacznikami, przewijanie dotknięciem lub przeciągnięciem, skoki ±10 s, prędkość 0,75–2×, skok do następnego znacznika, pauza i wznowienie, **zmiana nazwy**, udostępnianie i usuwanie.
+
+### Tryby
+- Nowa kolejność trybów na karuzeli: Pro · Noc · HDR · Portret · Live · **Foto · Wideo** · Slow-mo · Audio – Foto i Wideo są obok siebie, tryby fotograficzne po lewej, wideo i audio po prawej.
+- Tryb „Pro Foto” nazywa się teraz „Pro”.
+- Usunięto tryb Klip – krótkie chwile zapisuje tryb Live jako zdjęcie ruchome.
+- Karuzela trybów ma większe ikony, a wybrany tryb jest wyraźnie powiększony.
+
+### Poprawki
+- Szeroki kąt: przycisk 0,6× i szczypanie korzystają z zoomu aparatu głównego, gdy ten sięga szerokiego kąta, zamiast przełączać się na osobny sensor fizyczny. Osobny obiektyw, który nie przesyła obrazu albo nie daje się włączyć, jest wykrywany i pomijany, a aplikacja wraca do aparatu głównego.
+- Powiadomienie o aktualizacji jest na środku kadru i ponad nakładkami, więc przyciski „Pobierz” i „Zainstaluj” znów reagują.
+- Histogram, kompas, pasek parametrów i nawigator zoomu przesuwa się od razu po ruchu palcem (albo po krótkim przytrzymaniu); kosz poprawnie wykrywa nakładkę także po zmianie układu ekranu.
+
+## 2.3.3
+
+- Changelog w ustawieniach ma wyjustowany tekst i czytelniejszą interlinię.
+- Przy numerze wersji widnieje podpis „Pomysł i wykonanie · redzikowksi.com”.
+- Pionowa nawigacja ustawień ma równe przyciski pełnej szerokości, a aktywna zakładka automatycznie pozostaje widoczna.
+- Ikona launchera jest odrobinę większa i nie ma narzuconego tła.
+
 ## 2.3.2
 
 - Ikona OpenShot ma teraz neutralną, czarno-białą paletę: srebrne metaliczne listki, grafitowe cienie i białe refleksy, nadal bez tła.

@@ -24,7 +24,8 @@ import com.blacksingularities.registrer.ui.theme.BlockShape
 import com.blacksingularities.registrer.ui.theme.GlassValueButton
 import com.blacksingularities.registrer.ui.theme.GlassToolbar
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import com.blacksingularities.registrer.ui.components.QuickControl
 import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.GraphicEq
@@ -111,6 +112,12 @@ import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.FastForward
+import androidx.compose.material.icons.rounded.NoiseControlOff
+import androidx.compose.material.icons.rounded.NoiseAware
+import androidx.compose.material.icons.rounded.Smartphone
+import androidx.compose.material.icons.rounded.Headset
+import androidx.compose.material.icons.rounded.Flag
 import androidx.compose.material.icons.rounded.SystemUpdate
 import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material.icons.rounded.Delete
@@ -145,6 +152,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
@@ -165,6 +173,8 @@ import com.blacksingularities.registrer.camera.CaptureMode
 import com.blacksingularities.registrer.camera.FlashSetting
 import com.blacksingularities.registrer.data.GridType
 import com.blacksingularities.registrer.data.PhotoFormat
+import com.blacksingularities.registrer.ui.components.AudioLive
+import com.blacksingularities.registrer.ui.components.AudioPlayback
 import com.blacksingularities.registrer.ui.components.AudioStudio
 import com.blacksingularities.registrer.ui.components.FocusRing
 import com.blacksingularities.registrer.ui.components.GridOverlay
@@ -220,6 +230,13 @@ fun CameraScreen(vm: CameraViewModel, onToggleRearDisplay: () -> Unit = {}) {
         // i płynnie przenika w nowy obraz – bez czarnego mignięcia.
         freezeFrame = runCatching { previewView.bitmap?.asImageBitmap() }.getOrNull()
         vm.bind(lifecycleOwner, previewView.surfaceProvider)
+        // Strażnik osobnego obiektywu: brak klatek po kilku sekundach = powrót do aparatu głównego.
+        if (vm.activeCameraId != null && vm.mode != CaptureMode.AUDIO) {
+            delay(4000)
+            if (vm.activeCameraId != null && previewView.previewStreamState.value != PreviewView.StreamState.STREAMING) {
+                vm.onAuxLensStalled()
+            }
+        }
     }
 
     // Płynny zoom: interpolacja w przestrzeni logarytmicznej, zależna od czasu klatki.
@@ -721,6 +738,18 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
             }
         }
 
+        // Baner aktualizacji na środku kadru i nad nakładkami – żadna z nich nie przechwyci dotknięcia.
+        UprightFrame(rect, ui.uprightTurn) {
+            UpdateBanner(
+                state = vm.update,
+                visible = !vm.busy,
+                onDownload = vm::downloadUpdate,
+                onInstall = { vm.installUpdate() },
+                onDismiss = vm::dismissUpdate,
+                modifier = Modifier.align(Alignment.Center).padding(horizontal = 16.dp),
+            )
+        }
+
         Box(Modifier.fillMaxSize().graphicsLayer { alpha = flashAlpha.value }.background(Color.Black))
     }
 }
@@ -728,7 +757,8 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
 /**
  * Nakładka do przeciągnięcia. Pozycja zapisywana jest tak, jak widzi ją trzymający telefon
  * (0–1 w poziomie i pionie „do góry”), więc po obróceniu telefonu element zostaje np. na górze.
- * Po upuszczeniu przyciąga się do krawędzi, rogów lub środka. Gest działa przed obrotem treści.
+ * Przesuwanie zaczyna się od ruchu palcem albo krótkiego przytrzymania; po upuszczeniu nakładka
+ * przyciąga się do krawędzi, rogów lub środka. Gest działa przed obrotem treści.
  */
 @Composable
 private fun DraggableOverlay(
@@ -757,6 +787,12 @@ private fun DraggableOverlay(
     val dragState by rememberUpdatedState(onDragState)
     val delete by rememberUpdatedState(onDelete)
     val turnNow by rememberUpdatedState(turn)
+    // Gest działa przez cały czas życia nakładki – bieżące wymiary i opcje czyta przez stan.
+    val rectNow by rememberUpdatedState(rect)
+    val boxWNow by rememberUpdatedState(boxW)
+    val boxHNow by rememberUpdatedState(boxH)
+    val deletableNow by rememberUpdatedState(deletable)
+    val hapticsNow by rememberUpdatedState(haptics)
     var upright by remember { mutableStateOf(start) }
     var dragPos by remember { mutableStateOf<Offset?>(null) }
     val target = dragPos ?: uprightToScreen(upright, turn)
@@ -776,43 +812,80 @@ private fun DraggableOverlay(
             }
             .size(with(density) { boxW.toDp() }, with(density) { boxH.toDp() })
             .pointerInput(Unit) {
-                detectDragGesturesAfterLongPress(
-                    onDragStart = {
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    val id = down.id
+                    var started = false
+
+                    fun move(delta: Offset) {
+                        val p = dragPos ?: return
+                        val next = Offset(
+                            (p.x + delta.x / availW).coerceIn(0f, 1f),
+                            (p.y + delta.y / availH).coerceIn(0f, 1f),
+                        )
+                        dragPos = next
+                        dragState(deletableNow, deletableNow && isOverOverlayTrash(next, rectNow, margin, availW, availH, boxWNow, boxHNow, density))
+                    }
+
+                    fun begin() {
+                        started = true
                         dragPos = uprightToScreen(upright, turnNow)
-                        dragState(deletable, false)
-                        if (haptics) haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-                    },
-                    onDragEnd = {
-                        val p = dragPos ?: return@detectDragGesturesAfterLongPress
-                        if (deletable && isOverOverlayTrash(p, rect, margin, availW, availH, boxW, boxH, density)) {
-                            dragPos = null
-                            dragState(false, false)
-                            if (haptics) haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-                            delete()
-                            return@detectDragGesturesAfterLongPress
+                        dragState(deletableNow, false)
+                        if (hapticsNow) haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                    }
+
+                    // Przeciąganie zaczyna się od razu po ruchu palcem albo po krótkim przytrzymaniu;
+                    // samo dotknięcie zostaje dla treści (np. zmiana trybu histogramu).
+                    var pending = Offset.Zero
+                    while (!started) {
+                        val remaining = OVERLAY_HOLD_MS - (currentEvent.changes.firstOrNull()?.uptimeMillis ?: down.uptimeMillis).minus(down.uptimeMillis)
+                        val event = if (remaining > 0) withTimeoutOrNull(remaining) { awaitPointerEvent() } else null
+                        if (event == null) {
+                            begin()
+                            break
                         }
-                        val snapped = snapUpright(screenToUpright(p, turnNow))
-                        upright = snapped
-                        dragPos = null
-                        dragState(false, false)
-                        if (haptics) haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
-                        commit(snapped)
-                    },
-                    onDragCancel = {
-                        dragPos = null
-                        dragState(false, false)
-                    },
-                ) { change, drag ->
-                    change.consume()
-                    val p = dragPos ?: return@detectDragGesturesAfterLongPress
-                    dragPos = Offset(
-                        (p.x + drag.x / availW).coerceIn(0f, 1f),
-                        (p.y + drag.y / availH).coerceIn(0f, 1f),
-                    )
-                    dragState(
-                        deletable,
-                        deletable && isOverOverlayTrash(dragPos!!, rect, margin, availW, availH, boxW, boxH, density),
-                    )
+                        if (event.changes.size > 1) return@awaitEachGesture
+                        val change = event.changes.firstOrNull { it.id == id } ?: return@awaitEachGesture
+                        if (!change.pressed || change.isConsumed) return@awaitEachGesture
+                        pending += change.positionChange()
+                        if (pending.getDistance() > viewConfiguration.touchSlop) {
+                            change.consume()
+                            begin()
+                            move(pending)
+                        }
+                    }
+
+                    var cancelled = false
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull { it.id == id }
+                        if (change == null) {
+                            cancelled = true
+                            break
+                        }
+                        if (!change.pressed) {
+                            change.consume()
+                            break
+                        }
+                        val delta = change.positionChange()
+                        change.consume()
+                        if (delta != Offset.Zero) move(delta)
+                    }
+
+                    val p = dragPos
+                    dragPos = null
+                    dragState(false, false)
+                    if (p == null) return@awaitEachGesture
+                    if (cancelled) return@awaitEachGesture
+                    if (deletableNow && isOverOverlayTrash(p, rectNow, margin, availW, availH, boxWNow, boxHNow, density)) {
+                        if (hapticsNow) haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                        delete()
+                        return@awaitEachGesture
+                    }
+                    val snapped = snapUpright(screenToUpright(p, turnNow))
+                    upright = snapped
+                    if (hapticsNow) haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
+                    commit(snapped)
                 }
             },
         contentAlignment = Alignment.Center,
@@ -909,6 +982,9 @@ private fun rotateUnit(p: Offset, degrees: Int): Offset {
 private fun uprightToScreen(p: Offset, turn: Int) = rotateUnit(p, turn)
 private fun screenToUpright(p: Offset, turn: Int) = rotateUnit(p, -turn)
 
+/** Po tylu ms przytrzymania nakładka daje się przesuwać także bez wcześniejszego ruchu. */
+private const val OVERLAY_HOLD_MS = 280L
+
 /** Przyciąganie do krawędzi (0, 1) i środka (0,5), gdy blisko. */
 private fun snapUpright(p: Offset): Offset {
     fun snap(v: Float) = listOf(0f, 0.5f, 1f).firstOrNull { kotlin.math.abs(it - v) < 0.1f } ?: v
@@ -973,14 +1049,6 @@ private fun BoxScope.FrameInfo(ui: Ui) {
                 if (vm.rearDisplayActive) Badge("Selfie głównym aparatem", color = Palette.Amber)
             }
         }
-        UpdateBanner(
-            state = vm.update,
-            visible = !vm.busy,
-            onDownload = vm::downloadUpdate,
-            onInstall = { vm.installUpdate() },
-            onDismiss = vm::dismissUpdate,
-            modifier = Modifier.align(Alignment.CenterHorizontally),
-        )
         AnimatedVisibility(
             visible = vm.message != null,
             enter = fadeIn(),
@@ -1026,15 +1094,32 @@ private fun BoxScope.FrameInfo(ui: Ui) {
 @Composable
 private fun AudioPane(vm: CameraViewModel, padding: PaddingValues) {
     AudioStudio(
-        state = vm.audioState,
-        millis = vm.audioMillis,
+        live = AudioLive(
+            state = vm.audioState,
+            finishing = vm.audioFinishing,
+            millis = vm.audioMillis,
+            levelL = vm.audioLevelL,
+            levelR = vm.audioLevelR,
+            peakDb = vm.audioPeakDb,
+            clipping = vm.audioClipping,
+            silent = vm.audioSilent,
+            skippedMs = vm.audioSkippedMs,
+            markers = vm.audioMarkers,
+            device = vm.audioDevice,
+            format = vm.audioFormat,
+        ),
         amplitudes = vm.amplitudes,
         settings = vm.cfg,
+        externalMic = vm.externalMic,
         recordings = vm.recordings,
-        playingId = vm.playingId,
-        playbackPosition = vm::playbackPosition,
+        playback = AudioPlayback(vm.playingId, vm.playPaused, vm.playSpeed, vm::playbackPosition),
         onPlay = vm::togglePlay,
+        onSeek = vm::seekPlayback,
+        onSkip = vm::skipPlayback,
+        onSpeed = vm::cyclePlaybackSpeed,
+        onNextMarker = vm::nextMarker,
         onDelete = vm::deleteRecording,
+        onRename = vm::renameRecording,
         contentPadding = padding,
     )
 }
@@ -1192,6 +1277,17 @@ private fun ShutterCluster(ui: Ui) {
         val thumb = vm.thumbnail
         if (vm.mode.isVideo && vm.recState != RecState.IDLE && vm.session.snapshotInVideo) {
             RoundIcon(Icons.Rounded.PhotoCamera, "Zdjęcie z wideo", rot, size = 48.dp, onClick = vm::snapshot)
+        } else if (isAudio && vm.audioState != RecState.IDLE) {
+            RoundIcon(
+                Icons.Rounded.Flag,
+                "Dodaj znacznik",
+                rot,
+                size = 48.dp,
+                active = vm.audioMarkers > 0,
+                badge = vm.audioMarkers.takeIf { it > 0 }?.toString(),
+                enabled = !vm.audioFinishing,
+                onClick = vm::addAudioMarker,
+            )
         } else if (!isAudio && thumb != null) {
             Image(
                 bitmap = thumb.asImageBitmap(),
@@ -1458,7 +1554,7 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
                 )
             }
         } else {
-            RoundIcon(Icons.Rounded.Mic, "Dyktafon", rot, active = true, onClick = {})
+            AudioTopControls(vm, rot)
         }
     }
     val settings: @Composable () -> Unit = {
@@ -1767,6 +1863,88 @@ private fun UpdateBanner(
         }
     }
 }
+
+/** Górny pasek dyktafonu: wejście, wzmocnienie, redukcja szumów, pomijanie ciszy, automatyczny stop. */
+@Composable
+private fun AudioTopControls(vm: CameraViewModel, rot: Float) {
+    val cfg = vm.cfg
+    val idle = vm.audioState == RecState.IDLE
+    val inputs = com.blacksingularities.registrer.data.AudioInput.entries
+    fun inputIcon(i: com.blacksingularities.registrer.data.AudioInput) = when (i) {
+        com.blacksingularities.registrer.data.AudioInput.AUTO -> Icons.Rounded.Mic
+        com.blacksingularities.registrer.data.AudioInput.BUILTIN -> Icons.Rounded.Smartphone
+        com.blacksingularities.registrer.data.AudioInput.EXTERNAL -> Icons.Rounded.Headset
+    }
+    RoundIcon(
+        inputIcon(cfg.audioInput),
+        "Mikrofon: ${cfg.audioInput.label}" + (vm.externalMic?.let { " · podłączony $it" } ?: ""),
+        rot,
+        active = cfg.audioInput != com.blacksingularities.registrer.data.AudioInput.AUTO || vm.externalMic != null,
+        enabled = idle,
+        options = inputs.map { PickerOption("Mikrofon: ${it.label}", inputIcon(it), caption = it.label) },
+        selected = inputs.indexOf(cfg.audioInput),
+        onPick = { i -> vm.updateProfile { it.copy(audioInput = inputs[i]) } },
+        onClick = { vm.updateProfile { it.copy(audioInput = inputs[(inputs.indexOf(it.audioInput) + 1) % inputs.size]) } },
+    )
+    GlassValueButton(
+        if (cfg.audioGainDb == 0) "0" else "+${cfg.audioGainDb}",
+        "dB",
+        "Wzmocnienie ${if (cfg.audioGainDb == 0) "wyłączone" else "+${cfg.audioGainDb} dB"}",
+        rot,
+        active = cfg.audioGainDb > 0,
+        enabled = idle,
+        options = AUDIO_GAIN_STEPS.map { g -> PickerOption(if (g == 0) "Bez wzmocnienia" else "Wzmocnienie +$g dB", value = if (g == 0) "0" else "+$g", caption = "dB") },
+        selected = AUDIO_GAIN_STEPS.indexOf(cfg.audioGainDb).coerceAtLeast(0),
+        onPick = { i -> vm.updateProfile { it.copy(audioGainDb = AUDIO_GAIN_STEPS[i]) } },
+        onClick = {
+            vm.updateProfile {
+                val i = AUDIO_GAIN_STEPS.indexOf(it.audioGainDb).coerceAtLeast(0)
+                it.copy(audioGainDb = AUDIO_GAIN_STEPS[(i + 1) % AUDIO_GAIN_STEPS.size])
+            }
+        },
+    )
+    if (com.blacksingularities.registrer.audio.AudioEngine.noiseSuppressionAvailable) {
+        RoundIcon(
+            if (cfg.audioNoiseSuppression) Icons.Rounded.NoiseAware else Icons.Rounded.NoiseControlOff,
+            if (cfg.audioNoiseSuppression) "Redukcja szumów włączona" else "Redukcja szumów wyłączona",
+            rot,
+            active = cfg.audioNoiseSuppression,
+            enabled = idle,
+            onClick = { vm.updateProfile { it.copy(audioNoiseSuppression = !it.audioNoiseSuppression) } },
+        )
+    }
+    RoundIcon(
+        Icons.Rounded.FastForward,
+        if (cfg.audioSkipSilence) "Pomijanie ciszy włączone" else "Pomijanie ciszy wyłączone",
+        rot,
+        active = cfg.audioSkipSilence,
+        enabled = idle,
+        onClick = { vm.updateProfile { it.copy(audioSkipSilence = !it.audioSkipSilence) } },
+    )
+    RoundIcon(
+        if (cfg.audioAutoStopMin > 0) Icons.Rounded.Timer else Icons.Rounded.TimerOff,
+        if (cfg.audioAutoStopMin > 0) "Automatyczny stop po ${com.blacksingularities.registrer.ui.components.autoStopLabel(cfg.audioAutoStopMin)}" else "Bez automatycznego stopu",
+        rot,
+        active = cfg.audioAutoStopMin > 0,
+        badge = cfg.audioAutoStopMin.takeIf { it > 0 }?.let { if (it < 60) "$it" else "${it / 60}h" },
+        enabled = idle,
+        options = AUDIO_AUTOSTOP_STEPS.map { m ->
+            if (m == 0) PickerOption("Bez automatycznego stopu", Icons.Rounded.TimerOff, caption = "Wył.")
+            else PickerOption("Stop po ${com.blacksingularities.registrer.ui.components.autoStopLabel(m)}", value = if (m < 60) "$m" else "${m / 60}", caption = if (m < 60) "min" else "h")
+        },
+        selected = AUDIO_AUTOSTOP_STEPS.indexOf(cfg.audioAutoStopMin).coerceAtLeast(0),
+        onPick = { i -> vm.updateProfile { it.copy(audioAutoStopMin = AUDIO_AUTOSTOP_STEPS[i]) } },
+        onClick = {
+            vm.updateProfile {
+                val i = AUDIO_AUTOSTOP_STEPS.indexOf(it.audioAutoStopMin).coerceAtLeast(0)
+                it.copy(audioAutoStopMin = AUDIO_AUTOSTOP_STEPS[(i + 1) % AUDIO_AUTOSTOP_STEPS.size])
+            }
+        },
+    )
+}
+
+val AUDIO_GAIN_STEPS = listOf(0, 6, 12, 18, 24)
+val AUDIO_AUTOSTOP_STEPS = listOf(0, 15, 30, 60, 120)
 
 @Composable
 private fun RoundIcon(

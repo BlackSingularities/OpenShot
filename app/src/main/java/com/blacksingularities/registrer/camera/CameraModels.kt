@@ -6,20 +6,23 @@ import com.blacksingularities.registrer.data.ModeSettings
 import com.blacksingularities.registrer.data.PhotoFormat
 import com.blacksingularities.registrer.data.VideoResolution
 
+/**
+ * Kolejność deklaracji = kolejność na karuzeli. Foto i Wideo sąsiadują w środku; w lewo rośnie
+ * specjalizacja fotograficzna (aż do Pro), w prawo wideo i nagrania bez obrazu (Audio na końcu).
+ * Live (zdjęcie ruchome) stoi tuż przy Foto.
+ */
 enum class CaptureMode(val label: String, val isPhoto: Boolean, val isVideo: Boolean) {
+    /** Ręczne ISO, czas, ostrość i balans bieli dla fotografii. */
+    PRO("Pro", true, false),
+    NIGHT("Noc", true, false),
     HDR("HDR", true, false),
     PORTRAIT("Portret", true, false),
-    NIGHT("Noc", true, false),
+    /** Odpowiednik Live Photo: zdjęcie + ~3 s ruchu wokół naciśnięcia migawki. */
+    MOTION("Live", true, false),
     PHOTO("Foto", true, false),
     VIDEO("Wideo", false, true),
     SLOWMO("Slow-mo", false, true),
-    /** Klip HEVC: każde naciśnięcie migawki zapisuje ~3 s film (1,5 s przed i 1,5 s po). */
-    CLIP("Klip", false, false),
-    /** Odpowiednik Live Photo: zdjęcie + ~3 s ruchu wokół naciśnięcia migawki. */
-    MOTION("Live", true, false),
     AUDIO("Audio", false, false),
-    /** Ręczne ISO, czas, ostrość i balans bieli dla fotografii. */
-    PRO("Pro Foto", true, false),
 }
 
 enum class FlashSetting { OFF, AUTO, ON, TORCH }
@@ -129,5 +132,5 @@ data class BindRequest(
 
 class CapturedFrame(val bytes: ByteArray, val rotation: Int)
 
-/** Chwile nagrywane z bufora w tle. */
-val CaptureMode.isMoment: Boolean get() = this == CaptureMode.MOTION || this == CaptureMode.CLIP
+/** Tryby nagrywające bufor w tle (zdjęcie ruchome). */
+val CaptureMode.isMoment: Boolean get() = this == CaptureMode.MOTION

@@ -4,14 +4,11 @@ import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
 import android.media.MediaCodec
-import android.media.MediaCodecInfo
-import android.media.MediaCodecList
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.media.MediaMetadataRetriever
 import android.media.MediaMuxer
 import android.net.Uri
-import android.os.SystemClock
 import android.provider.MediaStore
 import androidx.exifinterface.media.ExifInterface
 import java.io.ByteArrayOutputStream
@@ -22,9 +19,9 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * Chwile: zdjęcia ruchome (Motion Photo – JPEG z wbudowanym klipem MP4, rozpoznawany przez
- * Zdjęcia Google i galerie zgodne z formatem) oraz klipy HEVC. Źródłem jest nagranie w tle,
- * z którego wycinany jest fragment wokół naciśnięcia migawki.
+ * Zdjęcia ruchome (Motion Photo – JPEG z wbudowanym klipem MP4, rozpoznawany przez Zdjęcia
+ * Google i galerie zgodne z formatem). Źródłem jest nagranie w tle, z którego wycinany jest
+ * fragment wokół naciśnięcia migawki.
  */
 object MomentMedia {
     private fun stamp(): String = SimpleDateFormat("yyyyMMdd_HHmmss_SSS", Locale.US).format(Date())
@@ -77,153 +74,6 @@ object MomentMedia {
         } finally {
             runCatching { muxer.release() }
             ex.release()
-        }
-    }
-
-    fun hevcEncoderAvailable(width: Int, height: Int): Boolean = runCatching {
-        MediaCodecList(MediaCodecList.REGULAR_CODECS)
-            .findEncoderForFormat(MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_HEVC, width, height)) != null
-    }.getOrDefault(false)
-
-    /**
-     * Przekodowanie klipu do HEVC sprzętowym koderem: dekoder rysuje bezpośrednio na
-     * powierzchnię wejściową kodera, dźwięk jest kopiowany bez zmian. false = brak HEVC / błąd.
-     */
-    fun transcodeHevc(src: File, dst: File): Boolean {
-        val ex = MediaExtractor()
-        ex.setDataSource(src.path)
-        var videoIndex = -1
-        var audioFormat: MediaFormat? = null
-        var audioIndex = -1
-        for (i in 0 until ex.trackCount) {
-            val f = ex.getTrackFormat(i)
-            val mime = f.getString(MediaFormat.KEY_MIME) ?: continue
-            if (mime.startsWith("video/") && videoIndex < 0) videoIndex = i
-            if (mime.startsWith("audio/") && audioIndex < 0) {
-                audioIndex = i
-                audioFormat = f
-            }
-        }
-        if (videoIndex < 0) {
-            ex.release()
-            return false
-        }
-        val inFormat = ex.getTrackFormat(videoIndex)
-        val width = inFormat.getInteger(MediaFormat.KEY_WIDTH)
-        val height = inFormat.getInteger(MediaFormat.KEY_HEIGHT)
-        if (!hevcEncoderAvailable(width, height)) {
-            ex.release()
-            return false
-        }
-        val rotation = if (inFormat.containsKey(MediaFormat.KEY_ROTATION)) inFormat.getInteger(MediaFormat.KEY_ROTATION) else 0
-        val fps = if (inFormat.containsKey(MediaFormat.KEY_FRAME_RATE)) inFormat.getInteger(MediaFormat.KEY_FRAME_RATE) else 30
-
-        var encoder: MediaCodec? = null
-        var decoder: MediaCodec? = null
-        var muxer: MediaMuxer? = null
-        var ok = false
-        try {
-            val outFormat = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_HEVC, width, height).apply {
-                setInteger(MediaFormat.KEY_COLOR_FORMAT, MediaCodecInfo.CodecCapabilities.COLOR_FormatSurface)
-                setInteger(MediaFormat.KEY_BIT_RATE, (width.toLong() * height * fps / 6).toInt().coerceIn(4_000_000, 40_000_000))
-                setInteger(MediaFormat.KEY_FRAME_RATE, fps)
-                setInteger(MediaFormat.KEY_I_FRAME_INTERVAL, 1)
-            }
-            encoder = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_VIDEO_HEVC)
-            encoder.configure(outFormat, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE)
-            val surface = encoder.createInputSurface()
-            encoder.start()
-            decoder = MediaCodec.createDecoderByType(inFormat.getString(MediaFormat.KEY_MIME)!!)
-            decoder.configure(inFormat, surface, null, 0)
-            decoder.start()
-
-            muxer = MediaMuxer(dst.path, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
-            muxer.setOrientationHint(rotation)
-            var muxVideo = -1
-            var muxAudio = -1
-            var started = false
-
-            ex.selectTrack(videoIndex)
-            val info = MediaCodec.BufferInfo()
-            val encInfo = MediaCodec.BufferInfo()
-            var inputDone = false
-            var decoderDone = false
-            var encoderDone = false
-            val deadline = SystemClock.elapsedRealtime() + 30_000
-            while (!encoderDone && SystemClock.elapsedRealtime() < deadline) {
-                if (!inputDone) {
-                    val idx = decoder.dequeueInputBuffer(5_000)
-                    if (idx >= 0) {
-                        val buf = decoder.getInputBuffer(idx)!!
-                        val size = ex.readSampleData(buf, 0)
-                        if (size < 0) {
-                            decoder.queueInputBuffer(idx, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
-                            inputDone = true
-                        } else {
-                            decoder.queueInputBuffer(idx, 0, size, ex.sampleTime, 0)
-                            ex.advance()
-                        }
-                    }
-                }
-                if (!decoderDone) {
-                    val idx = decoder.dequeueOutputBuffer(info, 5_000)
-                    if (idx >= 0) {
-                        val render = info.size > 0
-                        if (render) decoder.releaseOutputBuffer(idx, info.presentationTimeUs * 1000) else decoder.releaseOutputBuffer(idx, false)
-                        if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) {
-                            encoder.signalEndOfInputStream()
-                            decoderDone = true
-                        }
-                    }
-                }
-                val out = encoder.dequeueOutputBuffer(encInfo, 5_000)
-                when {
-                    out == MediaCodec.INFO_OUTPUT_FORMAT_CHANGED -> {
-                        muxVideo = muxer.addTrack(encoder.outputFormat)
-                        audioFormat?.let { muxAudio = muxer.addTrack(it) }
-                        muxer.start()
-                        started = true
-                    }
-                    out >= 0 -> {
-                        val buf = encoder.getOutputBuffer(out)!!
-                        if (encInfo.flags and MediaCodec.BUFFER_FLAG_CODEC_CONFIG != 0) encInfo.size = 0
-                        if (encInfo.size > 0 && started) muxer.writeSampleData(muxVideo, buf, encInfo)
-                        encoder.releaseOutputBuffer(out, false)
-                        if (encInfo.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) encoderDone = true
-                    }
-                }
-            }
-            if (!encoderDone || !started) return false
-
-            // Dźwięk bez zmian.
-            if (audioIndex >= 0 && muxAudio >= 0) {
-                val ax = MediaExtractor()
-                ax.setDataSource(src.path)
-                ax.selectTrack(audioIndex)
-                val buffer = ByteBuffer.allocate(1024 * 1024)
-                val ai = MediaCodec.BufferInfo()
-                while (true) {
-                    val size = ax.readSampleData(buffer, 0)
-                    if (size < 0) break
-                    ai.set(0, size, ax.sampleTime, 0)
-                    muxer.writeSampleData(muxAudio, buffer, ai)
-                    ax.advance()
-                }
-                ax.release()
-            }
-            muxer.stop()
-            ok = true
-            return true
-        } catch (e: Exception) {
-            return false
-        } finally {
-            runCatching { decoder?.stop() }
-            runCatching { decoder?.release() }
-            runCatching { encoder?.stop() }
-            runCatching { encoder?.release() }
-            runCatching { muxer?.release() }
-            ex.release()
-            if (!ok) dst.delete()
         }
     }
 
@@ -332,25 +182,6 @@ object MomentMedia {
         val uri = resolver.insert(MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY), values) ?: return null
         return try {
             resolver.openOutputStream(uri)!!.use { it.write(bytes) }
-            resolver.update(uri, ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }, null, null)
-            uri
-        } catch (e: Exception) {
-            resolver.delete(uri, null, null)
-            null
-        }
-    }
-
-    fun saveVideo(context: Context, file: File, hevc: Boolean): Uri? {
-        val resolver = context.contentResolver
-        val values = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, "OPENSHOT_CLIP${if (hevc) "_HEVC" else ""}_${stamp()}.mp4")
-            put(MediaStore.MediaColumns.MIME_TYPE, "video/mp4")
-            put(MediaStore.MediaColumns.RELATIVE_PATH, MediaSaver.MEDIA_DIR)
-            put(MediaStore.MediaColumns.IS_PENDING, 1)
-        }
-        val uri = resolver.insert(MediaStore.Video.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY), values) ?: return null
-        return try {
-            resolver.openOutputStream(uri)!!.use { os -> file.inputStream().use { it.copyTo(os) } }
             resolver.update(uri, ContentValues().apply { put(MediaStore.MediaColumns.IS_PENDING, 0) }, null, null)
             uri
         } catch (e: Exception) {

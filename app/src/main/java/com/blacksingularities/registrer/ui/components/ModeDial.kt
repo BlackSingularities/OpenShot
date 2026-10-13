@@ -70,7 +70,7 @@ fun ModeDial(
     val selectedIndex = modes.indexOf(selected).coerceAtLeast(0)
     val position = remember { Animatable(selectedIndex.toFloat()) }
     var dragging by remember { mutableStateOf(false) }
-    val anglePerItem = 0.17f
+    val anglePerItem = 0.19f
     val radiusPx = with(density) { 330.dp.toPx() }
 
     LaunchedEffect(selectedIndex) {
@@ -86,7 +86,7 @@ fun ModeDial(
     Box(
         modifier
             .fillMaxWidth()
-            .height(68.dp)
+            .height(82.dp)
             .pointerInput(enabled, modes) {
                 if (!enabled) return@pointerInput
                 var lastTick = selectedIndex
@@ -143,8 +143,8 @@ fun ModeDial(
             ) {
                 Box(
                     Modifier
-                        .size(30.dp)
-                        .graphicsLayer { scaleX = 0.9f + 0.18f * focus; scaleY = 0.9f + 0.18f * focus }
+                        .size(36.dp)
+                        .graphicsLayer { scaleX = 0.92f + 0.34f * focus; scaleY = 0.92f + 0.34f * focus }
                         .glass(BlockShape, active = isSel, border = isSel),
                     contentAlignment = Alignment.Center,
                 ) {
@@ -152,7 +152,7 @@ fun ModeDial(
                         modeIcon(m),
                         m.label,
                         tint = if (isSel) activeContent() else Color.White.copy(alpha = 0.58f + depth * 0.3f),
-                        modifier = Modifier.size(16.dp),
+                        modifier = Modifier.size(20.dp),
                     )
                 }
                 Text(
@@ -161,7 +161,7 @@ fun ModeDial(
                     fontSize = (8.2f + focus * 1.8f).sp,
                     fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
                     letterSpacing = (0.7f + focus * 0.7f).sp,
-                    modifier = Modifier.padding(top = 2.dp),
+                    modifier = Modifier.padding(top = (2f + focus * 5f).dp),
                 )
             }
         }

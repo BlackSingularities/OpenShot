@@ -34,6 +34,8 @@ import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.viewModelScope
 import com.blacksingularities.registrer.audio.AudioEngine
 import com.blacksingularities.registrer.audio.AudioItem
+import com.blacksingularities.registrer.audio.AudioRecordService
+import com.blacksingularities.registrer.audio.RecorderStatus
 import com.blacksingularities.registrer.camera.ActiveSession
 import com.blacksingularities.registrer.camera.BindRequest
 import com.blacksingularities.registrer.camera.CameraCaps
@@ -78,7 +80,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     private val ctx get() = getApplication<Application>()
     private val store = SettingsStore(app)
     val engine = CameraEngine(app)
-    private val audio = AudioEngine(app)
+    private val audio = AudioEngine.get(app)
     private val sound = MediaActionSound().apply {
         load(MediaActionSound.SHUTTER_CLICK)
         load(MediaActionSound.START_VIDEO_RECORDING)
@@ -148,9 +150,38 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     var audioMillis by mutableLongStateOf(0L); private set
     val amplitudes = mutableStateListOf<Float>()
     var audioPeakDb by mutableFloatStateOf(-90f); private set
+    var audioLevelL by mutableFloatStateOf(0f); private set
+    var audioLevelR by mutableFloatStateOf(0f); private set
+    var audioClipping by mutableStateOf(false); private set
+    var audioSilent by mutableStateOf(false); private set
+    var audioSkippedMs by mutableLongStateOf(0L); private set
+    var audioMarkers by mutableIntStateOf(0); private set
+    var audioDevice by mutableStateOf<String?>(null); private set
+    var audioFormat by mutableStateOf(""); private set
+    var audioFinishing by mutableStateOf(false); private set
     var recordings by mutableStateOf<List<AudioItem>>(emptyList()); private set
     var playingId by mutableStateOf<Long?>(null); private set
+    var playPaused by mutableStateOf(false); private set
+    var playSpeed by mutableFloatStateOf(1f); private set
     private var player: MediaPlayer? = null
+    private var inForeground = true
+
+    /** Nazwa podłączonego mikrofonu zewnętrznego (odświeżana przy podłączaniu urządzeń). */
+    var externalMic by mutableStateOf<String?>(null); private set
+    private val deviceCallback = object : android.media.AudioDeviceCallback() {
+        override fun onAudioDevicesAdded(addedDevices: Array<out android.media.AudioDeviceInfo>?) {
+            externalMic = audio.externalInputName()
+        }
+
+        override fun onAudioDevicesRemoved(removedDevices: Array<out android.media.AudioDeviceInfo>?) {
+            externalMic = audio.externalInputName()
+        }
+    }
+
+    private val audioListener = object : AudioEngine.Listener {
+        override fun onStateChanged() = syncAudio()
+        override fun onFinished(result: AudioEngine.Finished) = onAudioFinished(result)
+    }
 
     // ---------------------------------------------------------------- aktualizacje
     var update by mutableStateOf<UpdateState>(UpdateState.Idle); private set
@@ -177,6 +208,20 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     /** Osobny aparat (szeroki kąt / tele) albo null, gdy aktywny jest aparat główny. */
     var activeCameraId by mutableStateOf<String?>(null); private set
 
+    /** Obiektywy, które po przełączeniu nie dały obrazu – do końca sesji pomijane. */
+    private var brokenLenses by mutableStateOf(emptySet<String>())
+
+    /** Osobne obiektywy, z których da się korzystać. */
+    private val usableAux get() = caps.auxLenses.filter { it.cameraId !in brokenLenses }
+
+    /** Najmniejsza krotność osiągalna zoomem aparatu głównego (0,6× na telefonach z logicznym szerokim kątem). */
+    private val primaryZoomMin: Float
+        get() = if (activeCameraId == null) zoomMin else (caps.lensZooms.minOrNull() ?: 1f).coerceAtMost(1f)
+
+    /** Osobny szeroki kąt tylko wtedy, gdy jest wyraźnie szerszy niż zoom aparatu głównego. */
+    private val widerAux: com.blacksingularities.registrer.camera.AuxLens?
+        get() = usableAux.filter { it.factor < 1f && it.factor < primaryZoomMin * 0.9f }.minByOrNull { it.factor }
+
     /** Krotność 1× aktywnego aparatu względem głównego (np. 0,6 dla szerokiego kąta). */
     val zoomScale: Float
         get() = caps.auxLenses.firstOrNull { it.cameraId == activeCameraId && mode != CaptureMode.SLOWMO }?.factor ?: 1f
@@ -194,7 +239,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     val displayZoomMin: Float
         get() = if (mode == CaptureMode.SLOWMO) zoomMin else minOf(
             zoomMin * zoomScale,
-            caps.auxLenses.minOfOrNull { it.factor } ?: Float.MAX_VALUE,
+            usableAux.minOfOrNull { it.factor } ?: Float.MAX_VALUE,
             caps.lensZooms.minOrNull() ?: 1f,
         )
     val displayZoomMax: Float get() = if (cropAllowed) MAX_DIGITAL_ZOOM else maxOf(zoomMax * zoomScale, caps.maxZoom)
@@ -216,14 +261,19 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     val zoomPresets: List<Float>
         get() {
             val lenses = if (mode == CaptureMode.SLOWMO) mutableListOf(1f) else caps.lensZooms.ifEmpty { listOf(1f) }.toMutableList()
-            if (mode != CaptureMode.SLOWMO) lenses += caps.auxLenses.map { it.factor }
+            if (mode != CaptureMode.SLOWMO) lenses += usableAux.map { it.factor }
             val max = caps.maxZoom
             if (lenses.none { it > 1.4f } && max >= 2f) lenses += 2f
             if (lenses.none { it >= 4.5f } && max >= 10f) lenses += 10f
             if (cropAllowed) lenses += MAX_DIGITAL_ZOOM
-            // Scalenie bliskich wartości (np. 0,6 z opisu aparatu i 0,55 z sensora fizycznego).
+            // Scalenie bliskich wartości (np. 0,6 z zoomu aparatu i 0,55 z sensora fizycznego).
+            // Zostaje ta osiągalna zoomem aparatu głównego – działa bez przełączania kamery.
+            val reachable = primaryZoomMin - 0.01f
             val merged = mutableListOf<Float>()
-            for (z in lenses.sorted()) if (merged.none { abs(it - z) / z < 0.08f }) merged += z
+            for (z in lenses.sorted()) {
+                val i = merged.indexOfFirst { abs(it - z) / z < 0.12f }
+                if (i < 0) merged += z else if (merged[i] < reachable && z >= reachable) merged[i] = z
+            }
             return merged
         }
 
@@ -235,6 +285,15 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         engine.onHud = { hud = it }
         engine.onHistogram = { histogram = it }
         refreshRecordings()
+        audio.addListener(audioListener)
+        externalMic = audio.externalInputName()
+        runCatching { ctx.getSystemService(AudioManager::class.java)?.registerAudioDeviceCallback(deviceCallback, null) }
+        // Nagranie mogło trwać w tle, gdy ekran aparatu był zamknięty.
+        if (audio.isActive) {
+            mode = CaptureMode.AUDIO
+            syncAudio()
+            startAudioMeter()
+        }
         if (global.autoCheckUpdates) {
             val last = store.getLong("update.lastCheck")
             if (System.currentTimeMillis() - last > 3 * 3600_000L) checkForUpdates(manual = false)
@@ -297,9 +356,11 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         } catch (e: Exception) {
             val reason = e.message ?: e.javaClass.simpleName
             if (activeCameraId != null) {
-                val failed = caps.auxLenses.firstOrNull { it.cameraId == activeCameraId }
+                val failedId = activeCameraId
+                val failed = caps.auxLenses.firstOrNull { it.cameraId == failedId }
+                if (failedId != null) brokenLenses = brokenLenses + failedId
                 activeCameraId = null
-                zoomTarget = 1f
+                zoomTarget = if ((failed?.factor ?: 1f) < 1f) zoomMin.coerceAtMost(1f) else 1f
                 message = "Nie udało się włączyć obiektywu ${failed?.factor?.let { formatRatio(it) + "×" } ?: "dodatkowego"}: $reason. Wracam do aparatu głównego."
             } else {
                 message = "Kamera niedostępna: $reason"
@@ -572,12 +633,13 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
 
     /** Przycisk obiektywu: osobny aparat albo krotność aparatu głównego. */
     fun selectZoomPreset(value: Float) {
-        val aux = caps.auxLenses.firstOrNull { abs(it.factor - value) / value < 0.1f }
-        // Aparat główny osiąga tę krotność zoomem – najpłynniej, bez przełączania kamery.
-        val primaryReaches = activeCameraId == null && value >= zoomMin - 0.01f
+        val aux = usableAux.firstOrNull { abs(it.factor - value) / value < 0.1f }
+        // Aparat główny osiąga tę krotność (lub prawie tę) zoomem – najpłynniej, bez przełączania kamery.
+        val primaryReaches = value >= primaryZoomMin * 0.9f - 0.01f
         when {
             !canSwitchCamera() -> if (activeCameraId == null) setZoomTarget(value, if (mode.isVideo) 4f else 14f)
-            primaryReaches -> setZoomTarget(value, if (mode.isVideo) 4f else 14f)
+            primaryReaches && activeCameraId == null -> setZoomTarget(maxOf(value, zoomMin), if (mode.isVideo) 4f else 14f)
+            primaryReaches && aux?.cameraId != activeCameraId -> switchCamera(null, maxOf(value, primaryZoomMin))
             aux != null && mode != CaptureMode.SLOWMO -> switchCamera(aux.cameraId, 1f)
             activeCameraId != null -> switchCamera(null, value)
             else -> {
@@ -590,6 +652,19 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     private fun formatRatio(v: Float) = String.format(java.util.Locale.US, "%.1f", v).replace('.', ',')
+
+    /**
+     * Osobny obiektyw związał się, ale nie przesyła obrazu (częste przy sensorach fizycznych,
+     * których CameraX nie obsługuje w pełni). Wracamy do aparatu głównego i pomijamy ten obiektyw.
+     */
+    fun onAuxLensStalled() {
+        val id = activeCameraId ?: return
+        val lens = caps.auxLenses.firstOrNull { it.cameraId == id }
+        brokenLenses = brokenLenses + id
+        activeCameraId = null
+        zoomTarget = if ((lens?.factor ?: 1f) < 1f) primaryZoomMin else 1f
+        message = "Obiektyw ${lens?.factor?.let { formatRatio(it) + "×" } ?: "dodatkowy"} nie przesyła obrazu – używam zoomu aparatu głównego"
+    }
 
     private fun canSwitchCamera() = recState == RecState.IDLE && !bursting && processing == null && !intervalRunning
 
@@ -610,12 +685,12 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     private fun zoomDisplayTo(display: Float, speed: Float, cinematic: Boolean) {
         val scale = zoomScale
         if (canSwitchCamera() && mode != CaptureMode.SLOWMO) {
-            val wide = caps.auxLenses.filter { it.factor < 1f }.minByOrNull { it.factor }
+            val wide = widerAux
             when {
-                activeCameraId != null && scale < 1f && display >= 1f -> return switchCamera(null, display)
+                activeCameraId != null && scale < 1f && display >= maxOf(primaryZoomMin, scale * 1.05f) -> return switchCamera(null, display)
                 activeCameraId != null && scale > 1f && display < scale * 0.98f -> return switchCamera(null, display)
                 activeCameraId == null && wide != null && display < zoomMin * 0.97f -> return switchCamera(wide.cameraId, 1f)
-                activeCameraId == null && wide == null && display < zoomMin * 0.97f -> {
+                activeCameraId == null && wide == null && zoomMin > 0.95f && display < zoomMin * 0.97f -> {
                     if (message == null) {
                         message = "Szeroki kąt niedostępny: aparat pozwala od ${formatRatio(zoomMin)}×, a osobnego sensora system nie udostępnia"
                     }
@@ -803,7 +878,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
             mode == CaptureMode.NIGHT && session.extension == null -> nightCapture()
             mode == CaptureMode.HDR && session.extension == null -> hdrCapture()
             mode == CaptureMode.PORTRAIT && session.extension == null -> portraitCapture()
-            mode.isMoment -> momentCapture(motion = mode == CaptureMode.MOTION)
+            mode.isMoment -> momentCapture()
             else -> {
                 val hardware = session.extension != null
                 if (hardware) processing = Processing("Przetwarzanie sprzętowe", null)
@@ -986,7 +1061,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    // ================================================================ chwile: zdjęcia ruchome i klipy
+    // ================================================================ zdjęcia ruchome
 
     private var momentJob: Job? = null
     private var segment: CameraEngine.Segment? = null
@@ -1035,8 +1110,8 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
-    /** Migawka w trybie chwil: zdjęcie (Motion Photo) + fragment bufora 1,5 s przed i 1,5 s po. */
-    private suspend fun momentCapture(motion: Boolean) {
+    /** Migawka w trybie Live: zdjęcie (Motion Photo) + fragment bufora 1,5 s przed i 1,5 s po. */
+    private suspend fun momentCapture() {
         val seg = segment
         if (seg == null) {
             message = "Bufor nagrania jeszcze się uruchamia – spróbuj za chwilę"
@@ -1046,8 +1121,8 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         try {
             playShutter()
             val pressMs = SystemClock.elapsedRealtime() - seg.startedAt
-            val photo = if (motion && session.snapshotInVideo) runCatching { engine.captureFrame() }.getOrNull() else null
-            processing = Processing(if (motion) "Zdjęcie ruchome" else "Klip", null)
+            val photo = if (session.snapshotInVideo) runCatching { engine.captureFrame() }.getOrNull() else null
+            processing = Processing("Zdjęcie ruchome", null)
             delay(1500)
             val ok = momentLock.withLock {
                 if (segment === seg) segment = null
@@ -1067,20 +1142,11 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
                     val toUs = (pressMs + 1500) * 1000
                     val base = MomentMedia.trim(seg.file, clip, fromUs, toUs)
                     val presentationUs = (pressMs * 1000 - base).coerceAtLeast(0)
-                    if (motion) {
-                        val still = photo?.let { MomentMedia.jpegWithOrientation(ctx, it.bytes, it.rotation) }
-                            ?: MomentMedia.frameAt(seg.file, pressMs * 1000)
-                            ?: error("Brak klatki zdjęcia")
-                        val file = MomentMedia.buildMotionPhoto(still, clip.readBytes(), presentationUs)
-                        MomentMedia.saveImage(ctx, file)?.let { it to "Zapisano zdjęcie ruchome" }
-                    } else {
-                        withContext(Dispatchers.Main) { processing = Processing("Kodowanie HEVC", null) }
-                        val hevc = java.io.File(ctx.cacheDir, "hevc_${System.nanoTime()}.mp4")
-                        val isHevc = MomentMedia.transcodeHevc(clip, hevc)
-                        val uri = MomentMedia.saveVideo(ctx, if (isHevc) hevc else clip, isHevc)
-                        hevc.delete()
-                        uri?.let { it to if (isHevc) "Zapisano klip HEVC" else "Zapisano klip (brak kodera HEVC – H.264)" }
-                    }
+                    val still = photo?.let { MomentMedia.jpegWithOrientation(ctx, it.bytes, it.rotation) }
+                        ?: MomentMedia.frameAt(seg.file, pressMs * 1000)
+                        ?: error("Brak klatki zdjęcia")
+                    val file = MomentMedia.buildMotionPhoto(still, clip.readBytes(), presentationUs)
+                    MomentMedia.saveImage(ctx, file)
                 } catch (e: Exception) {
                     null
                 } finally {
@@ -1089,8 +1155,8 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
                 }
             }
             if (saved != null) {
-                onSaved(saved.first, !motion)
-                message = saved.second
+                onSaved(saved, false)
+                message = "Zapisano zdjęcie ruchome"
             } else {
                 message = "Nie udało się zapisać chwili"
             }
@@ -1154,8 +1220,8 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
                 RecState.IDLE -> Unit
             }
             mode == CaptureMode.AUDIO -> when (audioState) {
-                RecState.RECORDING -> if (audio.pause()) audioState = RecState.PAUSED
-                RecState.PAUSED -> if (audio.resume()) audioState = RecState.RECORDING
+                RecState.RECORDING -> audio.pause()
+                RecState.PAUSED -> audio.resume()
                 RecState.IDLE -> Unit
             }
         }
@@ -1211,42 +1277,101 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
             message = "Zezwól na dostęp do mikrofonu w ustawieniach systemu"
             return
         }
+        if (audio.isActive) return
         stopPlayback()
-        if (!audio.start(cfg.audioPreset, cfg.audioSource)) {
-            message = "Nie udało się uruchomić mikrofonu"
+        val c = cfg
+        val error = audio.start(
+            AudioEngine.Config(
+                preset = c.audioPreset,
+                source = c.audioSource,
+                input = c.audioInput,
+                gainDb = c.audioGainDb,
+                noiseSuppression = c.audioNoiseSuppression,
+                agc = c.audioAgc,
+                skipSilence = c.audioSkipSilence,
+                maxDurationMs = c.audioAutoStopMin * 60_000L,
+            ),
+        )
+        if (error != null) {
+            message = "Nie udało się uruchomić nagrywania: $error"
             return
         }
+        AudioRecordService.start(ctx)
+        if (c.audioInput == com.blacksingularities.registrer.data.AudioInput.EXTERNAL && audio.externalInput() == null) {
+            message = "Brak mikrofonu zewnętrznego – nagrywam wbudowanym"
+        }
         amplitudes.clear()
-        audioMillis = 0
         audioPeakDb = -90f
-        audioState = RecState.RECORDING
+        syncAudio()
         if (global.shutterSound) sound.play(MediaActionSound.START_VIDEO_RECORDING)
+        startAudioMeter()
+    }
+
+    /** Odczyt mierników silnika ok. 25 razy na sekundę – tylko przy widocznym ekranie. */
+    private fun startAudioMeter() {
+        audioJob?.cancel()
+        if (!inForeground) return
         audioJob = viewModelScope.launch {
-            var last = SystemClock.elapsedRealtime()
-            while (isActive) {
+            while (isActive && audio.isActive) {
                 delay(40)
-                val now = SystemClock.elapsedRealtime()
-                if (audioState == RecState.RECORDING) {
-                    audioMillis += now - last
-                    val amp = audio.amplitude().coerceAtLeast(1)
-                    val db = 20f * log10(amp / 32767f)
-                    audioPeakDb = maxOf(db, audioPeakDb - 0.6f)
+                audioMillis = audio.recordedMs
+                val l = audio.peakL
+                val r = audio.peakR
+                audioLevelL = l
+                audioLevelR = r
+                val db = 20f * log10(maxOf(l, r).coerceAtLeast(1e-5f))
+                audioPeakDb = maxOf(db, audioPeakDb - 0.6f)
+                audioClipping = SystemClock.elapsedRealtime() - audio.lastClipAt < 1500
+                audioSilent = audio.silent
+                audioSkippedMs = audio.skippedMs
+                if (audio.status == RecorderStatus.RECORDING && !audio.silent) {
                     amplitudes.add(((db + 60f) / 60f).coerceIn(0f, 1f))
                     if (amplitudes.size > 160) amplitudes.removeAt(0)
                 }
-                last = now
             }
         }
     }
 
-    private fun stopAudio() {
+    private fun syncAudio() {
+        audioState = when (audio.status) {
+            RecorderStatus.IDLE -> RecState.IDLE
+            RecorderStatus.PAUSED -> RecState.PAUSED
+            RecorderStatus.RECORDING, RecorderStatus.FINISHING -> RecState.RECORDING
+        }
+        audioFinishing = audio.status == RecorderStatus.FINISHING
+        audioMarkers = audio.markerCount
+        audioDevice = audio.deviceName
+        audioFormat = audio.formatLabel
+        audioSilent = audio.silent
+        audioMillis = audio.recordedMs
+    }
+
+    private fun onAudioFinished(result: AudioEngine.Finished) {
         audioJob?.cancel()
         audioJob = null
-        val uri = audio.stop()
-        audioState = RecState.IDLE
-        if (global.shutterSound) sound.play(MediaActionSound.STOP_VIDEO_RECORDING)
-        message = if (uri == null) "Nagranie było zbyt krótkie lub wystąpił błąd" else "Zapisano nagranie"
+        syncAudio()
+        audioLevelL = 0f
+        audioLevelR = 0f
+        audioClipping = false
+        if (global.shutterSound && inForeground) sound.play(MediaActionSound.STOP_VIDEO_RECORDING)
+        val length = com.blacksingularities.registrer.ui.components.formatClock(result.durationMs, false)
+        message = when {
+            result.uri == null && result.error != null -> "Nie zapisano nagrania: ${result.error}"
+            result.uri == null -> "Nagranie było zbyt krótkie"
+            result.autoStopped -> "Automatyczne zatrzymanie – zapisano $length"
+            else -> "Zapisano nagranie · $length"
+        }
         refreshRecordings()
+    }
+
+    private fun stopAudio() {
+        audio.stop()
+    }
+
+    /** Znacznik w bieżącym miejscu nagrania (widoczny potem na osi odtwarzania). */
+    fun addAudioMarker() {
+        if (audio.addMarker() == null) return
+        audioMarkers = audio.markerCount
     }
 
     fun refreshRecordings() {
@@ -1255,9 +1380,18 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         }
     }
 
+    /** Dotknięcie przycisku odtwarzania: start, pauza albo wznowienie. */
     fun togglePlay(item: AudioItem) {
-        if (playingId == item.id) {
-            stopPlayback()
+        val current = player
+        if (playingId == item.id && current != null) {
+            if (playPaused) {
+                runCatching { current.start() }
+                playPaused = false
+                applySpeed()
+            } else {
+                runCatching { current.pause() }
+                playPaused = true
+            }
             return
         }
         stopPlayback()
@@ -1269,10 +1403,51 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
                 start()
             }
             playingId = item.id
+            playPaused = false
+            applySpeed()
         } catch (e: Exception) {
             message = "Nie można odtworzyć: ${e.message}"
             stopPlayback()
         }
+    }
+
+    private fun applySpeed() {
+        val p = player ?: return
+        if (playPaused) return
+        runCatching { p.playbackParams = p.playbackParams.setSpeed(playSpeed) }
+    }
+
+    fun cyclePlaybackSpeed() {
+        val steps = listOf(1f, 1.25f, 1.5f, 2f, 0.75f)
+        val i = steps.indexOfFirst { abs(it - playSpeed) < 0.01f }
+        playSpeed = steps[(i + 1) % steps.size]
+        applySpeed()
+    }
+
+    /** Przewija odtwarzane nagranie (lub rozpoczyna odtwarzanie innego) do ułamka długości. */
+    fun seekPlayback(item: AudioItem, fraction: Float) {
+        if (playingId != item.id) togglePlay(item)
+        val p = player ?: return
+        val d = runCatching { p.duration }.getOrDefault(0)
+        if (d > 0) runCatching { p.seekTo((d * fraction.coerceIn(0f, 1f)).toLong(), MediaPlayer.SEEK_CLOSEST) }
+    }
+
+    fun skipPlayback(deltaMs: Int) {
+        val p = player ?: return
+        runCatching {
+            val target = (p.currentPosition + deltaMs).coerceIn(0, p.duration)
+            p.seekTo(target.toLong(), MediaPlayer.SEEK_CLOSEST)
+        }
+    }
+
+    /** Skok do następnego znacznika (po ostatnim – do pierwszego). */
+    fun nextMarker(item: AudioItem) {
+        if (item.markers.isEmpty()) return
+        if (playingId != item.id) togglePlay(item)
+        val p = player ?: return
+        val pos = runCatching { p.currentPosition.toLong() }.getOrDefault(0L)
+        val next = item.markers.firstOrNull { it > pos + 800 } ?: item.markers.first()
+        runCatching { p.seekTo(next, MediaPlayer.SEEK_CLOSEST) }
     }
 
     fun playbackPosition(): Float {
@@ -1284,6 +1459,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         player?.let { runCatching { it.stop() }; it.release() }
         player = null
         playingId = null
+        playPaused = false
     }
 
     fun deleteRecording(item: AudioItem) {
@@ -1291,6 +1467,15 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         viewModelScope.launch {
             val ok = withContext(Dispatchers.IO) { audio.delete(item) }
             if (!ok) message = "Nie udało się usunąć nagrania"
+            refreshRecordings()
+        }
+    }
+
+    fun renameRecording(item: AudioItem, title: String) {
+        if (title.trim() == item.title) return
+        viewModelScope.launch {
+            val ok = withContext(Dispatchers.IO) { audio.rename(item, title) }
+            if (!ok) message = "Nie udało się zmienić nazwy"
             refreshRecordings()
         }
     }
@@ -1367,7 +1552,10 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
 
     fun onBackground() {
         stopMomentBuffer()
-        if (audioState != RecState.IDLE) stopAudio()
+        // Nagrywanie dźwięku trwa dalej w usłudze pierwszoplanowej; mierniki usypiają.
+        inForeground = false
+        audioJob?.cancel()
+        audioJob = null
         if (recState != RecState.IDLE) engine.stopRecording()
         bursting = false
         if (intervalRunning) stopInterval()
@@ -1383,6 +1571,10 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     }
 
     fun onForeground() {
+        inForeground = true
+        syncAudio()
+        if (audio.isActive) startAudioMeter()
+        refreshRecordings()
         if (mode.isMoment && cameraReady && momentJob == null) startMomentBuffer()
         val installing = update
         if (installing is UpdateState.Installing) {
@@ -1402,7 +1594,8 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
 
     override fun onCleared() {
         stopMomentBuffer()
-        audio.release()
+        audio.removeListener(audioListener)
+        runCatching { ctx.getSystemService(AudioManager::class.java)?.unregisterAudioDeviceCallback(deviceCallback) }
         stopPlayback()
         engine.release()
         sound.release()

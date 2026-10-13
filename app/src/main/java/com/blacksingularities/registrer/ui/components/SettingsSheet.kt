@@ -25,6 +25,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -53,6 +57,10 @@ import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Layers
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.Movie
+import androidx.compose.material.icons.rounded.FastForward
+import androidx.compose.material.icons.rounded.NoiseAware
+import androidx.compose.material.icons.rounded.Equalizer
+import androidx.compose.material.icons.rounded.Headset
 import androidx.compose.material.icons.rounded.MotionPhotosOn
 import androidx.compose.material.icons.rounded.NightsStay
 import androidx.compose.material.icons.rounded.PhotoCamera
@@ -80,6 +88,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -109,12 +118,15 @@ import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.blacksingularities.registrer.camera.CameraCaps
 import com.blacksingularities.registrer.camera.CaptureMode
 import com.blacksingularities.registrer.data.AspectRatioMode
+import com.blacksingularities.registrer.audio.AudioEngine
+import com.blacksingularities.registrer.data.AudioInput
 import com.blacksingularities.registrer.data.AudioPreset
 import com.blacksingularities.registrer.data.AudioSourceType
 import com.blacksingularities.registrer.data.CapturePriority
@@ -138,7 +150,6 @@ fun modeIcon(mode: CaptureMode): ImageVector = when (mode) {
     CaptureMode.PORTRAIT -> Icons.Rounded.Portrait
     CaptureMode.PHOTO -> Icons.Rounded.PhotoCamera
     CaptureMode.MOTION -> Icons.Rounded.MotionPhotosOn
-    CaptureMode.CLIP -> Icons.Rounded.Movie
     CaptureMode.HDR -> Icons.Rounded.HdrOn
     CaptureMode.PRO -> Icons.Rounded.Tune
     CaptureMode.VIDEO -> Icons.Rounded.Videocam
@@ -170,20 +181,43 @@ fun SettingsSheet(
 
     @Composable
     fun Tabs(horizontal: Boolean) {
-        val options: @Composable () -> Unit = {
-            TabChip(Icons.Rounded.Settings, "Ogólne", tab == null) { tab = null }
-            modes.forEach { m -> TabChip(modeIcon(m), m.label, tab == m) { tab = m } }
+        val options = listOf<CaptureMode?>(null) + modes
+        val selectedIndex = options.indexOf(tab).coerceAtLeast(0)
+        val state = rememberLazyListState()
+        LaunchedEffect(selectedIndex, horizontal) {
+            state.animateScrollToItem(selectedIndex)
         }
         if (horizontal) {
-            Row(
-                Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+            LazyRow(
+                Modifier.fillMaxWidth(),
+                state = state,
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) { options() }
+            ) {
+                items(options, key = { it?.name ?: "GENERAL" }) { mode ->
+                    TabChip(
+                        if (mode == null) Icons.Rounded.Settings else modeIcon(mode),
+                        mode?.label ?: "Ogólne",
+                        tab == mode,
+                    ) { tab = mode }
+                }
+            }
         } else {
-            Column(
-                Modifier.width(164.dp).verticalScroll(rememberScrollState()).padding(horizontal = 10.dp),
+            LazyColumn(
+                Modifier.width(164.dp).fillMaxHeight(),
+                state = state,
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 10.dp, vertical = 2.dp),
                 verticalArrangement = Arrangement.spacedBy(5.dp),
-            ) { options() }
+            ) {
+                items(options, key = { it?.name ?: "GENERAL" }) { mode ->
+                    TabChip(
+                        if (mode == null) Icons.Rounded.Settings else modeIcon(mode),
+                        mode?.label ?: "Ogólne",
+                        tab == mode,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { tab = mode }
+                }
+            }
         }
     }
 
@@ -304,13 +338,40 @@ private fun ModeTab(mode: CaptureMode, s: ModeSettings, caps: CameraCaps, enable
         }
 
         CaptureMode.AUDIO -> {
-            Group("Nagrywanie") {
-                Chips(Icons.Rounded.GraphicEq, "Jakość", AudioPreset.entries, s.audioPreset, { it.label }, enabled, hint = s.audioPreset.description) { v ->
+            Group("Jakość") {
+                Chips(Icons.Rounded.GraphicEq, "Format", AudioPreset.entries, s.audioPreset, { it.label }, enabled, hint = s.audioPreset.description) { v ->
                     change { it.copy(audioPreset = v) }
                 }
-                Chips(Icons.Rounded.Mic, "Źródło", AudioSourceType.entries, s.audioSource, { it.label }, enabled, hint = s.audioSource.description) { v ->
+            }
+            Group("Mikrofon") {
+                Chips(Icons.Rounded.Headset, "Wejście", AudioInput.entries, s.audioInput, { it.label }, enabled, hint = s.audioInput.description) { v ->
+                    change { it.copy(audioInput = v) }
+                }
+                Chips(Icons.Rounded.Mic, "Przetwarzanie", AudioSourceType.entries, s.audioSource, { it.label }, enabled, hint = s.audioSource.description) { v ->
                     change { it.copy(audioSource = v) }
                 }
+                Chips(Icons.Rounded.Equalizer, "Wzmocnienie", listOf(0, 6, 12, 18, 24), s.audioGainDb, { if (it == 0) "0 dB" else "+$it dB" }, enabled, hint = "Cyfrowe, z miękkim ogranicznikiem – dla cichych źródeł i wykładów") { v ->
+                    change { it.copy(audioGainDb = v) }
+                }
+                if (AudioEngine.noiseSuppressionAvailable) {
+                    SwitchRow(Icons.Rounded.NoiseAware, "Redukcja szumów", "Filtr systemowy: czystsza mowa, gorzej dla muzyki", s.audioNoiseSuppression, enabled) { v ->
+                        change { it.copy(audioNoiseSuppression = v) }
+                    }
+                }
+                if (AudioEngine.agcAvailable) {
+                    SwitchRow(Icons.Rounded.GraphicEq, "Automatyczna głośność", "Wyrównuje cichych i głośnych mówców", s.audioAgc, enabled) { v ->
+                        change { it.copy(audioAgc = v) }
+                    }
+                }
+            }
+            Group("Nagrywanie") {
+                SwitchRow(Icons.Rounded.FastForward, "Pomijaj ciszę", "Przerwy dłuższe niż 1,5 s nie trafiają do pliku", s.audioSkipSilence, enabled) { v ->
+                    change { it.copy(audioSkipSilence = v) }
+                }
+                Chips(Icons.Rounded.Timer, "Automatyczne zatrzymanie", listOf(0, 15, 30, 60, 120), s.audioAutoStopMin, { if (it == 0) "Wył." else autoStopLabel(it) }, enabled) { v ->
+                    change { it.copy(audioAutoStopMin = v) }
+                }
+                InfoRow(Icons.Rounded.Info, "Nagrywanie trwa w tle i przy zgaszonym ekranie – pauza, znacznik i stop są w powiadomieniu")
             }
         }
 
@@ -494,6 +555,11 @@ private fun UpdateRow(update: UpdateState, onCheck: () -> Unit, onDownload: () -
             RowIcon(Icons.Rounded.SystemUpdate)
             Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                 Text("OpenShot ${UpdateManager.currentVersion}", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "Pomysł i wykonanie · redzikowksi.com",
+                    fontSize = 10.sp,
+                    color = Palette.TextDim.copy(alpha = 0.8f),
+                )
                 Text(status, fontSize = 12.sp, color = if (update is UpdateState.Available || update is UpdateState.Ready) Palette.Amber else Palette.TextDim, maxLines = 2, overflow = TextOverflow.Ellipsis)
             }
             if (action != null) {
@@ -523,6 +589,8 @@ private fun UpdateRow(update: UpdateState, onCheck: () -> Unit, onDownload: () -
             Text(
                 notes,
                 fontSize = 12.sp,
+                lineHeight = 17.sp,
+                textAlign = TextAlign.Justify,
                 color = Palette.TextDim,
                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp, start = 44.dp, end = 4.dp),
             )
@@ -533,9 +601,9 @@ private fun UpdateRow(update: UpdateState, onCheck: () -> Unit, onDownload: () -
 // ------------------------------------------------------------------ cegiełki
 
 @Composable
-private fun TabChip(icon: ImageVector, label: String, selected: Boolean, onClick: () -> Unit) {
+private fun TabChip(icon: ImageVector, label: String, selected: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Row(
-        Modifier
+        modifier
             .reactive(label, onClick = onClick)
             .glass(BlockShape, active = selected)
             .animateContentSize(spring(dampingRatio = 0.8f, stiffness = 500f))

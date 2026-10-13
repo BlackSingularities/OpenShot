@@ -583,21 +583,18 @@ class CameraEngine(private val context: Context) {
                 bound = result ?: throw (lastError ?: IllegalStateException("Nie udało się uruchomić wideo"))
             }
 
-            CaptureMode.MOTION, CaptureMode.CLIP -> {
+            CaptureMode.MOTION -> {
                 // Podgląd + nagrywanie w tle (bufor chwil) + zdjęcie (dla Motion Photo).
                 val recorder = Recorder.Builder()
                     .setQualitySelector(QualitySelector.from(Quality.FHD, FallbackStrategy.lowerQualityOrHigherThan(Quality.SD)))
                     .setAspectRatio(if (aspect == AspectRatioMode.R16_9) androidx.camera.core.AspectRatio.RATIO_16_9 else androidx.camera.core.AspectRatio.RATIO_4_3)
                     .build()
                 val vc = VideoCapture.Builder(recorder).setMirrorMode(MirrorMode.MIRROR_MODE_ON_FRONT_ONLY).build()
-                var ic: ImageCapture? = null
-                if (req.mode == CaptureMode.MOTION) {
-                    ic = ImageCapture.Builder()
-                        .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
-                        .setResolutionSelector(ResolutionSelector.Builder().setAspectRatioStrategy(aspectStrategy).build())
-                        .setJpegQuality(s.jpegQuality.coerceIn(1, 100))
-                        .build()
-                }
+                var ic: ImageCapture? = ImageCapture.Builder()
+                    .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+                    .setResolutionSelector(ResolutionSelector.Builder().setAspectRatioStrategy(aspectStrategy).build())
+                    .setJpegQuality(s.jpegQuality.coerceIn(1, 100))
+                    .build()
                 bound = try {
                     p.bindToLifecycle(owner, base, *listOfNotNull<UseCase>(buildPreview(), vc, ic).toTypedArray())
                 } catch (e: Exception) {
