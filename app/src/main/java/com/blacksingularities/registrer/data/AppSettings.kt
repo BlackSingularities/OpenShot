@@ -219,7 +219,7 @@ enum class SharedGroup(private val pl: String, private val en: String) {
 
 /** Kopiuje wartości grupy [group] z [src]. */
 fun ModeSettings.withGroup(group: SharedGroup, src: ModeSettings): ModeSettings = when (group) {
-    SharedGroup.FRAMING -> copy(grids = src.grids, level = src.level, histogram = src.histogram, timerSeconds = src.timerSeconds)
+    SharedGroup.FRAMING -> copy(grids = src.grids, level = src.level, histogram = src.histogram, peaking = src.peaking, timerSeconds = src.timerSeconds)
     SharedGroup.PHOTO -> copy(jpegQuality = src.jpegQuality, mirrorFront = src.mirrorFront, burst = src.burst)
     SharedGroup.VIDEO -> copy(videoAudio = src.videoAudio, stabilization = src.stabilization, bitrate = src.bitrate, cinematicZoom = src.cinematicZoom)
 }
@@ -234,6 +234,8 @@ data class ModeSettings(
     val grids: Set<GridType> = setOf(GridType.THIRDS),
     val level: Boolean = true,
     val histogram: Boolean = true,
+    /** Obrys ostrości (focus peaking) – czerwone krawędzie miejsc ostrych. */
+    val peaking: Boolean = false,
     val timerSeconds: Int = 0,
     val flash: FlashSetting = FlashSetting.OFF,
     // zdjęcia
@@ -300,7 +302,6 @@ data class ModeSettings(
     /** Pola wymagające ponownego związania kamery – reszta działa „na żywo”. */
     fun bindKey(): ModeSettings = ModeSettings(
         aspect = aspect,
-        histogram = histogram,
         photoFormat = photoFormat,
         jpegQuality = jpegQuality,
         priority = priority,
@@ -353,8 +354,6 @@ data class GlobalSettings(
     val histogramSize: HistogramSize = HistogramSize.MEDIUM,
     val compassX: Float = 0.5f,
     val compassY: Float = 0.1f,
-    /** Obrys ostrości (focus peaking) we wszystkich trybach z obrazem. */
-    val peaking: Boolean = false,
     /** Zebra – paski na prześwietlonych obszarach. */
     val zebra: Boolean = false,
     val zebraPercent: Int = 95,
@@ -406,7 +405,6 @@ class SettingsStore(context: Context) {
             histogramSize = enumOr(prefs.getString("g.histSize", null), d.histogramSize),
             compassX = prefs.getFloat("g.compassX", d.compassX),
             compassY = prefs.getFloat("g.compassY", d.compassY),
-            peaking = prefs.getBoolean("g.peaking", d.peaking),
             zebra = prefs.getBoolean("g.zebra", d.zebra),
             zebraPercent = prefs.getInt("g.zebraPct", d.zebraPercent),
             levelStyle = enumOr(prefs.getString("g.levelStyle", null), d.levelStyle),
@@ -447,7 +445,6 @@ class SettingsStore(context: Context) {
             .putString("g.histSize", g.histogramSize.name)
             .putFloat("g.compassX", g.compassX)
             .putFloat("g.compassY", g.compassY)
-            .putBoolean("g.peaking", g.peaking)
             .putBoolean("g.zebra", g.zebra)
             .putInt("g.zebraPct", g.zebraPercent)
             .putString("g.levelStyle", g.levelStyle.name)
@@ -489,6 +486,8 @@ class SettingsStore(context: Context) {
             grids = loadGrids(prefs.getString(k + "grids", null), prefs.getString(k + "grid", null), d.grids),
             level = prefs.getBoolean(k + "level", d.level),
             histogram = prefs.getBoolean(k + "histogram", d.histogram),
+            // Wcześniej obrys był ustawieniem ogólnym („g.peaking”) – przejęty jako domyślny.
+            peaking = prefs.getBoolean(k + "peaking", prefs.getBoolean("g.peaking", d.peaking)),
             timerSeconds = prefs.getInt(k + "timer", d.timerSeconds),
             flash = enumOr(prefs.getString(k + "flash", null), d.flash),
             photoFormat = enumOr(prefs.getString(k + "format", null), d.photoFormat),
@@ -545,6 +544,7 @@ class SettingsStore(context: Context) {
             .putString(k + "grids", s.grids.joinToString(",") { it.name })
             .putBoolean(k + "level", s.level)
             .putBoolean(k + "histogram", s.histogram)
+            .putBoolean(k + "peaking", s.peaking)
             .putInt(k + "timer", s.timerSeconds)
             .putString(k + "flash", s.flash.name)
             .putString(k + "format", s.photoFormat.name)

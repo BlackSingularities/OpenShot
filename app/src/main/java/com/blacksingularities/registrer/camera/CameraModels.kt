@@ -138,6 +138,8 @@ data class ActiveSession(
     val postview: Boolean = false,
     /** Rzeczywista rozdzielczość zapisywanego materiału (zdjęcia albo wideo), jeśli znana. */
     val outputSize: android.util.Size? = null,
+    /** Związana osobna analiza klatek; bez niej histogram i obrys liczone są z podglądu. */
+    val analysis: Boolean = false,
 )
 
 /** Bieżące parametry ekspozycji odczytane z sensora (HUD). */
@@ -150,6 +152,8 @@ data class BindRequest(
     val pro: ProSettings,
     /** Id osobnego aparatu (szeroki kąt / tele) albo null dla głównego. */
     val cameraId: String? = null,
+    /** false – bez osobnej analizy (po zawieszeniu się podglądu z nią). */
+    val allowAnalysis: Boolean = true,
 )
 
 class CapturedFrame(val bytes: ByteArray, val rotation: Int)

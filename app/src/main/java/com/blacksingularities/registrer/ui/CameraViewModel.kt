@@ -76,7 +76,7 @@ enum class RecState { IDLE, RECORDING, PAUSED }
 data class Processing(val label: String, val progress: Float?)
 
 /** Klucz konfiguracji – jego zmiana wymusza ponowne związanie kamery. */
-data class BindKey(val mode: CaptureMode, val lens: Int, val cameraId: String?, val display: Int, val settings: ModeSettings, val assist: Boolean = false)
+data class BindKey(val mode: CaptureMode, val lens: Int, val cameraId: String?, val display: Int, val settings: ModeSettings, val analysisOff: Boolean = false)
 
 class CameraViewModel(app: Application) : AndroidViewModel(app) {
     private val ctx get() = getApplication<Application>()
@@ -235,7 +235,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     private var burstJob: Job? = null
     private var intervalJob: Job? = null
 
-    val bindKey: BindKey get() = BindKey(mode, lensFacing, activeCameraId.takeIf { mode != CaptureMode.SLOWMO }, displayRotation, cfg.bindKey(), global.peaking || global.zebra)
+    val bindKey: BindKey get() = BindKey(mode, lensFacing, activeCameraId.takeIf { mode != CaptureMode.SLOWMO }, displayRotation, cfg.bindKey(), mode in analysisStalled)
 
     // ---------------------------------------------------------------- pozycje nakładek
     private val overlayPrefs = app.getSharedPreferences("overlay_positions", android.content.Context.MODE_PRIVATE)
@@ -263,7 +263,35 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
     /** Maska obrysu ostrości / zebry dla bieżącej klatki podglądu. */
     var assistFrame by mutableStateOf<com.blacksingularities.registrer.camera.AssistFrame?>(null); private set
 
-    private fun assistConfig() = com.blacksingularities.registrer.camera.AssistConfig(global.peaking, global.zebra, global.zebraPercent)
+    /** Co liczyć z podglądu w bieżącym trybie – zmiana działa od razu, bez ponownego wiązania. */
+    val assistConfig: com.blacksingularities.registrer.camera.AssistConfig
+        get() {
+            val camera = mode != CaptureMode.AUDIO
+            return com.blacksingularities.registrer.camera.AssistConfig(
+                peaking = camera && cfg.peaking,
+                zebra = camera && global.zebra,
+                zebraPercent = global.zebraPercent,
+                // Noc potrzebuje histogramu do automatycznej liczby klatek, nawet gdy jest ukryty.
+                histogram = camera && (cfg.histogram || mode == CaptureMode.NIGHT),
+            )
+        }
+
+    /** Tryby, w których podgląd z osobną analizą się zawiesił – do końca sesji wiązane bez niej. */
+    private var analysisStalled by mutableStateOf(emptySet<CaptureMode>())
+
+    /** Podgląd nie ruszył po związaniu – ponowna próba bez osobnej analizy (zamiast zawieszenia). */
+    fun onPreviewStalled() {
+        if (!session.analysis || mode in analysisStalled) return
+        analysisStalled = analysisStalled + mode
+    }
+
+    /** Wynik zapasowej analizy z obrazu podglądu (sesje bez osobnej analizy). */
+    fun onPreviewSample(bins: IntArray?, frame: com.blacksingularities.registrer.camera.AssistFrame?) {
+        if (session.analysis) return
+        if (bins != null) histogram = bins
+        val cfgNow = assistConfig
+        assistFrame = if (cfgNow.any) frame ?: assistFrame else null
+    }
 
     /**
      * Obrót wyświetlacza (Surface.ROTATION_*), z którym związano kamerę. Zmiana (tryb „Obracaj
@@ -376,7 +404,13 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
             }
         }
         engine.onAssist = { assistFrame = it }
-        engine.assist = assistConfig()
+        engine.assist = assistConfig
+        viewModelScope.launch {
+            androidx.compose.runtime.snapshotFlow { assistConfig }.collect { c ->
+                engine.assist = c
+                if (!c.any) assistFrame = null
+            }
+        }
         refreshRecordings()
         audio.addListener(audioListener)
         externalMic = audio.externalInputName()
@@ -401,7 +435,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         session = ActiveSession()
         cropZoom = 1f
         hud = null
-        histogram = null
+        // Histogram zostaje do pierwszej nowej klatki – nie znika i nie miga przy zmianie trybu.
         assistFrame = null
         focusLocked = false
         try {
@@ -431,7 +465,7 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
                 return
             }
             engine.setDisplayRotation(displayRotation)
-            session = engine.bind(owner, surfaceProvider, BindRequest(lensFacing, mode, cfg, pro, activeCameraId), c)
+            session = engine.bind(owner, surfaceProvider, BindRequest(lensFacing, mode, cfg, pro, activeCameraId, allowAnalysis = mode !in analysisStalled), c)
             if (mode == CaptureMode.AUDIO) return
             if (cfg.photoFormat == PhotoFormat.RAW || cfg.photoFormat == PhotoFormat.RAW_JPEG) {
                 message = when {
@@ -498,8 +532,6 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         global = transform(global)
         store.saveGlobal(global)
         if (global.language != beforeLanguage) com.blacksingularities.registrer.i18n.Lang.apply(global.language, ctx)
-        engine.assist = assistConfig()
-        if (!global.peaking && !global.zebra) assistFrame = null
         if (global.geotag != before) refreshLocation()
     }
 

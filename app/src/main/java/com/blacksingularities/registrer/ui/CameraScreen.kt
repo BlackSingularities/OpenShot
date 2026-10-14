@@ -100,6 +100,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Cameraswitch
+import androidx.compose.material.icons.rounded.BarChart
+import androidx.compose.material.icons.rounded.CenterFocusWeak
 import androidx.compose.material.icons.rounded.CheckBox
 import androidx.compose.material.icons.rounded.CheckBoxOutlineBlank
 import androidx.compose.material.icons.rounded.Close
@@ -134,6 +136,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.runtime.mutableFloatStateOf
@@ -180,6 +183,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.blacksingularities.registrer.camera.CaptureMode
 import com.blacksingularities.registrer.camera.FlashSetting
 import com.blacksingularities.registrer.data.GridType
+import com.blacksingularities.registrer.data.ModeSettings
 import com.blacksingularities.registrer.data.PhotoFormat
 import com.blacksingularities.registrer.ui.components.AudioLive
 import com.blacksingularities.registrer.ui.components.AudioPlayback
@@ -200,7 +204,9 @@ import com.blacksingularities.registrer.ui.theme.MonoDigits
 import com.blacksingularities.registrer.ui.theme.Palette
 import com.blacksingularities.registrer.ui.theme.rotatedLayout
 import com.blacksingularities.registrer.update.UpdateState
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.first
 import kotlin.math.abs
 import kotlin.math.exp
@@ -242,11 +248,14 @@ fun CameraScreen(
         // i płynnie przenika w nowy obraz – bez czarnego mignięcia.
         freezeFrame = runCatching { previewView.bitmap?.asImageBitmap() }.getOrNull()
         vm.bind(lifecycleOwner, previewView.surfaceProvider)
-        // Strażnik osobnego obiektywu: brak klatek po kilku sekundach = powrót do aparatu głównego.
-        if (vm.activeCameraId != null && vm.mode != CaptureMode.AUDIO) {
+        // Strażnik: brak klatek po kilku sekundach = osobny obiektyw wraca do aparatu głównego,
+        // a sesja z osobną analizą wiązana jest bez niej – zamiast zawieszonego obrazu.
+        if (vm.mode != CaptureMode.AUDIO && vm.cameraReady) {
             delay(4000)
-            if (vm.activeCameraId != null && previewView.previewStreamState.value != PreviewView.StreamState.STREAMING) {
-                vm.onAuxLensStalled()
+            val stalled = previewView.previewStreamState.value != PreviewView.StreamState.STREAMING &&
+                lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)
+            if (stalled) {
+                if (vm.activeCameraId != null) vm.onAuxLensStalled() else vm.onPreviewStalled()
             }
         }
     }
@@ -335,6 +344,9 @@ fun CameraScreen(
     }
 
     var controlsTop by remember { mutableFloatStateOf(Float.MAX_VALUE) }
+    var trashCenter by remember { mutableStateOf(Offset.Zero) }
+    var trashVisible by remember { mutableStateOf(false) }
+    var trashOver by remember { mutableStateOf(false) }
     val ui = Ui(
         vm, iconRotation, uprightTurn, displayDegrees, haptics,
         onSettings = { showSettings = true },
@@ -343,6 +355,11 @@ fun CameraScreen(
         freeze = freezeFrame,
         controlsTop = controlsTop,
         onControlsTop = { controlsTop = it },
+        onTrash = { c, over ->
+            if (c != null) trashCenter = c
+            trashVisible = c != null
+            trashOver = over
+        },
     )
 
     BackHandler(enabled = showSettings) { showSettings = false }
@@ -359,6 +376,7 @@ fun CameraScreen(
             BoxWithConstraints(Modifier.fillMaxSize().background(Color.Black)) {
                 val wide = maxWidth > maxHeight * 1.05f
                 if (wide) WideLayout(ui, previewView) else TallLayout(ui, previewView)
+                OverlayTrash(trashVisible, trashOver, trashCenter, iconRotation)
             }
         }
 
@@ -403,6 +421,36 @@ fun CameraScreen(
     }
 }
 
+/** Kosz na nakładki – nad całym interfejsem, widoczny tylko podczas przeciągania. */
+@Composable
+private fun OverlayTrash(visible: Boolean, over: Boolean, center: Offset, rotation: Float) {
+    val density = LocalDensity.current
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(tween(100)) + scaleIn(initialScale = 0.8f),
+        exit = fadeOut(tween(120)) + scaleOut(targetScale = 0.8f),
+        modifier = Modifier.offset {
+            val half = with(density) { 27.dp.toPx() }
+            IntOffset((center.x - half).roundToInt(), (center.y - half).roundToInt())
+        },
+    ) {
+        Box(
+            Modifier
+                .size(54.dp)
+                .graphicsLayer {
+                    rotationZ = rotation
+                    scaleX = if (over) 1.16f else 1f
+                    scaleY = if (over) 1.16f else 1f
+                }
+                .background(Color.Black.copy(alpha = if (over) 0f else 0.55f), CircleShape)
+                .glass(CircleShape, active = over),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(Icons.Rounded.Delete, tr("Usuń nakładkę", "Remove overlay"), tint = if (over) Palette.Ink else Color.White)
+        }
+    }
+}
+
 /** Wspólny kontekst dla obu układów. */
 private class Ui(
     val vm: CameraViewModel,
@@ -417,6 +465,8 @@ private class Ui(
     /** Górna krawędź dolnego sterowania w układzie okna – nakładki pływające jej nie zasłaniają. */
     val controlsTop: Float = Float.MAX_VALUE,
     val onControlsTop: (Float) -> Unit = {},
+    /** Kosz na nakładki: środek w układzie okna (null – ukryty) i czy palec jest nad nim. */
+    val onTrash: (Offset?, Boolean) -> Unit = { _, _ -> },
 )
 
 // ==================================================================== układy
@@ -550,8 +600,9 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
         settledControlsTop = if (vm.cameraReady) ui.controlsTop else minOf(settledControlsTop, ui.controlsTop)
     }
 
-    var areaTop by remember { mutableFloatStateOf(0f) }
-    BoxWithConstraints(modifier.onGloballyPositioned { areaTop = it.boundsInRoot().top }) {
+    var areaOrigin by remember { mutableStateOf(Offset.Zero) }
+    val areaTop = areaOrigin.y
+    BoxWithConstraints(modifier.onGloballyPositioned { areaOrigin = it.boundsInRoot().topLeft }) {
         val containerSize = with(density) { Size(maxWidth.toPx(), maxHeight.toPx()) }
         // Nakładki pływające (histogram, pasek parametrów, kompas) tylko nad dolnym sterowaniem.
         // Obszar nie zależy od proporcji kadru, więc zmiana 4:3 ↔ 16:9 nie przesuwa nakładek.
@@ -561,6 +612,14 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
             Size(containerSize.width, (settledControlsTop - areaTop + with(density) { 14.dp.toPx() }).coerceIn(containerSize.height * 0.3f, containerSize.height)),
         )
         val rect = imageRect(containerSize, ratio, centered)
+        // Kosz na nakładki: pod obszarem nakładek (nad dolnym sterowaniem), z lewej strony –
+        // poza miejscami, w które przeciąga się paski, więc nie da się go trafić przypadkiem.
+        val trashCenter = with(density) {
+            Offset(
+                overlayArea.left + 46.dp.toPx(),
+                minOf(overlayArea.bottom + 30.dp.toPx(), containerSize.height - 34.dp.toPx()),
+            )
+        }
         // Klucz ekranu niezależny od obrotu (krótszy × dłuższy bok, co 40 dp) – fold złożony i rozłożony
         // mają osobne pozycje nakładek.
         val screenKey = remember(maxWidth, maxHeight) {
@@ -633,6 +692,23 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
                 },
         )
 
+        // Sesja bez osobnej analizy (wideo, zwolnione tempo, rozszerzenia): histogram i obrys
+        // liczone z obrazu podglądu – działają w każdym trybie.
+        val sampleConfig = vm.assistConfig
+        val sampling = vm.cameraReady && !vm.session.analysis && sampleConfig.active && streamState == PreviewView.StreamState.STREAMING
+        LaunchedEffect(sampling, sampleConfig, previewView) {
+            if (!sampling) return@LaunchedEffect
+            val sampler = com.blacksingularities.registrer.camera.PreviewSampler()
+            while (true) {
+                val bmp = runCatching { previewView.bitmap }.getOrNull()
+                if (bmp != null) {
+                    val (bins, frame) = withContext(Dispatchers.Default) { sampler.process(bmp, sampleConfig) }
+                    vm.onPreviewSample(bins, frame)
+                }
+                delay(if (sampleConfig.any) 110 else 220)
+            }
+        }
+
         GridOverlay(vm.cfg.grids, ratio, Modifier.fillMaxSize(), centered)
         AssistOverlay({ vm.assistFrame }, rect, crop, vm.lensFacing == CameraSelector.LENS_FACING_FRONT)
         if (vm.cfg.level && vm.mode != CaptureMode.AUDIO) {
@@ -683,7 +759,7 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
             overlayDragging = dragging
             overlayOverTrash = overTrash
         }
-        val bins = vm.histogram
+        val hasHistogram by remember { derivedStateOf { vm.histogram != null } }
 
         // Powyżej 10× główny podgląd jest kadrowany programowo. Osobna miniatura zachowuje
         // szerszy obraz bazowy, dzięki czemu łatwo odnaleźć obiekt i zobaczyć aktualny wycinek.
@@ -703,6 +779,7 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
             DraggableOverlay(
                 rect = overlayArea,
                 photo = rect,
+                trash = trashCenter,
                 onGuides = guides,
                 start = vm.overlayPos("navigator", screenKey, Offset(vm.global.zoomNavigatorX, vm.global.zoomNavigatorY)),
                 turn = ui.uprightTurn,
@@ -717,10 +794,11 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
             }
         }
 
-        if (bins != null && vm.cfg.histogram && vm.mode != CaptureMode.SLOWMO && (vm.mode.isPhoto || vm.videoMode)) {
+        if (hasHistogram && vm.cfg.histogram && vm.mode != CaptureMode.AUDIO) {
             DraggableOverlay(
                 rect = overlayArea,
                 photo = rect,
+                trash = trashCenter,
                 onGuides = guides,
                 start = vm.overlayPos("histogram", screenKey, Offset(vm.global.histogramX, vm.global.histogramY)),
                 turn = ui.uprightTurn,
@@ -730,9 +808,10 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
                 onDragState = dragState,
                 onDelete = { vm.updateProfile { it.copy(histogram = false) } },
             ) {
-                // Dotknięcie przełącza tryb: jasność ↔ RGB.
+                // Dotknięcie przełącza tryb: jasność ↔ RGB. Dane czytane tu – nowe przedziały
+                // przerysowują tylko histogram, nie cały kadr.
                 HistogramView(
-                    bins,
+                    vm.histogram ?: IntArray(256),
                     Modifier.pointerInput(Unit) {
                         detectTapGestures {
                             vm.updateGlobal {
@@ -750,6 +829,7 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
             DraggableOverlay(
                 rect = overlayArea,
                 photo = rect,
+                trash = trashCenter,
                 onGuides = guides,
                 start = vm.overlayPos("strip", screenKey, Offset(vm.global.stripX, vm.global.stripY)),
                 turn = ui.uprightTurn,
@@ -764,6 +844,7 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
             DraggableOverlay(
                 rect = overlayArea,
                 photo = rect,
+                trash = trashCenter,
                 onGuides = guides,
                 start = vm.overlayPos("audioMeter", screenKey, Offset(vm.global.audioMeterX, vm.global.audioMeterY)),
                 turn = ui.uprightTurn,
@@ -786,6 +867,7 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
             DraggableOverlay(
                 rect = overlayArea,
                 photo = rect,
+                trash = trashCenter,
                 onGuides = guides,
                 start = vm.overlayPos("compass", screenKey, Offset(vm.global.compassX, vm.global.compassY)),
                 turn = ui.uprightTurn,
@@ -806,30 +888,9 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
             }
         }
 
-        AnimatedVisibility(
-            visible = overlayDragging,
-            enter = fadeIn(tween(100)) + scaleIn(initialScale = 0.8f),
-            exit = fadeOut(tween(120)) + scaleOut(targetScale = 0.8f),
-            modifier = Modifier.offset {
-                IntOffset(
-                    (overlayArea.center.x - with(density) { 27.dp.toPx() }).roundToInt(),
-                    (overlayArea.bottom - with(density) { 66.dp.toPx() }).roundToInt(),
-                )
-            },
-        ) {
-            Box(
-                Modifier
-                    .size(54.dp)
-                    .graphicsLayer {
-                        rotationZ = ui.iconRotation
-                        scaleX = if (overlayOverTrash) 1.16f else 1f
-                        scaleY = if (overlayOverTrash) 1.16f else 1f
-                    }
-                    .glass(CircleShape, active = overlayOverTrash),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(Icons.Rounded.Delete, tr("Usuń nakładkę", "Remove overlay"), tint = if (overlayOverTrash) Palette.Ink else Color.White)
-            }
+        // Kosz rysuje ekran główny – nad dolnym sterowaniem, poza obszarem nakładek.
+        LaunchedEffect(overlayDragging, overlayOverTrash, trashCenter, areaOrigin) {
+            ui.onTrash(if (overlayDragging) trashCenter + areaOrigin else null, overlayOverTrash)
         }
 
         // Baner aktualizacji na środku kadru i nad nakładkami – żadna z nich nie przechwyci dotknięcia.
@@ -858,6 +919,8 @@ private fun AssistOverlay(frame: () -> com.blacksingularities.registrer.camera.A
     Canvas(Modifier.fillMaxSize()) {
         val f = frame() ?: return@Canvas
         val bmp = f.bitmap
+        // Maska z obrazu podglądu jest już odbita jak na ekranie.
+        val flip = mirror && f.sensor
         if (bmp.isRecycled || rect.width <= 0f) return@Canvas
         val swap = f.rotation % 180 != 0
         val dstW = if (swap) rect.height else rect.width
@@ -865,7 +928,7 @@ private fun AssistOverlay(frame: () -> com.blacksingularities.registrer.camera.A
         clipRect(rect.left, rect.top, rect.right, rect.bottom) {
             withTransform({
                 translate(rect.center.x, rect.center.y)
-                scale(if (mirror) -crop else crop, crop, pivot = Offset.Zero)
+                scale(if (flip) -crop else crop, crop, pivot = Offset.Zero)
                 rotate(f.rotation.toFloat(), pivot = Offset.Zero)
             }) {
                 drawImage(
@@ -895,6 +958,8 @@ private fun DraggableOverlay(
     deletable: Boolean = true,
     /** Prostokąt zdjęcia – nakładka przyciąga się do jego środka i krawędzi. */
     photo: Rect = rect,
+    /** Środek kosza (w układzie obszaru); usuwa palec upuszczony nad nim. */
+    trash: Offset = Offset(-1e6f, -1e6f),
     onGuides: (Float?, Float?) -> Unit = { _, _ -> },
     onCommit: (Offset) -> Unit,
     onDragState: (Boolean, Boolean) -> Unit,
@@ -924,6 +989,8 @@ private fun DraggableOverlay(
     val boxWNow by rememberUpdatedState(boxW)
     val boxHNow by rememberUpdatedState(boxH)
     val deletableNow by rememberUpdatedState(deletable)
+    val trashNow by rememberUpdatedState(trash)
+    val trashRadius = with(density) { 38.dp.toPx() }
     val hapticsNow by rememberUpdatedState(haptics)
     // Nowy tryb lub ekran = inna zapamiętana pozycja.
     var upright by remember(start) { mutableStateOf(start) }
@@ -961,6 +1028,8 @@ private fun DraggableOverlay(
                     var started = false
                     // Pozycja palca bez przyciągania; wyświetlana pozycja „przykleja się” do celów.
                     var raw = Offset.Zero
+                    // Palec w układzie kadru – o usunięciu decyduje palec nad koszem, nie środek nakładki.
+                    var finger = Offset.Zero
                     var snappedX = false
                     var snappedY = false
                     var centeredX = false
@@ -1010,9 +1079,10 @@ private fun DraggableOverlay(
                             (raw.x + delta.x / availW).coerceIn(0f, 1f),
                             (raw.y + delta.y / availH).coerceIn(0f, 1f),
                         )
+                        finger += delta
                         val next = magnet(raw)
                         dragPos = next
-                        dragState(deletableNow, deletableNow && isOverOverlayTrash(next, rectNow, margin, availW, availH, boxWNow, boxHNow, density))
+                        dragState(deletableNow, deletableNow && (finger - trashNow).getDistance() <= trashRadius)
                     }
 
                     fun begin() {
@@ -1032,6 +1102,10 @@ private fun DraggableOverlay(
                         centeredX = if (q % 2 == 0) isCenterAnchor(upright.x) else isCenterAnchor(upright.y)
                         centeredY = if (q % 2 == 0) isCenterAnchor(upright.y) else isCenterAnchor(upright.x)
                         dragPos = raw
+                        finger = Offset(
+                            rectNow.left + margin + raw.x * availW,
+                            rectNow.top + margin + raw.y * availH,
+                        ) + down.position
                         dragState(deletableNow, false)
                         if (hapticsNow) haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                     }
@@ -1080,7 +1154,7 @@ private fun DraggableOverlay(
                     guidesNow(null, null)
                     if (p == null) return@awaitEachGesture
                     if (cancelled) return@awaitEachGesture
-                    if (deletableNow && isOverOverlayTrash(p, rectNow, margin, availW, availH, boxWNow, boxHNow, density)) {
+                    if (deletableNow && (finger - trashNow).getDistance() <= trashRadius) {
                         if (hapticsNow) haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
                         delete()
                         return@awaitEachGesture
@@ -1161,21 +1235,6 @@ private fun ZoomNavigator(bitmap: ImageBitmap, zoom: Float, baseZoom: Float) {
                 .padding(horizontal = 5.dp, vertical = 2.dp),
         )
     }
-}
-
-private fun isOverOverlayTrash(
-    p: Offset,
-    rect: Rect,
-    margin: Float,
-    availW: Float,
-    availH: Float,
-    boxW: Float,
-    boxH: Float,
-    density: androidx.compose.ui.unit.Density,
-): Boolean {
-    val center = Offset(rect.left + margin + p.x * availW + boxW / 2f, rect.top + margin + p.y * availH + boxH / 2f)
-    val trash = Offset(rect.center.x, rect.bottom - with(density) { 39.dp.toPx() })
-    return (center - trash).getDistance() <= with(density) { 48.dp.toPx() }
 }
 
 /** Obrót punktu (0–1) wokół środka o wielokrotność 90° (zgodnie z ruchem wskazówek). */
@@ -2168,19 +2227,23 @@ private fun Badge(text: String, mono: Boolean = false, color: Color = Color.Whit
     )
 }
 
-/** Siatki: menu z zaznaczaniem – można włączyć kilka naraz. */
+/**
+ * Siatki i pomoce kadru: menu z zaznaczaniem – siatki (kilka naraz), histogram i obrys ostrości
+ * włączane i wyłączane tak samo, w każdym trybie z obrazem.
+ */
 @Composable
 private fun GridButton(vm: CameraViewModel, rotation: Float) {
     var open by remember { mutableStateOf(false) }
     val grids = vm.cfg.grids
+    val anyOn = grids.isNotEmpty() || vm.cfg.histogram || vm.cfg.peaking
     Box {
         // Siatki otwierają menu – bez dymka przy dotknięciu.
         CompositionLocalProvider(LocalHintOnTap provides false) {
             RoundIcon(
                 Icons.Rounded.GridOn,
-                tr("Siatki", "Grids"),
+                tr("Siatki i pomoce kadru", "Grids and framing aids"),
                 rotation,
-                tint = if (grids.isEmpty()) Palette.TextFaint else Color.White,
+                tint = if (anyOn) Color.White else Palette.TextFaint,
                 onClick = { open = true },
             )
         }
@@ -2206,6 +2269,20 @@ private fun GridButton(vm: CameraViewModel, rotation: Float) {
                     onClick = { vm.updateProfile { it.copy(grids = if (g in it.grids) it.grids - g else it.grids + g) } },
                 )
             }
+            @Composable
+            fun Toggle(label: String, on: Boolean, icon: ImageVector, flip: (ModeSettings) -> ModeSettings) {
+                DropdownMenuItem(
+                    modifier = Modifier.padding(vertical = 1.dp).clip(RoundedCornerShape(14.dp)).background(Color.Black.copy(alpha = 0.58f)),
+                    text = { Text(label, color = if (on) Palette.Amber else Color.White, fontWeight = if (on) FontWeight.Bold else FontWeight.Normal) },
+                    leadingIcon = { Icon(icon, null, tint = if (on) Palette.Amber else Palette.TextDim) },
+                    trailingIcon = {
+                        Icon(if (on) Icons.Rounded.CheckBox else Icons.Rounded.CheckBoxOutlineBlank, null, tint = if (on) Palette.Amber else Palette.TextDim)
+                    },
+                    onClick = { vm.updateProfile(transform = flip) },
+                )
+            }
+            Toggle(tr("Histogram", "Histogram"), vm.cfg.histogram, Icons.Rounded.BarChart) { it.copy(histogram = !it.histogram) }
+            Toggle(tr("Obrys ostrości", "Focus peaking"), vm.cfg.peaking, Icons.Rounded.CenterFocusWeak) { it.copy(peaking = !it.peaking) }
             if (grids.isNotEmpty()) {
                 DropdownMenuItem(
                     modifier = Modifier.padding(vertical = 1.dp).clip(RoundedCornerShape(14.dp)).background(Color.Black.copy(alpha = 0.58f)),

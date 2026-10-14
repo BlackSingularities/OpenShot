@@ -398,7 +398,7 @@ private fun ModeTab(mode: CaptureMode, s: ModeSettings, caps: CameraCaps, enable
                 }
                 SwitchRow(Icons.Rounded.ZoomIn, tr("Płynne zbliżanie", "Smooth zoom"), null, s.cinematicZoom) { v -> change { it.copy(cinematicZoom = v) } }
             }
-            FramingGroup(s, change, showAspect = false, showHistogram = false, showTimer = false)
+            FramingGroup(s, change, showAspect = false, showHistogram = true, showTimer = false)
         }
 
         CaptureMode.TIMELAPSE -> {
@@ -434,7 +434,7 @@ private fun ModeTab(mode: CaptureMode, s: ModeSettings, caps: CameraCaps, enable
                     change { it.copy(tlLock = v) }
                 }
             }
-            FramingGroup(s, change, showAspect = false, showHistogram = false, showTimer = false)
+            FramingGroup(s, change, showAspect = false, showHistogram = true, showTimer = false)
         }
 
         CaptureMode.AUDIO -> {
@@ -613,7 +613,10 @@ private fun FramingGroup(
         }
         if (showTimer) Chips(Icons.Rounded.Timer, tr("Samowyzwalacz", "Self-timer"), listOf(0, 3, 5, 10), s.timerSeconds, { if (it == 0) tr("Wył.", "Off") else "$it s" }) { v -> change { it.copy(timerSeconds = v) } }
         SwitchRow(Icons.Rounded.Straighten, tr("Poziomica", "Level"), null, s.level) { v -> change { it.copy(level = v) } }
-        if (showHistogram) SwitchRow(Icons.Rounded.BarChart, tr("Histogram na żywo", "Live histogram"), null, s.histogram, enabled) { v -> change { it.copy(histogram = v) } }
+        if (showHistogram) {
+            SwitchRow(Icons.Rounded.BarChart, tr("Histogram na żywo", "Live histogram"), null, s.histogram) { v -> change { it.copy(histogram = v) } }
+            SwitchRow(Icons.Rounded.CenterFocusWeak, tr("Obrys ostrości", "Focus peaking"), tr("Czerwone krawędzie miejsc ostrych", "Red outline on in-focus edges"), s.peaking) { v -> change { it.copy(peaking = v) } }
+        }
     }
 }
 
@@ -646,7 +649,6 @@ private fun GeneralTab(
             listOf(
                 Tile(Icons.Rounded.Speed, tr("Parametry", "Exposure"), g.exposureInfo) { v -> onGlobal { it.copy(exposureInfo = v) } },
                 Tile(Icons.Rounded.Explore, tr("Kompas", "Compass"), g.compass) { v -> onGlobal { it.copy(compass = v) } },
-                Tile(Icons.Rounded.CenterFocusWeak, tr("Ostrość", "Focus"), g.peaking) { v -> onGlobal { it.copy(peaking = v) } },
                 Tile(Icons.Rounded.Gradient, "Zebra", g.zebra) { v -> onGlobal { it.copy(zebra = v) } },
                 Tile(Icons.Rounded.GraphicEq, tr("Dźwięk", "Audio"), g.audioMeter) { v -> onGlobal { it.copy(audioMeter = v) } },
             ),
@@ -667,7 +669,7 @@ private fun GeneralTab(
             com.blacksingularities.registrer.data.HistogramMode.entries,
             g.histogramMode,
             label = { it.label },
-            hint = tr("włączasz go w ustawieniach trybu", "turn it on in the mode settings"),
+            hint = tr("włączasz go przyciskiem siatek albo w ustawieniach trybu", "turn it on with the grid button or in the mode settings"),
         ) { v -> onGlobal { it.copy(histogramMode = v) } }
         CompactChoice(
             Icons.Rounded.AspectRatio,
@@ -678,8 +680,8 @@ private fun GeneralTab(
             short = { it.label.take(1) },
         ) { v -> onGlobal { it.copy(histogramSize = v) } }
         Hint(
-            tr("Ostrość – czerwony obrys najostrzejszych krawędzi; Zebra – paski na prześwietleniach; ", "Focus – red outline on the sharpest edges; Zebra – stripes on overexposed areas; ") +
-                tr("Dźwięk – poziom w trybie Wideo. Nakładki przeciągasz po kadrze, upuszczone na koszu znikają.", "Audio – level in Video mode. Drag overlays around the frame; drop them on the bin to hide them."),
+            tr("Zebra – paski na prześwietleniach; Dźwięk – poziom w trybie Wideo. Histogram i obrys ostrości włączasz przyciskiem siatek. ", "Zebra – stripes on overexposed areas; Audio – level in Video mode. Histogram and focus peaking are under the grid button. ") +
+                tr("Nakładki przeciągasz po kadrze; upuszczone na koszu (nad dolnym panelem) znikają.", "Drag overlays around the frame; drop them on the bin (above the bottom panel) to hide them."),
         )
     }
 

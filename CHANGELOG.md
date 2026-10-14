@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.23.0
+
+- **Obrys ostrości jak histogram**: włączany i wyłączany osobno dla trybu (ustawienia trybu → Kadr, wspólnie dla trybów, które nie odłączyły grupy Kadr) oraz szybko z menu przycisku siatek – razem z histogramem. Działa w każdym trybie z obrazem, także w Wideo, Zwolnionym tempie, Poklatkowym, przy zdjęciach ruchomych i w trybach z rozszerzeniami producenta.
+- **Histogram we wszystkich trybach** (także Poklatkowy i Zwolnione tempo); nie znika i nie miga przy zmianie trybu ani przy przełączaniu zdjęcie/wideo w trybie ręcznym.
+- **Bez zawieszania przy zmianie trybów**: włączenie histogramu lub obrysu nie wiąże już kamery od nowa, a wideo i zdjęcia ruchome nie dokładają czwartego strumienia analizy (liczona jest z obrazu podglądu). Gdy podgląd mimo to nie ruszy, aplikacja po kilku sekundach sama wiąże kamerę ponownie, bez analizy.
+- **Kosz na nakładki przeniesiony**: pojawia się z lewej, nad dolnym panelem – poza miejscem, w które przeciąga się paski. Nakładkę usuwa dopiero palec przeciągnięty nad kosz, a nie sam środek nakładki w jego pobliżu.
+- Histogram odświeża się bez przebudowy całego kadru (płynniejszy interfejs).
+
 ## 2.22.1
 
 - Nakładka przyciągnięta do środka kadru zachowuje dokładnie środkową oś po obróceniu telefonu.

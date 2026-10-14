@@ -106,12 +106,12 @@ class CameraEngine(private val context: Context) {
     var onHistogram: ((IntArray) -> Unit)? = null
     var onAssist: ((AssistFrame?) -> Unit)? = null
 
-    /** Pomoce kadru (obrys ostrości, zebra) – zmiana na żywo; włączenie wymaga ponownego związania. */
+    /** Histogram i pomoce kadru (obrys ostrości, zebra) – zmiana na żywo, bez ponownego wiązania. */
     @Volatile var assist = AssistConfig()
 
-    /** Analiza podglądu: histogram i pomoce kadru; większa rozdzielczość, gdy liczona jest maska. */
-    private fun buildAnalysis(aspectStrategy: AspectRatioStrategy, histogram: Boolean): ImageAnalysis {
-        val target = if (assist.any) Size(640, 480) else Size(320, 240)
+    /** Analiza podglądu: histogram i pomoce kadru; analizator sam pomija to, co wyłączone. */
+    private fun buildAnalysis(aspectStrategy: AspectRatioStrategy): ImageAnalysis {
+        val target = Size(640, 480)
         return ImageAnalysis.Builder()
             .setResolutionSelector(
                 ResolutionSelector.Builder()
@@ -125,7 +125,6 @@ class CameraEngine(private val context: Context) {
                 a.setAnalyzer(
                     analysisExecutor,
                     FrameAnalyzer(
-                        histogram = histogram,
                         config = { assist },
                         onHistogram = { h -> main.execute { onHistogram?.invoke(h) } },
                         onAssist = { f -> main.execute { onAssist?.invoke(f) } },
@@ -583,7 +582,7 @@ class CameraEngine(private val context: Context) {
                     VideoFps.AUTO -> 0
                 }
                 val bitrate = bitrateFor(quality, s.bitrate, fps)
-                data class Attempt(val hdr: Boolean, val stab: Boolean, val fps: Int, val snapshot: Boolean, val analysis: Boolean = false)
+                data class Attempt(val hdr: Boolean, val stab: Boolean, val fps: Int, val snapshot: Boolean)
                 val baseAttempts = listOf(
                     Attempt(s.videoHdr && caps.videoHlg, s.stabilization && caps.videoStabilization, fps, true),
                     Attempt(s.videoHdr && caps.videoHlg, s.stabilization && caps.videoStabilization, fps, false),
@@ -591,12 +590,9 @@ class CameraEngine(private val context: Context) {
                     Attempt(false, false, fps, false),
                     Attempt(false, false, 0, false),
                 )
-                // Pomoce kadru potrzebują analizy – najpierw próby z nią, potem bez (wideo ma pierwszeństwo).
-                // Analiza podglądu dla histogramu i pomocy kadru – najpierw próby z nią, potem bez.
-                val wantVideoAnalysis = assist.any || s.histogram
-                val attempts = (if (wantVideoAnalysis) baseAttempts.take(3).map { it.copy(analysis = true) } else emptyList())
-                    .plus(baseAttempts)
-                    .distinct()
+                // Bez osobnej analizy: czwarty strumień obok podglądu, wideo i zdjęcia potrafi
+                // zawiesić sesję. Histogram i obrys liczone są wtedy z obrazu podglądu.
+                val attempts = baseAttempts.distinct()
                 var result: Camera? = null
                 var lastError: Exception? = null
                 active = ActiveSession()
@@ -621,7 +617,6 @@ class CameraEngine(private val context: Context) {
                                 .build()
                             useCases += ic
                         }
-                        if (a.analysis) useCases += buildAnalysis(aspectStrategy, histogram = s.histogram)
                         result = p.bindToLifecycle(owner, base, *useCases.toTypedArray())
                         videoCapture = vc
                         imageCapture = ic
@@ -646,15 +641,9 @@ class CameraEngine(private val context: Context) {
                     .setResolutionSelector(ResolutionSelector.Builder().setAspectRatioStrategy(aspectStrategy).build())
                     .setJpegQuality(s.jpegQuality.coerceIn(1, 100))
                     .build()
-                // Kolejne próby: zdjęcie + analiza, samo zdjęcie, sama analiza, tylko bufor wideo.
+                // Kolejne próby: z zdjęciem, potem tylko bufor wideo. Analiza – z obrazu podglądu.
                 val photo = ic
-                val combos = buildList {
-                    val wantMotionAnalysis = assist.any || s.histogram
-                    if (wantMotionAnalysis) add(listOfNotNull<UseCase>(photo, buildAnalysis(aspectStrategy, histogram = s.histogram)))
-                    add(listOfNotNull<UseCase>(photo))
-                    if (wantMotionAnalysis) add(listOf<UseCase>(buildAnalysis(aspectStrategy, histogram = s.histogram)))
-                    add(emptyList<UseCase>())
-                }
+                val combos = listOf(listOfNotNull<UseCase>(photo), emptyList())
                 var motionBound: Camera? = null
                 var motionError: Exception? = null
                 for (extra in combos) {
@@ -724,23 +713,21 @@ class CameraEngine(private val context: Context) {
                 }
                 val ic = icBuilder.build()
 
-                // Analiza: histogram, automatyczna liczba klatek nocnych i pomoce kadru.
-                val wantAnalysis = wantedExtension == null && (s.histogram || req.mode == CaptureMode.NIGHT || assist.any)
-                val analysis = if (wantAnalysis) {
-                    buildAnalysis(aspectStrategy, histogram = s.histogram || req.mode == CaptureMode.NIGHT)
-                } else {
-                    null
-                }
+                // Analiza zawsze związana (histogram, liczba klatek nocnych, pomoce kadru) – ich
+                // przełączanie nie wymaga ponownego wiązania. Bez niej, gdy kombinacja się nie mieści.
+                val analysis = if (wantedExtension == null && req.allowAnalysis) buildAnalysis(aspectStrategy) else null
                 val preview = buildPreview()
+                var withAnalysis = analysis != null
                 bound = try {
                     p.bindToLifecycle(owner, selector, *listOfNotNull<UseCase>(preview, ic, analysis).toTypedArray())
                 } catch (e: Exception) {
                     if (analysis == null) throw e
+                    withAnalysis = false
                     p.unbindAll()
                     p.bindToLifecycle(owner, selector, preview, ic)
                 }
                 imageCapture = ic
-                active = ActiveSession(extension = wantedExtension, photoFormat = format, postview = postview)
+                active = ActiveSession(extension = wantedExtension, photoFormat = format, postview = postview, analysis = withAnalysis)
             }
         }
 
