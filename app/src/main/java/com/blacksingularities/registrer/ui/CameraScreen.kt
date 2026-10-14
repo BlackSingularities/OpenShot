@@ -928,7 +928,17 @@ private fun DraggableOverlay(
     // Nowy tryb lub ekran = inna zapamiętana pozycja.
     var upright by remember(start) { mutableStateOf(start) }
     var dragPos by remember { mutableStateOf<Offset?>(null) }
-    val target = dragPos ?: uprightToScreen(upright, turn)
+    val target = dragPos ?: overlayToScreen(
+        upright = upright,
+        turn = turn,
+        area = rect,
+        photo = photo,
+        boxW = boxW,
+        boxH = boxH,
+        margin = margin,
+        availW = availW,
+        availH = availH,
+    )
     val shown by androidx.compose.animation.core.animateOffsetAsState(
         target,
         if (dragPos != null) androidx.compose.animation.core.snap() else spring(dampingRatio = 0.8f, stiffness = 400f),
@@ -953,6 +963,8 @@ private fun DraggableOverlay(
                     var raw = Offset.Zero
                     var snappedX = false
                     var snappedY = false
+                    var centeredX = false
+                    var centeredY = false
 
                     /** Przyciąganie środka nakładki do środka / krawędzi zdjęcia i krawędzi obszaru. */
                     fun magnet(p: Offset): Offset {
@@ -979,6 +991,8 @@ private fun DraggableOverlay(
                         }
                         snappedX = nowX
                         snappedY = nowY
+                        centeredX = tx == xs[0]
+                        centeredY = ty == ys[0]
                         // Linie tylko dla celów związanych ze zdjęciem (środek i krawędzie kadru).
                         guidesNow(
                             tx?.takeIf { it == xs[0] || it == xs[1] || it == xs[2] }?.let { if (it == xs[0]) it else if (it == xs[1]) ph.left else ph.right },
@@ -1003,7 +1017,20 @@ private fun DraggableOverlay(
 
                     fun begin() {
                         started = true
-                        raw = uprightToScreen(upright, turnNow)
+                        raw = overlayToScreen(
+                            upright = upright,
+                            turn = turnNow,
+                            area = rectNow,
+                            photo = photoNow,
+                            boxW = boxWNow,
+                            boxH = boxHNow,
+                            margin = margin,
+                            availW = availW,
+                            availH = availH,
+                        )
+                        val q = normalizedQuarterTurn(turnNow)
+                        centeredX = if (q % 2 == 0) isCenterAnchor(upright.x) else isCenterAnchor(upright.y)
+                        centeredY = if (q % 2 == 0) isCenterAnchor(upright.y) else isCenterAnchor(upright.x)
                         dragPos = raw
                         dragState(deletableNow, false)
                         if (hapticsNow) haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
@@ -1059,7 +1086,14 @@ private fun DraggableOverlay(
                         return@awaitEachGesture
                     }
                     // Pozycja już przyciągnięta w trakcie przeciągania – bez dodatkowego zaokrąglania.
-                    val snapped = screenToUpright(p, turnNow)
+                    var snapped = screenToUpright(p, turnNow)
+                    val q = normalizedQuarterTurn(turnNow)
+                    if (centeredX) {
+                        snapped = if (q % 2 == 0) Offset(CENTER_ANCHOR, snapped.y) else Offset(snapped.x, CENTER_ANCHOR)
+                    }
+                    if (centeredY) {
+                        snapped = if (q % 2 == 0) Offset(snapped.x, CENTER_ANCHOR) else Offset(CENTER_ANCHOR, snapped.y)
+                    }
                     upright = snapped
                     if (hapticsNow) haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.TextHandleMove)
                     commit(snapped)
@@ -1159,14 +1193,44 @@ private fun rotateUnit(p: Offset, degrees: Int): Offset {
 private fun uprightToScreen(p: Offset, turn: Int) = rotateUnit(p, turn)
 private fun screenToUpright(p: Offset, turn: Int) = rotateUnit(p, -turn)
 
+private const val CENTER_ANCHOR = 0.5f
+private const val CENTER_ANCHOR_EPSILON = 0.0001f
+
+private fun normalizedQuarterTurn(turn: Int) = (((turn / 90) % 4) + 4) % 4
+
+private fun isCenterAnchor(value: Float) = abs(value - CENTER_ANCHOR) <= CENTER_ANCHOR_EPSILON
+
+/**
+ * Zamienia pozycję zapisaną względem telefonu na ekranową, zachowując środek kadru jako
+ * zakotwiczenie, a nie zwykłą współrzędną. Dzięki temu po obrocie środek poziomy staje się
+ * dokładnie środkiem pionowym także wtedy, gdy środek kadru nie pokrywa się ze środkiem
+ * obszaru dostępnego dla nakładek.
+ */
+private fun overlayToScreen(
+    upright: Offset,
+    turn: Int,
+    area: Rect,
+    photo: Rect,
+    boxW: Float,
+    boxH: Float,
+    margin: Float,
+    availW: Float,
+    availH: Float,
+): Offset {
+    val rotated = uprightToScreen(upright, turn)
+    val centerX = ((photo.center.x - boxW / 2f - area.left - margin) / availW).coerceIn(0f, 1f)
+    val centerY = ((photo.center.y - boxH / 2f - area.top - margin) / availH).coerceIn(0f, 1f)
+    val q = normalizedQuarterTurn(turn)
+    val screenXCentered = if (q % 2 == 0) isCenterAnchor(upright.x) else isCenterAnchor(upright.y)
+    val screenYCentered = if (q % 2 == 0) isCenterAnchor(upright.y) else isCenterAnchor(upright.x)
+    return Offset(
+        if (screenXCentered) centerX else rotated.x,
+        if (screenYCentered) centerY else rotated.y,
+    )
+}
+
 /** Po tylu ms przytrzymania nakładka daje się przesuwać także bez wcześniejszego ruchu. */
 private const val OVERLAY_HOLD_MS = 280L
-
-/** Przyciąganie do krawędzi (0, 1) i środka (0,5), gdy blisko. */
-private fun snapUpright(p: Offset): Offset {
-    fun snap(v: Float) = listOf(0f, 0.5f, 1f).firstOrNull { kotlin.math.abs(it - v) < 0.1f } ?: v
-    return Offset(snap(p.x), snap(p.y))
-}
 
 /**
  * Warstwa ułożona w prostokącie kadru, obrócona o [turn] stopni. Przy obrocie o 90°/270°
@@ -1309,7 +1373,6 @@ private fun AudioPane(vm: CameraViewModel, padding: PaddingValues) {
 private fun CaptureTools(ui: Ui) {
     val vm = ui.vm
     if (vm.mode != CaptureMode.PRO) ModeQuickControl(ui, Modifier.padding(bottom = 4.dp))
-    if (vm.mode == CaptureMode.PRO) ProCaptureSwitch(vm, ui.iconRotation)
     if (vm.mode == CaptureMode.PRO && vm.cameraReady) {
         ProPanel(
             caps = vm.caps,
@@ -1347,49 +1410,55 @@ private fun CaptureTools(ui: Ui) {
             onEvRate = vm::nudgeEv,
         )
     }
-    ModeDial(
-        modes = vm.availableModes,
-        selected = vm.mode,
-        enabled = !vm.busy,
-        haptics = ui.haptics,
-        onSelect = vm::selectMode,
-    )
+    Box(Modifier.fillMaxWidth()) {
+        ModeDial(
+            modes = vm.availableModes,
+            selected = vm.mode,
+            enabled = !vm.busy,
+            haptics = ui.haptics,
+            onSelect = vm::selectMode,
+        )
+        if (vm.mode == CaptureMode.PRO) {
+            ProCaptureSwitch(
+                vm = vm,
+                rotation = ui.iconRotation,
+                modifier = Modifier.align(Alignment.TopEnd).padding(top = 5.dp, end = 8.dp),
+            )
+        }
+    }
 }
 
-/** Tryb ręczny: wyraźny przełącznik ZDJĘCIE | WIDEO nad panelem (zablokowany podczas nagrywania). */
+/** Dyskretny przełącznik zdjęcie/wideo przy pokrętle trybów (zablokowany podczas nagrywania). */
 @Composable
-private fun ProCaptureSwitch(vm: CameraViewModel, rotation: Float) {
+private fun ProCaptureSwitch(vm: CameraViewModel, rotation: Float, modifier: Modifier = Modifier) {
     val video = vm.cfg.proVideo
     Row(
-        Modifier
-            .padding(bottom = 6.dp)
+        modifier
             .clip(RoundedCornerShape(50))
-            .background(Color.Black.copy(alpha = 0.45f))
-            .padding(3.dp),
+            .background(Color.Black.copy(alpha = 0.28f))
+            .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(50))
+            .padding(2.dp),
     ) {
-        listOf(false to tr("ZDJĘCIE", "PHOTO"), true to tr("WIDEO", "VIDEO")).forEach { (isVideo, label) ->
+        listOf(false, true).forEach { isVideo ->
             val selected = video == isVideo
-            Row(
+            Box(
                 Modifier
+                    .size(27.dp)
                     .clip(RoundedCornerShape(50))
-                    .background(if (selected) (if (isVideo) Palette.Record else Color.White) else Color.Transparent)
+                    .background(
+                        if (selected) {
+                            if (isVideo) Palette.Record.copy(alpha = 0.82f) else Color.White.copy(alpha = 0.9f)
+                        } else Color.Transparent,
+                    )
                     .clickable(enabled = !vm.busy && !selected) { vm.setProVideo(isVideo) }
-                    .padding(horizontal = 14.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                    .graphicsLayer { alpha = if (vm.busy) 0.38f else 1f },
+                contentAlignment = Alignment.Center,
             ) {
                 Icon(
                     if (isVideo) Icons.Rounded.Videocam else Icons.Rounded.PhotoCamera,
-                    null,
+                    if (isVideo) tr("Tryb ręczny: wideo", "Manual mode: video") else tr("Tryb ręczny: zdjęcia", "Manual mode: photos"),
                     tint = if (selected) (if (isVideo) Color.White else Palette.Ink) else Palette.TextDim,
-                    modifier = Modifier.size(15.dp).graphicsLayer { rotationZ = rotation },
-                )
-                Spacer(Modifier.width(6.dp))
-                Text(
-                    label,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp,
-                    color = if (selected) (if (isVideo) Color.White else Palette.Ink) else Palette.TextDim,
+                    modifier = Modifier.size(14.dp).graphicsLayer { rotationZ = rotation },
                 )
             }
         }
@@ -1686,22 +1755,6 @@ private fun TopControls(ui: Ui, vertical: Boolean) {
                     active = cfg.flatProfile,
                     enabled = !vm.busy,
                     onClick = { vm.updateProfile { it.copy(flatProfile = !it.flatProfile) } },
-                )
-            }
-            if (vm.mode == CaptureMode.PRO) {
-                RoundIcon(
-                    if (cfg.proVideo) Icons.Rounded.Videocam else Icons.Rounded.PhotoCamera,
-                    if (cfg.proVideo) tr("Tryb ręczny: wideo", "Manual mode: video") else tr("Tryb ręczny: zdjęcia", "Manual mode: photos"),
-                    rot,
-                    active = cfg.proVideo,
-                    enabled = !vm.busy,
-                    options = listOf(
-                        PickerOption(tr("Tryb ręczny: zdjęcia", "Manual mode: photos"), Icons.Rounded.PhotoCamera, caption = tr("Zdjęcia", "Photos")),
-                        PickerOption(tr("Tryb ręczny: wideo", "Manual mode: video"), Icons.Rounded.Videocam, caption = tr("Wideo", "Video")),
-                    ),
-                    selected = if (cfg.proVideo) 1 else 0,
-                    onPick = { i -> vm.setProVideo(i == 1) },
-                    onClick = { vm.setProVideo(!cfg.proVideo) },
                 )
             }
             if (vm.mode == CaptureMode.PRO && !cfg.proVideo) {
