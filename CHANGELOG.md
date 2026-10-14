@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.22.1
+
+- Nakładka przyciągnięta do środka kadru zachowuje dokładnie środkową oś po obróceniu telefonu.
+- W trybie ręcznym przełącznik zdjęcie/wideo jest mniejszy, składa się tylko z ikon i znajduje się przy pokrętle trybów; usunięto jego duplikat z górnego paska.
+
 ## 2.22.0
 
 - **Górne przyciski**: dotknięcie pokazuje wszystkie dostępne opcje (lampa, samowyzwalacz, proporcje, format, rozdzielczość, klatkaż, braketowanie, ustawienia dyktafonu…) – wybierasz dotknięciem, dotknięcie obok zamyka listę. Przytrzymanie też rozwija listę: przesuń palec i puść, by wybrać jednym ruchem; puszczenie bez wyboru zostawia listę otwartą.
