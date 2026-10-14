@@ -111,6 +111,7 @@ import androidx.compose.material.icons.rounded.FlashOn
 import androidx.compose.material.icons.rounded.FlashlightOn
 import androidx.compose.material.icons.rounded.FlipToBack
 import androidx.compose.material.icons.rounded.GridOn
+import androidx.compose.material.icons.rounded.Straighten
 import androidx.compose.material.icons.rounded.Pause
 import androidx.compose.material.icons.rounded.PhotoCamera
 import androidx.compose.material.icons.rounded.PlayArrow
@@ -183,7 +184,6 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.blacksingularities.registrer.camera.CaptureMode
 import com.blacksingularities.registrer.camera.FlashSetting
 import com.blacksingularities.registrer.data.GridType
-import com.blacksingularities.registrer.data.ModeSettings
 import com.blacksingularities.registrer.data.PhotoFormat
 import com.blacksingularities.registrer.ui.components.AudioLive
 import com.blacksingularities.registrer.ui.components.AudioPlayback
@@ -709,9 +709,9 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
             }
         }
 
-        GridOverlay(vm.cfg.grids, ratio, Modifier.fillMaxSize(), centered)
+        if (vm.mode != CaptureMode.AUDIO) GridOverlay(vm.global.grids, ratio, Modifier.fillMaxSize(), centered)
         AssistOverlay({ vm.assistFrame }, rect, crop, vm.lensFacing == CameraSelector.LENS_FACING_FRONT)
-        if (vm.cfg.level && vm.mode != CaptureMode.AUDIO) {
+        if (vm.global.level && vm.mode != CaptureMode.AUDIO) {
             val gl = vm.global
             val calibration = remember(gl.levelCalX, gl.levelCalY, gl.levelCalZ) { floatArrayOf(gl.levelCalX, gl.levelCalY, gl.levelCalZ) }
             LevelOverlay(
@@ -794,7 +794,7 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
             }
         }
 
-        if (hasHistogram && vm.cfg.histogram && vm.mode != CaptureMode.AUDIO) {
+        if (hasHistogram && vm.global.histogram && vm.mode != CaptureMode.AUDIO) {
             DraggableOverlay(
                 rect = overlayArea,
                 photo = rect,
@@ -806,7 +806,7 @@ private fun PreviewArea(ui: Ui, previewView: PreviewView, centered: Boolean, rat
                 haptics = ui.haptics,
                 onCommit = { p -> vm.saveOverlayPos("histogram", screenKey, p) },
                 onDragState = dragState,
-                onDelete = { vm.updateProfile { it.copy(histogram = false) } },
+                onDelete = { vm.updateGlobal { it.copy(histogram = false) } },
             ) {
                 // Dotknięcie przełącza tryb: jasność ↔ RGB. Dane czytane tu – nowe przedziały
                 // przerysowują tylko histogram, nie cały kadr.
@@ -2228,20 +2228,21 @@ private fun Badge(text: String, mono: Boolean = false, color: Color = Color.Whit
 }
 
 /**
- * Siatki i pomoce kadru: menu z zaznaczaniem – siatki (kilka naraz), histogram i obrys ostrości
- * włączane i wyłączane tak samo, w każdym trybie z obrazem.
+ * Pomoce kadru: menu z zaznaczaniem – siatki (kilka naraz), poziomica, histogram i obrys
+ * ostrości. Ustawienia ogólne, jednakowe we wszystkich trybach z obrazem.
  */
 @Composable
 private fun GridButton(vm: CameraViewModel, rotation: Float) {
     var open by remember { mutableStateOf(false) }
-    val grids = vm.cfg.grids
-    val anyOn = grids.isNotEmpty() || vm.cfg.histogram || vm.cfg.peaking
+    val g = vm.global
+    val grids = g.grids
+    val anyOn = grids.isNotEmpty() || g.histogram || g.peaking || g.level
     Box {
-        // Siatki otwierają menu – bez dymka przy dotknięciu.
+        // Menu otwiera się dotknięciem – bez dymka.
         CompositionLocalProvider(LocalHintOnTap provides false) {
             RoundIcon(
                 Icons.Rounded.GridOn,
-                tr("Siatki i pomoce kadru", "Grids and framing aids"),
+                tr("Pomoce kadru", "Framing aids"),
                 rotation,
                 tint = if (anyOn) Color.White else Palette.TextFaint,
                 onClick = { open = true },
@@ -2254,42 +2255,37 @@ private fun GridButton(vm: CameraViewModel, rotation: Float) {
             containerColor = Color.Transparent,
             shape = RoundedCornerShape(14.dp),
         ) {
-            GridType.entries.forEach { g ->
-                val on = g in grids
-                DropdownMenuItem(
-                    modifier = Modifier.padding(vertical = 1.dp).clip(RoundedCornerShape(14.dp)).background(Color.Black.copy(alpha = 0.58f)),
-                    text = { Text(g.label, color = if (on) Palette.Amber else Color.White, fontWeight = if (on) FontWeight.Bold else FontWeight.Normal) },
-                    leadingIcon = {
-                        Icon(
-                            if (on) Icons.Rounded.CheckBox else Icons.Rounded.CheckBoxOutlineBlank,
-                            null,
-                            tint = if (on) Palette.Amber else Palette.TextDim,
-                        )
-                    },
-                    onClick = { vm.updateProfile { it.copy(grids = if (g in it.grids) it.grids - g else it.grids + g) } },
-                )
-            }
             @Composable
-            fun Toggle(label: String, on: Boolean, icon: ImageVector, flip: (ModeSettings) -> ModeSettings) {
+            fun Item(label: String, on: Boolean, icon: ImageVector?, onClick: () -> Unit) {
+                val check: @Composable () -> Unit = {
+                    Icon(if (on) Icons.Rounded.CheckBox else Icons.Rounded.CheckBoxOutlineBlank, null, tint = if (on) Palette.Amber else Palette.TextDim)
+                }
                 DropdownMenuItem(
                     modifier = Modifier.padding(vertical = 1.dp).clip(RoundedCornerShape(14.dp)).background(Color.Black.copy(alpha = 0.58f)),
                     text = { Text(label, color = if (on) Palette.Amber else Color.White, fontWeight = if (on) FontWeight.Bold else FontWeight.Normal) },
-                    leadingIcon = { Icon(icon, null, tint = if (on) Palette.Amber else Palette.TextDim) },
-                    trailingIcon = {
-                        Icon(if (on) Icons.Rounded.CheckBox else Icons.Rounded.CheckBoxOutlineBlank, null, tint = if (on) Palette.Amber else Palette.TextDim)
+                    // Siatki: samo pole wyboru; pozostałe: ikona funkcji i pole wyboru z prawej.
+                    leadingIcon = {
+                        if (icon != null) Icon(icon, null, tint = if (on) Palette.Amber else Palette.TextDim) else check()
                     },
-                    onClick = { vm.updateProfile(transform = flip) },
+                    trailingIcon = if (icon != null) check else null,
+                    onClick = onClick,
                 )
             }
-            Toggle(tr("Histogram", "Histogram"), vm.cfg.histogram, Icons.Rounded.BarChart) { it.copy(histogram = !it.histogram) }
-            Toggle(tr("Obrys ostrości", "Focus peaking"), vm.cfg.peaking, Icons.Rounded.CenterFocusWeak) { it.copy(peaking = !it.peaking) }
-            if (grids.isNotEmpty()) {
+            GridType.entries.forEach { grid ->
+                Item(grid.label, grid in grids, null) {
+                    vm.updateGlobal { it.copy(grids = if (grid in it.grids) it.grids - grid else it.grids + grid) }
+                }
+            }
+            Item(tr("Poziomica", "Level"), g.level, Icons.Rounded.Straighten) { vm.updateGlobal { it.copy(level = !it.level) } }
+            Item(tr("Histogram", "Histogram"), g.histogram, Icons.Rounded.BarChart) { vm.updateGlobal { it.copy(histogram = !it.histogram) } }
+            Item(tr("Obrys ostrości", "Focus peaking"), g.peaking, Icons.Rounded.CenterFocusWeak) { vm.updateGlobal { it.copy(peaking = !it.peaking) } }
+            if (anyOn) {
                 DropdownMenuItem(
                     modifier = Modifier.padding(vertical = 1.dp).clip(RoundedCornerShape(14.dp)).background(Color.Black.copy(alpha = 0.58f)),
                     text = { Text(tr("Wyłącz wszystkie", "Turn all off"), color = Palette.TextDim) },
                     leadingIcon = { Icon(Icons.Rounded.Close, null, tint = Palette.TextDim) },
                     onClick = {
-                        vm.updateProfile { it.copy(grids = emptySet()) }
+                        vm.updateGlobal { it.copy(grids = emptySet(), level = false, histogram = false, peaking = false) }
                         open = false
                     },
                 )

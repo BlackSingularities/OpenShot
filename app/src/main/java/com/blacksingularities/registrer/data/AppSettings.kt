@@ -209,7 +209,6 @@ enum class AudioSourceType(private val pl: String, private val en: String, priva
  * i ustawiać ją tylko dla siebie.
  */
 enum class SharedGroup(private val pl: String, private val en: String) {
-    FRAMING("Kadr", "Framing"),
     PHOTO("Zdjęcia", "Photos"),
     VIDEO("Wideo", "Video"),
     ;
@@ -219,8 +218,7 @@ enum class SharedGroup(private val pl: String, private val en: String) {
 
 /** Kopiuje wartości grupy [group] z [src]. */
 fun ModeSettings.withGroup(group: SharedGroup, src: ModeSettings): ModeSettings = when (group) {
-    SharedGroup.FRAMING -> copy(grids = src.grids, level = src.level, histogram = src.histogram, peaking = src.peaking, timerSeconds = src.timerSeconds)
-    SharedGroup.PHOTO -> copy(jpegQuality = src.jpegQuality, mirrorFront = src.mirrorFront, burst = src.burst)
+    SharedGroup.PHOTO -> copy(jpegQuality = src.jpegQuality, mirrorFront = src.mirrorFront, burst = src.burst, timerSeconds = src.timerSeconds)
     SharedGroup.VIDEO -> copy(videoAudio = src.videoAudio, stabilization = src.stabilization, bitrate = src.bitrate, cinematicZoom = src.cinematicZoom)
 }
 
@@ -229,13 +227,8 @@ fun ModeSettings.withGroup(group: SharedGroup, src: ModeSettings): ModeSettings 
  * ma własną kopię – ekran ustawień pokazuje tylko pola istotne dla danego trybu.
  */
 data class ModeSettings(
-    // kadr i nakładki
+    // kadr (siatki, poziomica, histogram i obrys ostrości są w ustawieniach ogólnych)
     val aspect: AspectRatioMode = AspectRatioMode.R4_3,
-    val grids: Set<GridType> = setOf(GridType.THIRDS),
-    val level: Boolean = true,
-    val histogram: Boolean = true,
-    /** Obrys ostrości (focus peaking) – czerwone krawędzie miejsc ostrych. */
-    val peaking: Boolean = false,
     val timerSeconds: Int = 0,
     val flash: FlashSetting = FlashSetting.OFF,
     // zdjęcia
@@ -321,15 +314,15 @@ data class ModeSettings(
 
     companion object {
         fun defaultsFor(mode: CaptureMode): ModeSettings = when (mode) {
-            CaptureMode.NIGHT -> ModeSettings(priority = CapturePriority.QUALITY, histogram = false, grids = emptySet())
-            CaptureMode.PORTRAIT -> ModeSettings(grids = emptySet(), histogram = false, priority = CapturePriority.QUALITY)
+            CaptureMode.NIGHT -> ModeSettings(priority = CapturePriority.QUALITY)
+            CaptureMode.PORTRAIT -> ModeSettings(priority = CapturePriority.QUALITY)
             CaptureMode.HDR -> ModeSettings(priority = CapturePriority.QUALITY)
-            CaptureMode.PRO -> ModeSettings(priority = CapturePriority.QUALITY, grids = setOf(GridType.THIRDS))
-            CaptureMode.VIDEO -> ModeSettings(aspect = AspectRatioMode.R16_9, histogram = false)
-            CaptureMode.SLOWMO -> ModeSettings(aspect = AspectRatioMode.R16_9, histogram = false, level = false)
-            CaptureMode.AUDIO -> ModeSettings(histogram = false, level = false, grids = emptySet())
-            CaptureMode.LONG -> ModeSettings(histogram = false)
-            CaptureMode.TIMELAPSE -> ModeSettings(aspect = AspectRatioMode.R16_9, histogram = false)
+            CaptureMode.PRO -> ModeSettings(priority = CapturePriority.QUALITY)
+            CaptureMode.VIDEO -> ModeSettings(aspect = AspectRatioMode.R16_9)
+            CaptureMode.SLOWMO -> ModeSettings(aspect = AspectRatioMode.R16_9)
+            CaptureMode.AUDIO -> ModeSettings()
+            CaptureMode.LONG -> ModeSettings()
+            CaptureMode.TIMELAPSE -> ModeSettings(aspect = AspectRatioMode.R16_9)
             CaptureMode.PHOTO -> ModeSettings()
             CaptureMode.MOTION -> ModeSettings()
         }
@@ -343,6 +336,12 @@ data class GlobalSettings(
     val volumeAction: VolumeAction = VolumeAction.SHUTTER,
     val screenRotation: ScreenRotation = ScreenRotation.FIXED,
     val exposureInfo: Boolean = true,
+    // pomoce kadru – jednakowe we wszystkich trybach z obrazem
+    val grids: Set<GridType> = setOf(GridType.THIRDS),
+    val level: Boolean = true,
+    val histogram: Boolean = true,
+    /** Obrys ostrości (focus peaking) – czerwone krawędzie miejsc ostrych. */
+    val peaking: Boolean = false,
     /** Pozycja histogramu w kadrze (0–1 w poziomie i pionie). */
     val histogramX: Float = 1f,
     val histogramY: Float = 0.12f,
@@ -396,6 +395,15 @@ class SettingsStore(context: Context) {
             volumeAction = enumOr(prefs.getString("g.volume", null), d.volumeAction),
             screenRotation = enumOr(prefs.getString("g.rotation", null), d.screenRotation),
             exposureInfo = prefs.getBoolean("g.exposureInfo", d.exposureInfo),
+            // Wcześniej pomoce kadru były w ustawieniach wspólnych trybów („SHARED.”) – przejęte stamtąd.
+            grids = loadGrids(
+                prefs.getString("g.grids", null) ?: prefs.getString("SHARED.grids", null) ?: prefs.getString("PHOTO.grids", null),
+                prefs.getString("PHOTO.grid", null),
+                d.grids,
+            ),
+            level = prefs.getBoolean("g.level", prefs.getBoolean("SHARED.level", prefs.getBoolean("PHOTO.level", d.level))),
+            histogram = prefs.getBoolean("g.histogram", prefs.getBoolean("SHARED.histogram", prefs.getBoolean("PHOTO.histogram", d.histogram))),
+            peaking = prefs.getBoolean("g.peakingOn", prefs.getBoolean("SHARED.peaking", prefs.getBoolean("g.peaking", d.peaking))),
             histogramX = prefs.getFloat("g.histX", d.histogramX),
             histogramY = prefs.getFloat("g.histY", d.histogramY),
             stripX = prefs.getFloat("g.stripX", d.stripX),
@@ -436,6 +444,10 @@ class SettingsStore(context: Context) {
             .putString("g.volume", g.volumeAction.name)
             .putString("g.rotation", g.screenRotation.name)
             .putBoolean("g.exposureInfo", g.exposureInfo)
+            .putString("g.grids", g.grids.joinToString(",") { it.name })
+            .putBoolean("g.level", g.level)
+            .putBoolean("g.histogram", g.histogram)
+            .putBoolean("g.peakingOn", g.peaking)
             .putFloat("g.histX", g.histogramX)
             .putFloat("g.histY", g.histogramY)
             .putFloat("g.stripX", g.stripX)
@@ -474,7 +486,7 @@ class SettingsStore(context: Context) {
 
     /** Ustawienia wspólne; przy pierwszym uruchomieniu – przejęte z trybu Foto. */
     fun loadShared(): ModeSettings =
-        if (prefs.contains("SHARED.level")) loadPrefix("SHARED.", ModeSettings()) else load(CaptureMode.PHOTO).copy(custom = emptySet())
+        if (prefs.contains("SHARED.custom")) loadPrefix("SHARED.", ModeSettings()) else load(CaptureMode.PHOTO).copy(custom = emptySet())
 
     fun saveShared(s: ModeSettings) = savePrefix("SHARED.", s)
 
@@ -483,11 +495,6 @@ class SettingsStore(context: Context) {
     private fun loadPrefix(k: String, d: ModeSettings): ModeSettings {
         return ModeSettings(
             aspect = enumOr(prefs.getString(k + "aspect", null), d.aspect),
-            grids = loadGrids(prefs.getString(k + "grids", null), prefs.getString(k + "grid", null), d.grids),
-            level = prefs.getBoolean(k + "level", d.level),
-            histogram = prefs.getBoolean(k + "histogram", d.histogram),
-            // Wcześniej obrys był ustawieniem ogólnym („g.peaking”) – przejęty jako domyślny.
-            peaking = prefs.getBoolean(k + "peaking", prefs.getBoolean("g.peaking", d.peaking)),
             timerSeconds = prefs.getInt(k + "timer", d.timerSeconds),
             flash = enumOr(prefs.getString(k + "flash", null), d.flash),
             photoFormat = enumOr(prefs.getString(k + "format", null), d.photoFormat),
@@ -541,10 +548,6 @@ class SettingsStore(context: Context) {
     private fun savePrefix(k: String, s: ModeSettings) {
         prefs.edit()
             .putString(k + "aspect", s.aspect.name)
-            .putString(k + "grids", s.grids.joinToString(",") { it.name })
-            .putBoolean(k + "level", s.level)
-            .putBoolean(k + "histogram", s.histogram)
-            .putBoolean(k + "peaking", s.peaking)
             .putInt(k + "timer", s.timerSeconds)
             .putString(k + "flash", s.flash.name)
             .putString(k + "format", s.photoFormat.name)

@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.24.0
+
+- **Uporządkowane ustawienia**: siatki, poziomica, histogram i obrys ostrości przeniesione do ustawień **Ogólnych** – nowa sekcja „Pomoce kadru” (razem z zebrą). Obowiązują jednakowo we wszystkich trybach z obrazem, bez osobnych kopii w każdym trybie. Opcje histogramu (widok, wielkość) i próg zebry pokazują się tylko, gdy są włączone.
+- Sekcja „Na ekranie” zmieniła nazwę na „Nakładki” (parametry, kompas, poziom dźwięku).
+- W ustawieniach trybu zostały rzeczy dotyczące samego trybu: proporcje w sekcji „Kadr”, samowyzwalacz w sekcji „Zdjęcie” (wspólny dla trybów, które jej nie odłączyły). Tryby wideo nie mają już powielonej sekcji „Kadr”.
+- Przycisk siatek w kadrze to teraz menu „Pomoce kadru”: siatki, poziomica, histogram, obrys ostrości oraz „Wyłącz wszystkie”.
+- Siatki nie są rysowane w dyktafonie.
+- Dotychczasowe ustawienia przechodzą automatycznie (z ustawień wspólnych trybów).
+
 ## 2.23.0
 
 - **Obrys ostrości jak histogram**: włączany i wyłączany osobno dla trybu (ustawienia trybu → Kadr, wspólnie dla trybów, które nie odłączyły grupy Kadr) oraz szybko z menu przycisku siatek – razem z histogramem. Działa w każdym trybie z obrazem, także w Wideo, Zwolnionym tempie, Poklatkowym, przy zdjęciach ruchomych i w trybach z rozszerzeniami producenta.

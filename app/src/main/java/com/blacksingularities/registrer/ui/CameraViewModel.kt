@@ -268,11 +268,11 @@ class CameraViewModel(app: Application) : AndroidViewModel(app) {
         get() {
             val camera = mode != CaptureMode.AUDIO
             return com.blacksingularities.registrer.camera.AssistConfig(
-                peaking = camera && cfg.peaking,
+                peaking = camera && global.peaking,
                 zebra = camera && global.zebra,
                 zebraPercent = global.zebraPercent,
                 // Noc potrzebuje histogramu do automatycznej liczby klatek, nawet gdy jest ukryty.
-                histogram = camera && (cfg.histogram || mode == CaptureMode.NIGHT),
+                histogram = camera && (global.histogram || mode == CaptureMode.NIGHT),
             )
         }
 

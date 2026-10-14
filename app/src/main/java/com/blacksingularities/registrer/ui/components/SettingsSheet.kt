@@ -375,7 +375,6 @@ private fun ModeTab(mode: CaptureMode, s: ModeSettings, caps: CameraCaps, enable
                 SwitchRow(Icons.Rounded.Mic, tr("Nagrywaj dźwięk", "Record sound"), null, s.videoAudio, enabled) { v -> change { it.copy(videoAudio = v) } }
                 SwitchRow(Icons.Rounded.ZoomIn, tr("Płynne zbliżanie", "Smooth zoom"), tr("Wolny, równy najazd podczas nagrywania", "Slow, even zoom while recording"), s.cinematicZoom) { v -> change { it.copy(cinematicZoom = v) } }
             }
-            FramingGroup(s, change, showAspect = false, showHistogram = true, showTimer = false)
         }
 
         CaptureMode.SLOWMO -> {
@@ -398,7 +397,6 @@ private fun ModeTab(mode: CaptureMode, s: ModeSettings, caps: CameraCaps, enable
                 }
                 SwitchRow(Icons.Rounded.ZoomIn, tr("Płynne zbliżanie", "Smooth zoom"), null, s.cinematicZoom) { v -> change { it.copy(cinematicZoom = v) } }
             }
-            FramingGroup(s, change, showAspect = false, showHistogram = true, showTimer = false)
         }
 
         CaptureMode.TIMELAPSE -> {
@@ -434,7 +432,6 @@ private fun ModeTab(mode: CaptureMode, s: ModeSettings, caps: CameraCaps, enable
                     change { it.copy(tlLock = v) }
                 }
             }
-            FramingGroup(s, change, showAspect = false, showHistogram = true, showTimer = false)
         }
 
         CaptureMode.AUDIO -> {
@@ -567,8 +564,13 @@ private fun ModeTab(mode: CaptureMode, s: ModeSettings, caps: CameraCaps, enable
                     }
                 }
             }
+            Group(tr("Kadr", "Framing")) {
+                Chips(Icons.Rounded.AspectRatio, tr("Proporcje", "Aspect ratio"), AspectRatioMode.entries, s.aspect, { it.label }, enabled) { v -> change { it.copy(aspect = v) } }
+                InfoRow(Icons.Rounded.GridOn, tr("Siatki, poziomica, histogram i obrys ostrości – w Ogólnych, wspólne dla wszystkich trybów", "Grids, level, histogram and focus peaking – in General, shared by all modes"))
+            }
             Group(tr("Zdjęcie", "Photo"), collapsible = true, initiallyExpanded = false) {
                 shared(SharedGroup.PHOTO)
+                Chips(Icons.Rounded.Timer, tr("Samowyzwalacz", "Self-timer"), listOf(0, 3, 5, 10), s.timerSeconds, { if (it == 0) tr("Wył.", "Off") else "$it s" }) { v -> change { it.copy(timerSeconds = v) } }
                 if (mode == CaptureMode.PHOTO || mode == CaptureMode.PRO) {
                     val formats = PhotoFormat.entries.filter { it in caps.photoFormats }
                     if (formats.size > 1) {
@@ -590,34 +592,9 @@ private fun ModeTab(mode: CaptureMode, s: ModeSettings, caps: CameraCaps, enable
                     SwitchRow(Icons.Rounded.Flip, tr("Lustrzane odbicie autoportretu", "Mirror selfies"), tr("Zapis jak w podglądzie przedniego aparatu", "Save as seen in the front camera preview"), s.mirrorFront) { v -> change { it.copy(mirrorFront = v) } }
                 }
             }
-            FramingGroup(s, change, showAspect = true, showHistogram = true, showTimer = true, enabled = enabled)
         }
     }
     if (!isPhoto && mode != CaptureMode.AUDIO && mode != CaptureMode.VIDEO && mode != CaptureMode.SLOWMO) Unit
-}
-
-@Composable
-private fun FramingGroup(
-    s: ModeSettings,
-    change: ((ModeSettings) -> ModeSettings) -> Unit,
-    showAspect: Boolean,
-    showHistogram: Boolean,
-    showTimer: Boolean,
-    enabled: Boolean = true,
-) {
-    Group(tr("Kadr", "Framing"), collapsible = true, initiallyExpanded = false) {
-        SharedSwitch(SharedGroup.FRAMING, s, change)
-        if (showAspect) Chips(Icons.Rounded.AspectRatio, tr("Proporcje", "Aspect ratio"), AspectRatioMode.entries, s.aspect, { it.label }, enabled) { v -> change { it.copy(aspect = v) } }
-        MultiChips(Icons.Rounded.GridOn, tr("Siatki", "Grids"), GridType.entries, s.grids, { it.label }) { v ->
-            change { it.copy(grids = if (v in it.grids) it.grids - v else it.grids + v) }
-        }
-        if (showTimer) Chips(Icons.Rounded.Timer, tr("Samowyzwalacz", "Self-timer"), listOf(0, 3, 5, 10), s.timerSeconds, { if (it == 0) tr("Wył.", "Off") else "$it s" }) { v -> change { it.copy(timerSeconds = v) } }
-        SwitchRow(Icons.Rounded.Straighten, tr("Poziomica", "Level"), null, s.level) { v -> change { it.copy(level = v) } }
-        if (showHistogram) {
-            SwitchRow(Icons.Rounded.BarChart, tr("Histogram na żywo", "Live histogram"), null, s.histogram) { v -> change { it.copy(histogram = v) } }
-            SwitchRow(Icons.Rounded.CenterFocusWeak, tr("Obrys ostrości", "Focus peaking"), tr("Czerwone krawędzie miejsc ostrych", "Red outline on in-focus edges"), s.peaking) { v -> change { it.copy(peaking = v) } }
-        }
-    }
 }
 
 @Composable
@@ -644,15 +621,19 @@ private fun GeneralTab(
         Hint(tr("Dźwięk migawki, sygnał samowyzwalacza i zapis miejsca w zdjęciach oraz filmach.", "Shutter sound, self-timer beep and saving the location in photos and videos."))
     }
 
-    Group(tr("Na ekranie", "On screen")) {
+    // Pomoce kadru – jednakowe we wszystkich trybach; szybko także z przycisku siatek w kadrze.
+    Group(tr("Pomoce kadru", "Framing aids")) {
         TileGrid(
             listOf(
-                Tile(Icons.Rounded.Speed, tr("Parametry", "Exposure"), g.exposureInfo) { v -> onGlobal { it.copy(exposureInfo = v) } },
-                Tile(Icons.Rounded.Explore, tr("Kompas", "Compass"), g.compass) { v -> onGlobal { it.copy(compass = v) } },
+                Tile(Icons.Rounded.Straighten, tr("Poziomica", "Level"), g.level) { v -> onGlobal { it.copy(level = v) } },
+                Tile(Icons.Rounded.BarChart, "Histogram", g.histogram) { v -> onGlobal { it.copy(histogram = v) } },
+                Tile(Icons.Rounded.CenterFocusWeak, tr("Ostrość", "Peaking"), g.peaking) { v -> onGlobal { it.copy(peaking = v) } },
                 Tile(Icons.Rounded.Gradient, "Zebra", g.zebra) { v -> onGlobal { it.copy(zebra = v) } },
-                Tile(Icons.Rounded.GraphicEq, tr("Dźwięk", "Audio"), g.audioMeter) { v -> onGlobal { it.copy(audioMeter = v) } },
             ),
         )
+        MultiChips(Icons.Rounded.GridOn, tr("Siatki", "Grids"), GridType.entries, g.grids, { it.label }) { v ->
+            onGlobal { it.copy(grids = if (v in it.grids) it.grids - v else it.grids + v) }
+        }
         if (g.zebra) {
             CompactChoice(
                 Icons.Rounded.Gradient,
@@ -663,25 +644,45 @@ private fun GeneralTab(
                 short = { "$it" },
             ) { v -> onGlobal { it.copy(zebraPercent = v) } }
         }
-        CompactChoice(
-            Icons.Rounded.BarChart,
-            "Histogram",
-            com.blacksingularities.registrer.data.HistogramMode.entries,
-            g.histogramMode,
-            label = { it.label },
-            hint = tr("włączasz go przyciskiem siatek albo w ustawieniach trybu", "turn it on with the grid button or in the mode settings"),
-        ) { v -> onGlobal { it.copy(histogramMode = v) } }
-        CompactChoice(
-            Icons.Rounded.AspectRatio,
-            tr("Wielkość histogramu", "Histogram size"),
-            com.blacksingularities.registrer.data.HistogramSize.entries,
-            g.histogramSize,
-            label = { it.label },
-            short = { it.label.take(1) },
-        ) { v -> onGlobal { it.copy(histogramSize = v) } }
+        if (g.histogram) {
+            CompactChoice(
+                Icons.Rounded.BarChart,
+                tr("Histogram", "Histogram"),
+                com.blacksingularities.registrer.data.HistogramMode.entries,
+                g.histogramMode,
+                label = { it.label },
+                hint = tr("dotknięcie histogramu też zmienia widok", "tapping the histogram also switches it"),
+            ) { v -> onGlobal { it.copy(histogramMode = v) } }
+            CompactChoice(
+                Icons.Rounded.AspectRatio,
+                tr("Wielkość histogramu", "Histogram size"),
+                com.blacksingularities.registrer.data.HistogramSize.entries,
+                g.histogramSize,
+                label = { it.label },
+                short = { it.label.take(1) },
+            ) { v -> onGlobal { it.copy(histogramSize = v) } }
+        }
         Hint(
-            tr("Zebra – paski na prześwietleniach; Dźwięk – poziom w trybie Wideo. Histogram i obrys ostrości włączasz przyciskiem siatek. ", "Zebra – stripes on overexposed areas; Audio – level in Video mode. Histogram and focus peaking are under the grid button. ") +
-                tr("Nakładki przeciągasz po kadrze; upuszczone na koszu (nad dolnym panelem) znikają.", "Drag overlays around the frame; drop them on the bin (above the bottom panel) to hide them."),
+            tr(
+                "Obowiązują we wszystkich trybach z obrazem. Ostrość – czerwony obrys miejsc ostrych; Zebra – paski na prześwietleniach. Szybko włączysz je też przyciskiem siatek w kadrze.",
+                "Apply to every camera mode. Peaking – red outline on in-focus areas; Zebra – stripes on overexposed areas. Also quick to toggle with the grid button in the viewfinder.",
+            ),
+        )
+    }
+
+    Group(tr("Nakładki", "Overlays")) {
+        TileGrid(
+            listOf(
+                Tile(Icons.Rounded.Speed, tr("Parametry", "Exposure"), g.exposureInfo) { v -> onGlobal { it.copy(exposureInfo = v) } },
+                Tile(Icons.Rounded.Explore, tr("Kompas", "Compass"), g.compass) { v -> onGlobal { it.copy(compass = v) } },
+                Tile(Icons.Rounded.GraphicEq, tr("Dźwięk", "Audio"), g.audioMeter) { v -> onGlobal { it.copy(audioMeter = v) } },
+            ),
+        )
+        Hint(
+            tr(
+                "Dźwięk – poziom w trybach wideo. Nakładki (także histogram) przeciągasz po kadrze; upuszczone na koszu nad dolnym panelem znikają.",
+                "Audio – level in video modes. Drag overlays (the histogram too) around the frame; drop them on the bin above the bottom panel to hide them.",
+            ),
         )
     }
 
@@ -752,7 +753,7 @@ private fun GeneralTab(
                     LevelStyle.CROSS -> Icons.Rounded.CenterFocusStrong
                 }
             },
-            hint = tr("włączasz ją w ustawieniach trybu", "turn it on in the mode settings"),
+            hint = tr("włączasz ją w Pomocach kadru", "turn it on in Framing aids"),
         ) { v -> onGlobal { it.copy(levelStyle = v) } }
         CompactChoice(
             Icons.Rounded.Tune,
