@@ -664,8 +664,8 @@ private fun GeneralTab(
         }
         Hint(
             tr(
-                "Obowiązują we wszystkich trybach z obrazem. Ostrość – czerwony obrys miejsc ostrych; Zebra – paski na prześwietleniach. Szybko włączysz je też przyciskiem siatek w kadrze.",
-                "Apply to every camera mode. Peaking – red outline on in-focus areas; Zebra – stripes on overexposed areas. Also quick to toggle with the grid button in the viewfinder.",
+                "Obowiązują we wszystkich trybach z obrazem. Ostrość – czerwony obrys miejsc ostrych; Zebra – paski na prześwietleniach. Siatki, poziomicę, ostrość i zebrę szybko włączysz też przyciskiem siatek w kadrze; histogram tylko tutaj.",
+                "Apply to every camera mode. Peaking – red outline on in-focus areas; Zebra – stripes on overexposed areas. Grids, level, peaking and zebra are also quick to toggle with the grid button in the viewfinder; the histogram only here.",
             ),
         )
     }
