@@ -100,7 +100,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Cameraswitch
-import androidx.compose.material.icons.rounded.BarChart
 import androidx.compose.material.icons.rounded.CenterFocusWeak
 import androidx.compose.material.icons.rounded.CheckBox
 import androidx.compose.material.icons.rounded.CheckBoxOutlineBlank
@@ -110,6 +109,7 @@ import androidx.compose.material.icons.rounded.FlashOff
 import androidx.compose.material.icons.rounded.FlashOn
 import androidx.compose.material.icons.rounded.FlashlightOn
 import androidx.compose.material.icons.rounded.FlipToBack
+import androidx.compose.material.icons.rounded.Gradient
 import androidx.compose.material.icons.rounded.GridOn
 import androidx.compose.material.icons.rounded.Straighten
 import androidx.compose.material.icons.rounded.Pause
@@ -2228,15 +2228,15 @@ private fun Badge(text: String, mono: Boolean = false, color: Color = Color.Whit
 }
 
 /**
- * Pomoce kadru: menu z zaznaczaniem – siatki (kilka naraz), poziomica, histogram i obrys
- * ostrości. Ustawienia ogólne, jednakowe we wszystkich trybach z obrazem.
+ * Pomoce kadru: menu z zaznaczaniem – siatki (kilka naraz), poziomica, obrys ostrości i zebra.
+ * Ustawienia ogólne, jednakowe we wszystkich trybach z obrazem. Histogram jest w ustawieniach.
  */
 @Composable
 private fun GridButton(vm: CameraViewModel, rotation: Float) {
     var open by remember { mutableStateOf(false) }
     val g = vm.global
     val grids = g.grids
-    val anyOn = grids.isNotEmpty() || g.histogram || g.peaking || g.level
+    val anyOn = grids.isNotEmpty() || g.peaking || g.zebra || g.level
     Box {
         // Menu otwiera się dotknięciem – bez dymka.
         CompositionLocalProvider(LocalHintOnTap provides false) {
@@ -2277,15 +2277,15 @@ private fun GridButton(vm: CameraViewModel, rotation: Float) {
                 }
             }
             Item(tr("Poziomica", "Level"), g.level, Icons.Rounded.Straighten) { vm.updateGlobal { it.copy(level = !it.level) } }
-            Item(tr("Histogram", "Histogram"), g.histogram, Icons.Rounded.BarChart) { vm.updateGlobal { it.copy(histogram = !it.histogram) } }
             Item(tr("Obrys ostrości", "Focus peaking"), g.peaking, Icons.Rounded.CenterFocusWeak) { vm.updateGlobal { it.copy(peaking = !it.peaking) } }
+            Item(tr("Zebra", "Zebra"), g.zebra, Icons.Rounded.Gradient) { vm.updateGlobal { it.copy(zebra = !it.zebra) } }
             if (anyOn) {
                 DropdownMenuItem(
                     modifier = Modifier.padding(vertical = 1.dp).clip(RoundedCornerShape(14.dp)).background(Color.Black.copy(alpha = 0.58f)),
                     text = { Text(tr("Wyłącz wszystkie", "Turn all off"), color = Palette.TextDim) },
                     leadingIcon = { Icon(Icons.Rounded.Close, null, tint = Palette.TextDim) },
                     onClick = {
-                        vm.updateGlobal { it.copy(grids = emptySet(), level = false, histogram = false, peaking = false) }
+                        vm.updateGlobal { it.copy(grids = emptySet(), level = false, peaking = false, zebra = false) }
                         open = false
                     },
                 )

@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.24.1
+
+- Menu „Pomoce kadru” pod przyciskiem siatek: siatki, poziomica, **obrys ostrości i zebra**. Histogram zniknął z menu – włącza się go w ustawieniach Ogólnych → Pomoce kadru (razem z widokiem i wielkością).
+- „Wyłącz wszystkie” wyłącza siatki, poziomicę, obrys i zebrę; histogramu nie rusza.
+
 ## 2.24.0
 
 - **Uporządkowane ustawienia**: siatki, poziomica, histogram i obrys ostrości przeniesione do ustawień **Ogólnych** – nowa sekcja „Pomoce kadru” (razem z zebrą). Obowiązują jednakowo we wszystkich trybach z obrazem, bez osobnych kopii w każdym trybie. Opcje histogramu (widok, wielkość) i próg zebry pokazują się tylko, gdy są włączone.
