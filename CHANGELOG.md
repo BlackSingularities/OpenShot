@@ -1,3 +1,7 @@
+## 2.24.3 — Author credit and support button
+
+- Settings show “Design and development: redzikowski.com” and a “Buy me a coffee” button (buycoffee.to).
+
 ## 2.24.2 — Transparent application icon
 
 - Use the transparent application mark in launcher, splash and existing branding surfaces.
