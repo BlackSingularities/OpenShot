@@ -1070,7 +1070,7 @@ private fun Credits() {
         Text("OpenShot ${UpdateManager.currentVersion}", fontSize = 11.sp, color = Palette.TextDim)
         Text(
             buildAnnotatedString {
-                append(tr("Pomysł i wykonanie: ", "Idea and development: "))
+                append(tr("Projekt i wykonanie: ", "Design and development: "))
                 withStyle(SpanStyle(color = Color.White, fontWeight = FontWeight.SemiBold, textDecoration = TextDecoration.Underline)) {
                     append("redzikowski.com")
                 }
@@ -1081,6 +1081,18 @@ private fun Credits() {
                 .clip(RoundedCornerShape(8.dp))
                 .clickable { runCatching { uriHandler.openUri("https://redzikowski.com") } }
                 .padding(horizontal = 8.dp, vertical = 4.dp),
+        )
+        Text(
+            "☕  " + tr("Postaw kawę", "Buy me a coffee"),
+            fontSize = 13.sp,
+            color = Color.Black,
+            fontWeight = FontWeight.SemiBold,
+            modifier = Modifier
+                .padding(top = 6.dp, bottom = 4.dp)
+                .clip(RoundedCornerShape(50))
+                .background(Color.White)
+                .clickable { runCatching { uriHandler.openUri("https://buycoffee.to/adamredzikowski") } }
+                .padding(horizontal = 18.dp, vertical = 10.dp),
         )
     }
 }
