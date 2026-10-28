@@ -6,7 +6,7 @@
 
 ## Pobieranie
 
-Najnowszy plik APK jest zawsze w **[Releases → Latest](../../releases/latest)**. Każdy push do `main` buduje i publikuje nową wersję automatycznie.
+Najnowszy plik APK jest zawsze w **[Releases → Latest](../../releases/latest)**. Każdy wypchnięty tag `vX.Y.Z` buduje i publikuje nową wersję automatycznie.
 
 1. Pobierz `OpenShot-x.y.z.apk` na telefon.
 2. Otwórz plik i zezwól na instalację z tego źródła.

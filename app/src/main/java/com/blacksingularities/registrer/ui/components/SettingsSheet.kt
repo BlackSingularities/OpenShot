@@ -1070,7 +1070,7 @@ private fun Credits() {
         Text("OpenShot ${UpdateManager.currentVersion}", fontSize = 11.sp, color = Palette.TextDim)
         Text(
             buildAnnotatedString {
-                append(tr("Projekt i wykonanie: ", "Design and development: "))
+                append(tr("Pomysł i wykonanie: Adam Rędzikowski · ", "Idea and development: Adam Rędzikowski · "))
                 withStyle(SpanStyle(color = Color.White, fontWeight = FontWeight.SemiBold, textDecoration = TextDecoration.Underline)) {
                     append("redzikowski.com")
                 }
