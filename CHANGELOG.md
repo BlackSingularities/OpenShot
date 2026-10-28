@@ -1,3 +1,9 @@
+## 2.24.4
+
+- Nowa strona aplikacji z opisem funkcji.
+- Jednolita informacja o autorze (Adam Rędzikowski · redzikowski.com) i przycisk „Postaw kawę”.
+- Usunięte odnośniki do repozytorium z interfejsu.
+
 ## 2.24.3 — Author credit and support button
 
 - Settings show “Design and development: redzikowski.com” and a “Buy me a coffee” button (buycoffee.to).
