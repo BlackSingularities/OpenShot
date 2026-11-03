@@ -1083,6 +1083,15 @@ private fun Credits() {
                 .padding(horizontal = 8.dp, vertical = 4.dp),
         )
         Text(
+            "kontakt@redzikowski.com",
+            fontSize = 12.sp,
+            color = Palette.TextDim,
+            modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .clickable { runCatching { uriHandler.openUri("mailto:kontakt@redzikowski.com") } }
+                .padding(horizontal = 8.dp, vertical = 4.dp),
+        )
+        Text(
             "☕  " + tr("Postaw kawę", "Buy me a coffee"),
             fontSize = 13.sp,
             color = Color.Black,
