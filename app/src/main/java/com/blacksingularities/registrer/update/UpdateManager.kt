@@ -121,10 +121,10 @@ object UpdateManager {
             if (url.isEmpty()) error(tr("Wydanie nie zawiera pliku APK", "The release has no APK file"))
             ReleaseInfo(
                 version = json.getString("tag_name").removePrefix("v"),
-                notes = json.optString("body").substringBefore("\n---").trim(),
+                notes = "",
                 apkUrl = url,
                 sizeBytes = size,
-                pageUrl = json.optString("html_url"),
+                pageUrl = "",
             )
         } finally {
             conn.disconnect()

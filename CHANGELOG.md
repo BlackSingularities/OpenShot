@@ -1,3 +1,7 @@
+## 2.24.7
+
+- Komunikat o nowej wersji bez listy zmian, linków i informacji, skąd pobierana jest aktualizacja.
+
 ## 2.24.4
 
 ## 2.24.6

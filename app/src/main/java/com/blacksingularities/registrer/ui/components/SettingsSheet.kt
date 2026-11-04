@@ -1147,17 +1147,6 @@ private fun UpdateRow(update: UpdateState, onCheck: () -> Unit, onDownload: () -
                 modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
             )
         }
-        val notes = (update as? UpdateState.Available)?.info?.notes ?: (update as? UpdateState.Ready)?.info?.notes
-        if (!notes.isNullOrBlank()) {
-            Text(
-                notes,
-                fontSize = 12.sp,
-                lineHeight = 17.sp,
-                textAlign = TextAlign.Justify,
-                color = Palette.TextDim,
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp, start = 44.dp, end = 4.dp),
-            )
-        }
     }
 }
 
