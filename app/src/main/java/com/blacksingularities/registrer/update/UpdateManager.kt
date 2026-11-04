@@ -44,7 +44,7 @@ sealed interface UpdateState {
  * system może zaktualizować ją bez dodatkowego potwierdzenia.
  */
 object UpdateManager {
-    private const val API = "https://redzikowski.com/api/github/repos/" + BuildConfig.UPDATE_REPO + "/releases/latest"
+    private const val API = "https://redzikowski.com/api/releases/repos/" + BuildConfig.UPDATE_REPO + "/releases/latest"
     const val ACTION_STATUS = "com.blacksingularities.registrer.UPDATE_STATUS"
     const val RESTART_KEY = "update.restart"
     private const val CHANNEL = "updates"
@@ -101,7 +101,7 @@ object UpdateManager {
         val conn = (URL(API).openConnection() as HttpURLConnection).apply {
             connectTimeout = 10_000
             readTimeout = 15_000
-            setRequestProperty("Accept", "application/vnd.github+json")
+            setRequestProperty("Accept", "application/json")
             setRequestProperty("User-Agent", "OpenShot/" + BuildConfig.VERSION_NAME)
         }
         try {
