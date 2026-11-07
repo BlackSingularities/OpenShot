@@ -1091,6 +1091,17 @@ private fun Credits() {
                 .clickable { runCatching { uriHandler.openUri("mailto:kontakt@redzikowski.com") } }
                 .padding(horizontal = 8.dp, vertical = 4.dp),
         )
+        com.blacksingularities.registrer.feedback.FeedbackEntry { open ->
+            Text(
+                tr("Zgłoś błąd lub sugestię", "Report a bug or suggestion"),
+                fontSize = 12.sp,
+                color = Palette.TextDim,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable { open() }
+                    .padding(horizontal = 8.dp, vertical = 4.dp),
+            )
+        }
         Text(
             "☕  " + tr("Postaw kawę", "Buy me a coffee"),
             fontSize = 13.sp,

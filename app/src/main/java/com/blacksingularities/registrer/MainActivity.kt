@@ -1,5 +1,7 @@
 package com.blacksingularities.registrer
 
+import com.blacksingularities.registrer.feedback.Feedback
+import com.blacksingularities.registrer.feedback.CrashReportPrompt
 import android.Manifest
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
@@ -35,6 +37,7 @@ open class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Feedback.install(this, "openshot")
         com.blacksingularities.registrer.i18n.Lang.apply(vm.global.language, this)
         enableEdgeToEdge()
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -63,6 +66,7 @@ open class MainActivity : ComponentActivity() {
 
         setContent {
             OpenShotTheme {
+                CrashReportPrompt()
                 // Zlecenie innej aplikacji zakończone – wynik i powrót do niej.
                 val external = vm.externalResult
                 LaunchedEffect(external) {
