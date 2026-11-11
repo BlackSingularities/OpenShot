@@ -1,0 +1,23 @@
+{
+  "slug": "openshot",
+  "name": "OpenShot",
+  "label": "aparat · kamera · dyktafon",
+  "icon": "icon.png",
+  "url": "https://redzikowski.com/portfolio/openshot",
+  "posters": [
+    {
+      "platform": "android",
+      "file": "android.png",
+      "title": "Aparat z *ręczną kontrolą*",
+      "lead": "Zdjęcia RAW, tryb nocny i HDR, ręczny tryb Pro, wideo i dyktafon nagrywający w tle – w jednej aplikacji.",
+      "shots": [
+        { "src": "../screenshots/android/01-reczny.png", "caption": "Tryb ręczny" },
+        { "src": "../screenshots/android/03-wideo.png", "caption": "Wideo" },
+        { "src": "../screenshots/android/02-dyktafon.png", "caption": "Dyktafon" },
+        { "src": "../screenshots/android/05-nagrania.png", "caption": "Nagrania" }
+      ],
+      "features": ["RAW (DNG)", "tryb nocny i HDR", "ISO i czas do 30 s", "długie naświetlanie", "poklatkowy i zwolnione tempo", "nagrywanie w tle"],
+      "meta": "Android 10 lub nowszy"
+    }
+  ]
+}

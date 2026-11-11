@@ -1,5 +1,13 @@
 # OpenShot
 
+<!-- posters:start -->
+<p align="center">
+  <img src="docs/posters/android.png" alt="OpenShot – Android" width="460">
+</p>
+
+<p align="center"><a href="https://redzikowski.com/portfolio/openshot">redzikowski.com/portfolio/openshot</a></p>
+<!-- posters:end -->
+
 **Aparat, kamera i dyktafon w jednej aplikacji na Androida** – z RAW/DNG, obliczeniowym trybem nocnym, fuzją HDR, ręcznym trybem Pro, płynnym zoomem i studiem dźwięku.
 
 [![Build & Release APK](../../actions/workflows/android.yml/badge.svg)](../../actions/workflows/android.yml)
